@@ -1,0 +1,84 @@
+name: trackparty
+description: "Plateforme mobile de découverte d'événements communautaires géolocalisés — Côte d'Ivoire"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # Network
+  dio: ^5.4.0
+  retrofit: ^4.1.0
+
+  # Maps & geo
+  google_maps_flutter: ^2.6.0
+  geolocator: ^11.0.0
+
+  # Real-time chat
+  web_socket_channel: ^2.4.0
+
+  # Push notifications
+  firebase_messaging: ^14.7.0
+  firebase_core: ^2.24.0
+
+  # Auth
+  google_sign_in: ^6.2.0
+  sign_in_with_apple: ^6.0.0
+
+  # Storage / images
+  image_picker: ^1.0.7
+  cached_network_image: ^3.3.0
+
+  # Fonts
+  google_fonts: ^6.1.0
+
+  # Secure token storage
+  flutter_secure_storage: ^9.2.2
+
+  # UX
+  flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
+  url_launcher: ^6.3.0
+
+  # Dates & locale
+  intl: ^0.20.2
+  timezone: ^0.9.4
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.9
+  retrofit_generator: ^8.1.0
+  riverpod_generator: ^2.4.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#4F46E5"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
