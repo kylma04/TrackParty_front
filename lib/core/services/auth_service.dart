@@ -26,7 +26,9 @@ class AuthService {
         return AuthResponse.fromJson(resp.data as Map<String, dynamic>);
       });
 
-  Future<AuthResponse> register({
+  /// Inscription : vérification d'email obligatoire côté back.
+  /// Aucun token n'est renvoyé — on retourne l'email pour l'écran de vérification.
+  Future<String> register({
     required String email,
     required String displayName,
     required String password,
@@ -37,7 +39,8 @@ class AuthService {
           'display_name': displayName,
           'password': password,
         });
-        return AuthResponse.fromJson(resp.data as Map<String, dynamic>);
+        final data = resp.data as Map<String, dynamic>;
+        return (data['email'] as String?) ?? email;
       });
 
   Future<void> logout(String refreshToken) => _call(() async {
@@ -58,8 +61,9 @@ class AuthService {
         await _dio.post('auth/password-reset/', data: {'email': email});
       });
 
-  Future<void> resendVerification() => _call(() async {
-        await _dio.post('auth/resend-verification/');
+  /// Renvoi du lien de vérification — endpoint public, prend l'email en body.
+  Future<void> resendVerification(String email) => _call(() async {
+        await _dio.post('auth/resend-verification/', data: {'email': email});
       });
 
   Future<AuthResponse> googleAuth(String idToken) => _call(() async {

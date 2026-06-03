@@ -49,7 +49,10 @@ final _routes = [
   GoRoute(path: '/signup', builder: (_, _) => const SignupScreen()),
   GoRoute(
     path: '/verify-email',
-    builder: (_, state) => VerifyEmailScreen(email: state.uri.queryParameters['email']),
+    builder: (_, state) => VerifyEmailScreen(
+      email: state.uri.queryParameters['email'],
+      password: state.extra as String?,
+    ),
   ),
   GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordScreen()),
 

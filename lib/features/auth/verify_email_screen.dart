@@ -11,7 +11,10 @@ import '../../widgets/tp_button.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String? email;
-  const VerifyEmailScreen({super.key, this.email});
+  // Transmis depuis login/signup (flux non authentifié) pour permettre un
+  // re-login direct une fois l'email vérifié. Null pour un user déjà connecté.
+  final String? password;
+  const VerifyEmailScreen({super.key, this.email, this.password});
 
   @override
   ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -23,10 +26,22 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _checking   = false;
   String? _checkError;
 
+  /// Email courant : celui passé à l'écran, sinon celui de l'utilisateur connecté.
+  String? get _resolvedEmail =>
+      widget.email ??
+      (ref.read(authNotifierProvider).valueOrNull is AuthAuthenticated
+          ? (ref.read(authNotifierProvider).value as AuthAuthenticated).user.email
+          : null);
+
   Future<void> _resend() async {
+    final email = _resolvedEmail;
+    if (email == null) {
+      setState(() => _checkError = 'Adresse email introuvable.');
+      return;
+    }
     setState(() { _resending = true; _resentOk = false; });
     try {
-      await ref.read(authServiceProvider).resendVerification();
+      await ref.read(authServiceProvider).resendVerification(email);
       if (mounted) setState(() { _resending = false; _resentOk = true; });
     } catch (_) {
       if (mounted) setState(() => _resending = false);
@@ -36,10 +51,27 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   Future<void> _checkVerification() async {
     setState(() { _checking = true; _checkError = null; });
     try {
+      // Flux strict (non authentifié) : on retente la connexion. Si l'email a
+      // été vérifié, le login réussit et le router redirige vers le feed.
+      if (widget.password != null && widget.email != null) {
+        await ref.read(authNotifierProvider.notifier).login(widget.email!, widget.password!);
+        if (!mounted) return;
+        if (ref.read(authNotifierProvider).valueOrNull is AuthAuthenticated) {
+          context.go('/feed');
+        } else {
+          setState(() {
+            _checking = false;
+            _checkError = 'Email pas encore vérifié. Vérifie ta boîte mail.';
+          });
+        }
+        return;
+      }
+
+      // Cas d'un utilisateur déjà connecté mais non vérifié (ex. social) :
+      // on relit le profil pour détecter la vérification.
       final user = await ref.read(authServiceProvider).getMe();
       if (!mounted) return;
       if (user.isVerified) {
-        // Update auth state so the router redirect kicks in
         await ref.read(authNotifierProvider.notifier).refreshUser();
         if (mounted) context.go('/feed');
       } else {
