@@ -106,8 +106,10 @@ class ChatMessage {
   final String id;
   final ChatUser sender;
   final String content;
-  final String messageType; // 'text', 'image', 'event_invite'
+  final String messageType; // 'text', 'image', 'voice', 'event_invite'
   final String? imageUrl;
+  final String? voiceUrl;
+  final int? voiceDuration; // secondes
   final String? eventInviteId;
   final bool isPinned;
   final DateTime createdAt;
@@ -118,6 +120,8 @@ class ChatMessage {
     required this.content,
     required this.messageType,
     this.imageUrl,
+    this.voiceUrl,
+    this.voiceDuration,
     this.eventInviteId,
     required this.isPinned,
     required this.createdAt,
@@ -129,12 +133,13 @@ class ChatMessage {
         content: j['content'] as String? ?? '',
         messageType: j['message_type'] as String? ?? 'text',
         imageUrl: j['image_url'] as String?,
+        voiceUrl: j['voice_url'] as String?,
+        voiceDuration: j['voice_duration'] as int?,
         eventInviteId: j['event_invite_id'] as String?,
         isPinned: j['is_pinned'] as bool? ?? false,
         createdAt: DateTime.parse(j['created_at'] as String),
       );
 
-  // Constructeur depuis un event WebSocket
   factory ChatMessage.fromWsEvent(Map<String, dynamic> j) => ChatMessage(
         id: j['id'] as String,
         sender: ChatUser(
@@ -143,8 +148,103 @@ class ChatMessage {
         ),
         content: j['content'] as String? ?? '',
         messageType: j['message_type'] as String? ?? 'text',
+        imageUrl: j['image_url'] as String?,
+        voiceUrl: j['voice_url'] as String?,
+        voiceDuration: j['voice_duration'] as int?,
         eventInviteId: j['event_invite_id'] as String?,
         isPinned: false,
         createdAt: DateTime.parse(j['created_at'] as String),
+      );
+
+  bool get isText        => messageType == 'text';
+  bool get isImage       => messageType == 'image';
+  bool get isVoice       => messageType == 'voice';
+  bool get isEventInvite => messageType == 'event_invite';
+}
+
+// ── Invitation ────────────────────────────────────────────────────────────────
+
+class InvitationEventInfo {
+  final String id;
+  final String title;
+  final String? coverImageUrl;
+  final DateTime startAt;
+
+  const InvitationEventInfo({
+    required this.id,
+    required this.title,
+    this.coverImageUrl,
+    required this.startAt,
+  });
+
+  factory InvitationEventInfo.fromJson(Map<String, dynamic> j) => InvitationEventInfo(
+        id: j['id'] as String,
+        title: j['title'] as String,
+        coverImageUrl: j['cover_image_url'] as String?,
+        startAt: DateTime.parse(j['start_at'] as String),
+      );
+}
+
+class InvitationModel {
+  final String id;
+  final ChatUser sender;
+  final ChatUser receiver;
+  final String invitationType; // 'event', 'dm'
+  final InvitationEventInfo? event;
+  final String status; // 'pending', 'accepted', 'refused'
+  final DateTime createdAt;
+  final DateTime? respondedAt;
+
+  const InvitationModel({
+    required this.id,
+    required this.sender,
+    required this.receiver,
+    required this.invitationType,
+    this.event,
+    required this.status,
+    required this.createdAt,
+    this.respondedAt,
+  });
+
+  factory InvitationModel.fromJson(Map<String, dynamic> j) => InvitationModel(
+        id: j['id'] as String,
+        sender: ChatUser.fromJson(j['sender'] as Map<String, dynamic>),
+        receiver: ChatUser.fromJson(j['receiver'] as Map<String, dynamic>),
+        invitationType: j['invitation_type'] as String? ?? 'event',
+        event: j['event'] != null
+            ? InvitationEventInfo.fromJson(j['event'] as Map<String, dynamic>)
+            : null,
+        status: j['status'] as String? ?? 'pending',
+        createdAt: DateTime.parse(j['created_at'] as String),
+        respondedAt: j['responded_at'] != null
+            ? DateTime.parse(j['responded_at'] as String)
+            : null,
+      );
+
+  bool get isPending  => status == 'pending';
+  bool get isAccepted => status == 'accepted';
+  bool get isRefused  => status == 'refused';
+}
+
+// ── Résultat de recherche d'utilisateurs ─────────────────────────────────────
+
+class UserSearchResult {
+  final String id;
+  final String displayName;
+  final String? avatarUrl;
+  final bool isPromoter;
+
+  const UserSearchResult({
+    required this.id,
+    required this.displayName,
+    this.avatarUrl,
+    this.isPromoter = false,
+  });
+
+  factory UserSearchResult.fromJson(Map<String, dynamic> j) => UserSearchResult(
+        id: j['id'] as String,
+        displayName: j['display_name'] as String,
+        avatarUrl: j['avatar_url'] as String?,
+        isPromoter: j['is_promoter'] as bool? ?? false,
       );
 }

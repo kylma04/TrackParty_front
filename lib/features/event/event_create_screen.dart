@@ -5,10 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'dart:async';
+
 import '../../core/api/api_exception.dart';
+import '../../core/models/chat_model.dart';
 import '../../core/services/cloudinary_service.dart';
 import '../../core/services/co_organizer_service.dart';
 import '../../core/services/event_service.dart';
+import '../../core/services/invitation_service.dart';
 import 'location_picker_screen.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -31,6 +35,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   final _capacityCtrl = TextEditingController(text: '80');
 
   String? _category;
+  String? _customCategoryLabel;
+  String? _customCategoryEmoji;
   String  _visibility  = 'public';
   // contribution_type values match backend: 'gratuit', 'nature', 'monetaire'
   String  _contribMode = 'gratuit';
@@ -51,8 +57,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String? _coverUrl;
   bool    _coverLoading = false;
 
-  // Co-organisateurs à inviter après création (liste de user_id)
-  final List<String> _pendingCoOrgIds = [];
+  // Co-organisateurs à inviter après création
+  final List<UserSearchResult> _pendingCoOrgs = [];
 
   final List<_Item> _items = [
     _Item(emoji: '🍾', label: 'Bouteille (vin/spiritueux)', qty: 50),
@@ -171,7 +177,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                                 _lng = pos.longitude;
                               });
                             }
-                            if (ctx.mounted) Navigator.pop(ctx);
+                            // Reste sur le sheet — l'utilisateur complète l'adresse
+                            if (ctx.mounted) setSheet(() => gpsLoading = false);
+                          } else {
+                            if (ctx.mounted) setSheet(() => gpsLoading = false);
                           }
                         } catch (_) {
                           if (ctx.mounted) setSheet(() => gpsLoading = false);
@@ -185,7 +194,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                       icon: PhosphorIcons.mapTrifold(),
                       label: 'Choisir sur la carte',
                       onTap: () async {
-                        Navigator.pop(ctx);
+                        // On NE ferme PAS le sheet — on pousse la carte par-dessus
                         final result = await Navigator.push<LocationPickerResult>(
                           context,
                           MaterialPageRoute(
@@ -200,6 +209,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                             _lat = result.lat;
                             _lng = result.lng;
                           });
+                          // Force le rebuild du sheet pour afficher les nouvelles coordonnées
+                          if (ctx.mounted) setSheet(() {});
                         }
                       },
                     ),
@@ -316,6 +327,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         'contribution_type': _contribMode,
         'max_participants':  _capacity,
         if (_coverUrl != null) 'cover_cloud_url': _coverUrl,
+        if (_category == 'autre' && _customCategoryLabel != null) ...{
+          'custom_category_label': _customCategoryLabel,
+          'custom_category_emoji': _customCategoryEmoji ?? '✨',
+        },
         if (_contribMode == 'nature')
           'contribution_items': _items.map((i) => {
             'name':           i.label,
@@ -327,11 +342,11 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       final event = await ref.read(eventServiceProvider).createEvent(data);
 
       // Send co-organizer invitations
-      if (_pendingCoOrgIds.isNotEmpty) {
+      if (_pendingCoOrgs.isNotEmpty) {
         final svc = ref.read(coOrganizerServiceProvider);
-        for (final userId in _pendingCoOrgIds) {
+        for (final coOrg in _pendingCoOrgs) {
           try {
-            await svc.invite(event.id, userId);
+            await svc.invite(event.id, coOrg.id);
           } catch (_) {}
         }
       }
@@ -573,6 +588,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   // ── Catégories ────────────────────────────────────────────────────────────
 
   Widget _buildCategories(BuildContext context) {
+    final isCustomActive = _category == 'autre' && _customCategoryLabel != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -580,41 +597,110 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         const SizedBox(height: 8),
         Wrap(
           spacing: 8, runSpacing: 8,
-          children: _categories.map((cat) {
-            final (key, emoji, label, color) = cat;
-            final active = _category == key;
-            return Semantics(
-              button: true,
-              label: '$emoji $label',
-              selected: active,
-              child: GestureDetector(
-                onTap: () => setState(() => _category = key),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: active ? color : context.tpCard,
-                    borderRadius: BorderRadius.circular(12),
-                    border: active ? null : Border.all(color: context.tpHair, width: 1.5),
-                    boxShadow: active
-                        ? [BoxShadow(color: color.withValues(alpha: 0.33), blurRadius: 14, offset: const Offset(0, 6))]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+          children: [
+            // Catégories prédéfinies
+            ..._categories.map((cat) {
+              final (key, emoji, label, color) = cat;
+              final active = _category == key;
+              return Semantics(
+                button: true, label: '$emoji $label', selected: active,
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _category = key;
+                    _customCategoryLabel = null;
+                    _customCategoryEmoji = null;
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: active ? color : context.tpCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: active ? null : Border.all(color: context.tpHair, width: 1.5),
+                      boxShadow: active
+                          ? [BoxShadow(color: color.withValues(alpha: 0.33), blurRadius: 14, offset: const Offset(0, 6))]
+                          : null,
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text(emoji, style: const TextStyle(fontSize: 15)),
                       const SizedBox(width: 6),
                       Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
                           color: active ? Colors.white : context.tpInk)),
-                    ],
+                    ]),
                   ),
                 ),
+              );
+            }),
+
+            // Option "Personnaliser"
+            Semantics(
+              button: true,
+              label: isCustomActive ? 'Catégorie personnalisée sélectionnée' : 'Créer une catégorie',
+              selected: isCustomActive,
+              child: GestureDetector(
+                onTap: () => _showCustomCategorySheet(context),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: isCustomActive ? trackpartyGradient : null,
+                    color: isCustomActive ? null : context.tpCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: isCustomActive
+                        ? null
+                        : Border.all(
+                            color: kPrimary.withValues(alpha: 0.4),
+                            width: 1.5,
+                            strokeAlign: BorderSide.strokeAlignInside,
+                          ),
+                    boxShadow: isCustomActive
+                        ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 14, offset: Offset(0, 6))]
+                        : null,
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(
+                      isCustomActive ? (_customCategoryEmoji ?? '✨') : '✏️',
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isCustomActive ? _customCategoryLabel! : 'Personnaliser',
+                      style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w800,
+                        color: isCustomActive ? Colors.white : kPrimary,
+                      ),
+                    ),
+                    if (isCustomActive) ...[
+                      const SizedBox(width: 4),
+                      Icon(PhosphorIcons.pencilSimple(),
+                        size: 12, color: Colors.white.withValues(alpha: 0.8)),
+                    ],
+                  ]),
+                ),
               ),
-            );
-          }).toList(),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  void _showCustomCategorySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CustomCategorySheet(
+        initialLabel: _customCategoryLabel,
+        initialEmoji: _customCategoryEmoji,
+        onConfirm: (label, emoji) {
+          setState(() {
+            _category = 'autre';
+            _customCategoryLabel = label;
+            _customCategoryEmoji = emoji;
+          });
+        },
+      ),
     );
   }
 
@@ -834,46 +920,20 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   // ── Co-organisateurs ──────────────────────────────────────────────────────
 
-  Future<void> _showAddCoOrg() async {
-    final ctrl = TextEditingController();
-    final result = await showModalBottomSheet<String>(
+  void _showAddCoOrg() {
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: context.tpCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          Sp.md, 20, Sp.md,
-          MediaQuery.of(ctx).viewInsets.bottom + Sp.md,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Inviter un co-organisateur',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: ctx.tpInk)),
-            const SizedBox(height: 6),
-            Text('Saisis l\'ID utilisateur (UUID) de la personne à inviter.',
-              style: TextStyle(fontSize: 12, color: ctx.tpInkSub)),
-            const SizedBox(height: 14),
-            _LocationField(ctrl: ctrl, label: 'ID utilisateur'),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: TpButton(
-                label: 'Inviter',
-                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              ),
-            ),
-          ],
-        ),
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CoOrgSearchSheet(
+        alreadySelected: _pendingCoOrgs.map((u) => u.id).toSet(),
+        onAdd: (user) {
+          if (!_pendingCoOrgs.any((u) => u.id == user.id)) {
+            setState(() => _pendingCoOrgs.add(user));
+          }
+        },
       ),
     );
-    if (result != null && result.isNotEmpty && !_pendingCoOrgIds.contains(result)) {
-      setState(() => _pendingCoOrgIds.add(result));
-    }
   }
 
   Widget _buildCoOrganizers(BuildContext context) {
@@ -916,7 +976,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               ),
             ],
           ),
-          if (_pendingCoOrgIds.isEmpty) ...[
+          if (_pendingCoOrgs.isEmpty) ...[
             const SizedBox(height: 10),
             Text('Aucun co-organisateur ajouté.',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
@@ -924,9 +984,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             const SizedBox(height: 10),
             Wrap(
               spacing: 8, runSpacing: 8,
-              children: _pendingCoOrgIds.map((id) => _CoOrgChip(
-                userId: id,
-                onRemove: () => setState(() => _pendingCoOrgIds.remove(id)),
+              children: _pendingCoOrgs.map((user) => _CoOrgChip(
+                user: user,
+                onRemove: () => setState(() => _pendingCoOrgs.remove(user)),
               )).toList(),
             ),
             const SizedBox(height: 6),
@@ -973,90 +1033,27 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Dialog ajout/édition item ─────────────────────────────────────────────
+  // ── Bottom sheet ajout/édition item ──────────────────────────────────────
 
   void _showItemDialog({int? editIndex}) {
-    final existing  = editIndex != null ? _items[editIndex] : null;
-    final labelCtrl = TextEditingController(text: existing?.label ?? '');
-    final qtyCtrl   = TextEditingController(text: '${existing?.qty ?? 5}');
-    final emojis    = ['🎁', '🍾', '🍰', '🎧', '🍕', '🎤', '🥂', '🎸'];
-    String selectedEmoji = existing?.emoji ?? '🎁';
-
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(editIndex != null ? 'Modifier l\'item' : 'Ajouter un item',
-            style: const TextStyle(fontWeight: FontWeight.w900)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Emoji picker
-              Wrap(
-                spacing: 8, runSpacing: 8,
-                children: emojis.map((e) => GestureDetector(
-                  onTap: () => setDlg(() => selectedEmoji = e),
-                  child: Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: selectedEmoji == e ? kPrimary.withValues(alpha: 0.12) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: selectedEmoji == e ? Border.all(color: kPrimary, width: 2) : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(e, style: const TextStyle(fontSize: 20)),
-                  ),
-                )).toList(),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: labelCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: 'Item (ex: Bouteille de vin)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: qtyCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Quantité max'),
-              ),
-            ],
-          ),
-          actions: [
-            if (editIndex != null)
-              TextButton(
-                onPressed: () {
-                  setState(() => _items.removeAt(editIndex));
-                  Navigator.pop(ctx);
-                },
-                child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
-              ),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-            TextButton(
-              onPressed: () {
-                if (labelCtrl.text.trim().isNotEmpty) {
-                  final item = _Item(
-                    emoji: selectedEmoji,
-                    label: labelCtrl.text.trim(),
-                    qty: int.tryParse(qtyCtrl.text) ?? 5,
-                  );
-                  setState(() {
-                    if (editIndex != null) {
-                      _items[editIndex] = item;
-                    } else {
-                      _items.add(item);
-                    }
-                  });
-                  Navigator.pop(ctx);
-                }
-              },
-              child: Text(editIndex != null ? 'Enregistrer' : 'Ajouter',
-                style: const TextStyle(color: kPrimary, fontWeight: FontWeight.w800)),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ItemSheet(
+        initial: editIndex != null ? _items[editIndex] : null,
+        onSave: (item) {
+          setState(() {
+            if (editIndex != null) {
+              _items[editIndex] = item;
+            } else {
+              _items.add(item);
+            }
+          });
+        },
+        onDelete: editIndex != null
+            ? () => setState(() => _items.removeAt(editIndex))
+            : null,
       ),
     );
   }
@@ -1065,6 +1062,565 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 // ════════════════════════════════════════════════════════════════════════════
 // Composants locaux
 // ════════════════════════════════════════════════════════════════════════════
+
+// ── Sheet catégorie personnalisée ─────────────────────────────────────────────
+
+class _CustomCategorySheet extends StatefulWidget {
+  final String? initialLabel;
+  final String? initialEmoji;
+  final void Function(String label, String emoji) onConfirm;
+
+  const _CustomCategorySheet({
+    this.initialLabel,
+    this.initialEmoji,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_CustomCategorySheet> createState() => _CustomCategorySheetState();
+}
+
+class _CustomCategorySheetState extends State<_CustomCategorySheet> {
+  late final TextEditingController _labelCtrl;
+  late final TextEditingController _emojiCtrl;
+  final FocusNode _emojiFocus = FocusNode();
+  final FocusNode _labelFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _labelCtrl = TextEditingController(text: widget.initialLabel ?? '');
+    _emojiCtrl = TextEditingController(text: widget.initialEmoji ?? '');
+  }
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    _emojiCtrl.dispose();
+    _emojiFocus.dispose();
+    _labelFocus.dispose();
+    super.dispose();
+  }
+
+  String get _preview {
+    final t = _emojiCtrl.text.trim();
+    return t.isEmpty ? '✨' : t;
+  }
+
+  void _confirm() {
+    final label = _labelCtrl.text.trim();
+    if (label.isEmpty) return;
+    widget.onConfirm(label, _emojiCtrl.text.trim().isEmpty ? '✨' : _emojiCtrl.text.trim());
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 44, height: 5,
+                  decoration: BoxDecoration(
+                    color: context.tpHair,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Text('Créer une catégorie',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                    color: context.tpInk, letterSpacing: -0.5)),
+              const SizedBox(height: 4),
+              Text('Choisis un emoji et donne un nom à ta catégorie.',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+              const SizedBox(height: 20),
+
+              // Emoji preview + champ
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () => _emojiFocus.requestFocus(),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 76, height: 76,
+                      decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _emojiFocus.hasFocus
+                              ? kPrimary
+                              : kPrimary.withValues(alpha: 0.18),
+                          width: 2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Text(
+                          _preview,
+                          key: ValueKey(_preview),
+                          style: const TextStyle(fontSize: 40),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('EMOJI', style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w900,
+                          color: context.tpInkSub, letterSpacing: 0.5,
+                        )),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: context.tpBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: context.tpHair),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _emojiCtrl,
+                                  focusNode: _emojiFocus,
+                                  style: const TextStyle(fontSize: 24, height: 1.2),
+                                  textInputAction: TextInputAction.next,
+                                  onChanged: (_) => setState(() {}),
+                                  onSubmitted: (_) => _labelFocus.requestFocus(),
+                                  decoration: InputDecoration(
+                                    hintText: '😀',
+                                    hintStyle: TextStyle(fontSize: 24, color: context.tpInkMute),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ),
+                              Icon(Icons.emoji_emotions_outlined,
+                                color: context.tpInkMute, size: 20),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Utilise le clavier emoji de ton téléphone',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                              color: context.tpInkMute),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              Text('NOM DE LA CATÉGORIE', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w900,
+                color: context.tpInkSub, letterSpacing: 0.5,
+              )),
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: context.tpBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: context.tpHair),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: TextField(
+                  controller: _labelCtrl,
+                  focusNode: _labelFocus,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.tpInk),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _confirm(),
+                  decoration: InputDecoration(
+                    hintText: 'ex: Mariage, Graduation, Gaming…',
+                    hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              AnimatedBuilder(
+                animation: _labelCtrl,
+                builder: (_, __) => TpButton(
+                  label: 'Créer "${_labelCtrl.text.trim().isEmpty ? '…' : _labelCtrl.text.trim()}"',
+                  icon: PhosphorIcons.check(),
+                  state: _labelCtrl.text.trim().isEmpty ? TpButtonState.disabled : TpButtonState.idle,
+                  onPressed: _labelCtrl.text.trim().isEmpty ? null : _confirm,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sheet ajout/édition item de contribution ─────────────────────────────────
+
+class _ItemSheet extends StatefulWidget {
+  final _Item? initial;
+  final void Function(_Item) onSave;
+  final VoidCallback? onDelete;
+
+  const _ItemSheet({this.initial, required this.onSave, this.onDelete});
+
+  @override
+  State<_ItemSheet> createState() => _ItemSheetState();
+}
+
+class _ItemSheetState extends State<_ItemSheet> {
+  late final TextEditingController _emojiCtrl;
+  late final TextEditingController _labelCtrl;
+  late int _qty;
+  final FocusNode _emojiFocus = FocusNode();
+  final FocusNode _labelFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _emojiCtrl = TextEditingController(text: widget.initial?.emoji ?? '');
+    _labelCtrl = TextEditingController(text: widget.initial?.label ?? '');
+    _qty = widget.initial?.qty ?? 5;
+  }
+
+  @override
+  void dispose() {
+    _emojiCtrl.dispose();
+    _labelCtrl.dispose();
+    _emojiFocus.dispose();
+    _labelFocus.dispose();
+    super.dispose();
+  }
+
+  String get _preview {
+    final t = _emojiCtrl.text.trim();
+    return t.isEmpty ? '❓' : t;
+  }
+
+  void _setQty(int v) => setState(() => _qty = v.clamp(1, 9999));
+
+  void _save() {
+    final label = _labelCtrl.text.trim();
+    final emoji = _emojiCtrl.text.trim();
+    if (label.isEmpty) return;
+    widget.onSave(_Item(
+      emoji: emoji.isEmpty ? '🎁' : emoji,
+      label: label,
+      qty:   _qty,
+    ));
+    Navigator.pop(context);
+  }
+
+  void _delete() {
+    widget.onDelete?.call();
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit  = widget.initial != null;
+    final bottom  = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 44, height: 5,
+                  decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(3)),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Titre
+              Text(
+                isEdit ? 'Modifier l\'item' : 'Ajouter un item',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                    color: context.tpInk, letterSpacing: -0.5),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Aperçu emoji + champ ────────────────────────────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Grand aperçu (appuie → focus sur le champ)
+                  GestureDetector(
+                    onTap: () => _emojiFocus.requestFocus(),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 76, height: 76,
+                      decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _emojiFocus.hasFocus
+                              ? kPrimary
+                              : kPrimary.withValues(alpha: 0.18),
+                          width: 2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Text(
+                          _preview,
+                          key: ValueKey(_preview),
+                          style: const TextStyle(fontSize: 40),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 14),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('EMOJI', style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w900,
+                          color: context.tpInkSub, letterSpacing: 0.5,
+                        )),
+                        const SizedBox(height: 6),
+
+                        // Champ emoji
+                        Container(
+                          decoration: BoxDecoration(
+                            color: context.tpBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: context.tpHair),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _emojiCtrl,
+                                  focusNode: _emojiFocus,
+                                  style: const TextStyle(fontSize: 24, height: 1.2),
+                                  keyboardType: TextInputType.text,
+                                  textInputAction: TextInputAction.next,
+                                  onChanged: (_) => setState(() {}),
+                                  onSubmitted: (_) => _labelFocus.requestFocus(),
+                                  decoration: InputDecoration(
+                                    hintText: '😀',
+                                    hintStyle: TextStyle(fontSize: 24, color: context.tpInkMute),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                  // Pas de maxLength : un emoji peut valoir plusieurs code units
+                                ),
+                              ),
+                              Icon(Icons.emoji_emotions_outlined,
+                                color: context.tpInkMute, size: 20),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+                        Text(
+                          'Utilise le clavier emoji de ton téléphone 😊',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                              color: context.tpInkMute),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Nom de l'item ────────────────────────────────────────────
+              Text('NOM DE L\'ITEM', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w900,
+                color: context.tpInkSub, letterSpacing: 0.5,
+              )),
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: context.tpBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: context.tpHair),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: TextField(
+                  controller: _labelCtrl,
+                  focusNode: _labelFocus,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInk),
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    hintText: 'ex: Bouteille de vin, Snacks, DJ set…',
+                    hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Quantité ─────────────────────────────────────────────────
+              Text('QUANTITÉ MAX', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w900,
+                color: context.tpInkSub, letterSpacing: 0.5,
+              )),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: context.tpBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: context.tpHair),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    _QtyBtn(
+                      label: '−',
+                      enabled: _qty > 1,
+                      onTap: () => _setQty(_qty - 1),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          '$_qty',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
+                              color: context.tpInk, letterSpacing: -0.5),
+                        ),
+                      ),
+                    ),
+                    _QtyBtn(
+                      label: '+',
+                      enabled: _qty < 9999,
+                      onTap: () => _setQty(_qty + 1),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Actions ──────────────────────────────────────────────────
+              Row(
+                children: [
+                  if (widget.onDelete != null) ...[
+                    Semantics(
+                      button: true,
+                      label: 'Supprimer cet item',
+                      child: GestureDetector(
+                        onTap: _delete,
+                        child: Container(
+                          height: 50,
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          decoration: BoxDecoration(
+                            color: kError.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Center(
+                            child: Text('Supprimer',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kError)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: TpButton(
+                      label: isEdit ? 'Enregistrer' : 'Ajouter',
+                      icon: isEdit ? PhosphorIcons.check() : PhosphorIcons.plus(),
+                      onPressed: _save,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QtyBtn extends StatelessWidget {
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _QtyBtn({required this.label, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        width: 44, height: 44,
+        decoration: BoxDecoration(
+          gradient: enabled ? trackpartyGradient : null,
+          color: enabled ? null : context.tpHair,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 22, fontWeight: FontWeight.w900,
+            color: enabled ? Colors.white : context.tpInkMute,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SectionLabel extends StatelessWidget {
   final String text;
@@ -1328,35 +1884,272 @@ class _ItemRow extends StatelessWidget {
 }
 
 class _CoOrgChip extends StatelessWidget {
-  final String userId;
+  final UserSearchResult user;
   final VoidCallback onRemove;
-  const _CoOrgChip({required this.userId, required this.onRemove});
+  const _CoOrgChip({required this.user, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
-    final short = userId.length > 8 ? '${userId.substring(0, 8)}…' : userId;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(6, 6, 10, 6),
       decoration: BoxDecoration(
         color: kPrimary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const TpAvatar(name: '?', size: 20),
-          const SizedBox(width: 6),
-          Text(short, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
-          const SizedBox(width: 6),
+          TpAvatar(name: user.displayName, imageUrl: user.avatarUrl, size: 24),
+          const SizedBox(width: 8),
+          Text(user.displayName,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+          if (user.isPromoter) ...[
+            const SizedBox(width: 4),
+            const Text('⭐', style: TextStyle(fontSize: 10)),
+          ],
+          const SizedBox(width: 8),
           Semantics(
             button: true,
-            label: 'Retirer ce co-organisateur',
+            label: 'Retirer ${user.displayName}',
             child: GestureDetector(
               onTap: onRemove,
               child: Icon(PhosphorIcons.x(), color: kPrimary, size: 14),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Recherche de co-organisateurs ─────────────────────────────────────────────
+
+class _CoOrgSearchSheet extends ConsumerStatefulWidget {
+  final Set<String> alreadySelected;
+  final void Function(UserSearchResult) onAdd;
+
+  const _CoOrgSearchSheet({
+    required this.alreadySelected,
+    required this.onAdd,
+  });
+
+  @override
+  ConsumerState<_CoOrgSearchSheet> createState() => _CoOrgSearchSheetState();
+}
+
+class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
+  final _ctrl = TextEditingController();
+  Timer? _debounce;
+  List<UserSearchResult> _results = [];
+  bool _searching = false;
+  final Set<String> _justAdded = {};
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearch(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () => _search(q));
+  }
+
+  Future<void> _search(String q) async {
+    if (q.trim().length < 2) {
+      setState(() { _results = []; _searching = false; });
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final res = await ref.read(invitationServiceProvider).searchUsers(q.trim());
+      if (mounted) setState(() { _results = res; _searching = false; });
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  void _add(UserSearchResult user) {
+    widget.onAdd(user);
+    setState(() => _justAdded.add(user.id));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${user.displayName} ajouté comme co-organisateur ✓'),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: kSuccess,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        Sp.md, 12, Sp.md,
+        Sp.md + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 44, height: 5,
+                decoration: BoxDecoration(
+                  color: context.tpHair,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Titre
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Inviter un co-organisateur',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                            color: context.tpInk, letterSpacing: -0.5)),
+                      const SizedBox(height: 2),
+                      Text('Recherche par nom ou email',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                            color: context.tpInkSub)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Champ de recherche
+            Container(
+              decoration: BoxDecoration(
+                color: context.tpBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: context.tpHair),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(PhosphorIcons.magnifyingGlass(), color: context.tpInkMute, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      autofocus: true,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                      decoration: InputDecoration(
+                        hintText: 'Nom ou adresse email…',
+                        hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute, fontWeight: FontWeight.w500),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onChanged: _onSearch,
+                    ),
+                  ),
+                  if (_searching)
+                    const SizedBox(
+                      width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Résultats
+            if (_results.isEmpty && _ctrl.text.length >= 2 && !_searching)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('Aucun utilisateur trouvé',
+                  style: TextStyle(fontSize: 14, color: context.tpInkSub,
+                      fontWeight: FontWeight.w600)),
+              )
+            else if (_results.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text('Tape un nom ou un email pour chercher…',
+                  style: TextStyle(fontSize: 13, color: context.tpInkMute,
+                      fontWeight: FontWeight.w600)),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.40,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _results.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: context.tpHair),
+                  itemBuilder: (_, i) {
+                    final user    = _results[i];
+                    final added   = _justAdded.contains(user.id) ||
+                        widget.alreadySelected.contains(user.id);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          TpAvatar(
+                            name: user.displayName,
+                            imageUrl: user.avatarUrl,
+                            size: 44,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(user.displayName,
+                                  style: TextStyle(fontSize: 14,
+                                      fontWeight: FontWeight.w900, color: context.tpInk)),
+                                if (user.isPromoter)
+                                  Text('⭐ Promoteur',
+                                    style: TextStyle(fontSize: 11,
+                                        fontWeight: FontWeight.w700, color: kPrimary)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: added ? null : () => _add(user),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: added ? null : trackpartyGradient,
+                                color: added ? context.tpHair : null,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                added ? '✓ Ajouté' : 'Ajouter',
+                                style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w800,
+                                  color: added ? context.tpInkMute : Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

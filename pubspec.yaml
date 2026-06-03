@@ -39,9 +39,15 @@ dependencies:
   google_sign_in: ^6.2.0
   sign_in_with_apple: ^6.0.0
 
-  # Storage / images
+  # Storage / images / media
+  path_provider: ^2.1.0
   image_picker: ^1.0.7
   cached_network_image: ^3.3.0
+  record: 6.2.0
+  audioplayers: ^6.0.0
+
+  # WebRTC (appels audio/vidéo)
+  flutter_webrtc: ^1.4.0
 
   # Fonts
   google_fonts: ^6.1.0
@@ -60,6 +66,9 @@ dependencies:
   timezone: ^0.9.4
 
   cupertino_icons: ^1.0.8
+
+dependency_overrides:
+  record_platform_interface: 1.5.0
 
 dev_dependencies:
   flutter_test:

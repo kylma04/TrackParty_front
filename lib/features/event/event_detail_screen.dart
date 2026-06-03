@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+import '../../core/models/chat_model.dart';
 import '../../core/models/event_model.dart';
 import '../../core/providers/event_provider.dart';
+import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -13,7 +19,6 @@ import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_badge.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_photo.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
   final String id;
@@ -479,6 +484,23 @@ class _EventDetailContentState extends State<_EventDetailContent> {
                 ),
               ),
               const SizedBox(width: Sp.sm),
+              Semantics(
+                button: true,
+                label: 'Inviter un ami',
+                child: GestureDetector(
+                  onTap: () => _showInviteSheet(context),
+                  child: Container(
+                    width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: context.tpHair),
+                    ),
+                    child: Icon(PhosphorIcons.userPlus(), color: kAccent, size: 22),
+                  ),
+                ),
+              ),
+              const SizedBox(width: Sp.sm),
               Expanded(
                 child: TpButton(
                   label: label,
@@ -514,6 +536,18 @@ class _EventDetailContentState extends State<_EventDetailContent> {
           Navigator.pop(context);
           widget.onParticipate(itemId, qty);
         },
+      ),
+    );
+  }
+
+  void _showInviteSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _InviteSheet(
+        eventId: event.id,
+        eventTitle: event.title,
       ),
     );
   }
@@ -871,6 +905,212 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
               onPressed: _selectedId == null ? null : () => widget.onConfirm(_selectedId!, _qty),
             ),
             const SizedBox(height: Sp.lg),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Minimap ───────────────────────────────────────────────────────────────────
+
+// ── Invite sheet ──────────────────────────────────────────────────────────────
+
+class _InviteSheet extends ConsumerStatefulWidget {
+  final String eventId;
+  final String eventTitle;
+  const _InviteSheet({required this.eventId, required this.eventTitle});
+
+  @override
+  ConsumerState<_InviteSheet> createState() => _InviteSheetState();
+}
+
+class _InviteSheetState extends ConsumerState<_InviteSheet> {
+  final _searchCtrl  = TextEditingController();
+  List<UserSearchResult> _results = [];
+  bool _searching    = false;
+  String? _sending;   // userId being invited
+  Set<String> _done  = {};
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearch(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () => _search(q));
+  }
+
+  Future<void> _search(String q) async {
+    if (q.trim().length < 2) {
+      setState(() { _results = []; _searching = false; });
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final results = await ref.read(invitationServiceProvider).searchUsers(q.trim());
+      if (mounted) setState(() { _results = results; _searching = false; });
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _invite(UserSearchResult user) async {
+    if (_sending != null || _done.contains(user.id)) return;
+    setState(() => _sending = user.id);
+    try {
+      await ref.read(invitationServiceProvider).sendInvitation(
+        receiverId: user.id,
+        eventId: widget.eventId,
+      );
+      if (mounted) {
+        setState(() {
+          _sending = null;
+          _done.add(user.id);
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _sending = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        Sp.md, 12, Sp.md,
+        Sp.md + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44, height: 5,
+              decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(3)),
+            ),
+            const SizedBox(height: 16),
+            Text('Inviter un ami', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                color: context.tpInk, letterSpacing: -0.5)),
+            const SizedBox(height: 4),
+            Text(widget.eventTitle, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                color: context.tpInkSub), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 16),
+
+            // Search field
+            Container(
+              decoration: BoxDecoration(
+                color: context.tpBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: context.tpHair),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(PhosphorIcons.magnifyingGlass(), color: context.tpInkMute, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      autofocus: true,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                      decoration: InputDecoration(
+                        hintText: 'Recherche par nom…',
+                        hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute, fontWeight: FontWeight.w500),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onChanged: _onSearch,
+                    ),
+                  ),
+                  if (_searching)
+                    const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Results
+            if (_results.isEmpty && !_searching && _searchCtrl.text.length >= 2)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text('Aucun utilisateur trouvé',
+                  style: TextStyle(fontSize: 14, color: context.tpInkSub, fontWeight: FontWeight.w600)),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.35,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _results.length,
+                  itemBuilder: (_, i) {
+                    final user    = _results[i];
+                    final invited = _done.contains(user.id);
+                    final sending = _sending == user.id;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          TpAvatar(name: user.displayName, imageUrl: user.avatarUrl, size: 44),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(user.displayName, style: TextStyle(fontSize: 14,
+                                    fontWeight: FontWeight.w900, color: context.tpInk)),
+                                if (user.isPromoter)
+                                  Text('Promoteur', style: TextStyle(fontSize: 11,
+                                      fontWeight: FontWeight.w700, color: kPrimary)),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: invited || sending ? null : () => _invite(user),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: invited ? null : trackpartyGradient,
+                                color: invited ? context.tpHair : null,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: sending
+                                  ? const SizedBox(
+                                      width: 16, height: 16,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                  : Text(
+                                      invited ? '✓ Invité' : 'Inviter',
+                                      style: TextStyle(
+                                        fontSize: 13, fontWeight: FontWeight.w800,
+                                        color: invited ? context.tpInkMute : Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

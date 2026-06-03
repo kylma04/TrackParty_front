@@ -47,6 +47,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TrackParty a besoin du microphone pour les notes vocales et les appels.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>TrackParty a besoin de la caméra pour les appels vidéo.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

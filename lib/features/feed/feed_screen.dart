@@ -22,6 +22,9 @@ class FeedScreen extends ConsumerStatefulWidget {
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   int _filterIndex = 0;
+  final _searchCtrl  = TextEditingController();
+  final _searchFocus = FocusNode();
+  String _searchQuery = '';
 
   static const _chips = ['Tous ✨', 'Ce soir 🌙', 'Weekend 🎉', 'Gratuit 💸'];
 
@@ -37,6 +40,30 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   }
 
   String? get _contribFilter => _filterIndex == 3 ? 'free' : null;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  bool get _isSearching => _searchQuery.isNotEmpty;
+
+  List<EventModel> _runSearch(List<EventModel> nearby, List<EventModel> trending) {
+    final q     = _searchQuery.toLowerCase().trim();
+    final seen  = <String>{};
+    final all   = [...nearby, ...trending]
+        .where((e) => seen.add(e.id))
+        .toList();
+    return all.where((e) =>
+      e.title.toLowerCase().contains(q) ||
+      e.city.toLowerCase().contains(q) ||
+      e.quartier.toLowerCase().contains(q) ||
+      e.organizerName.toLowerCase().contains(q) ||
+      e.displayCategoryName.toLowerCase().contains(q),
+    ).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,14 +117,44 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         decoration: BoxDecoration(
                           color: context.tpCard,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: context.tpHair),
+                          border: Border.all(
+                            color: _searchFocus.hasFocus
+                                ? kPrimary.withValues(alpha: 0.5)
+                                : context.tpHair,
+                          ),
                         ),
                         padding: const EdgeInsets.symmetric(horizontal: Sp.md),
                         child: Row(
                           children: [
-                            Icon(PhosphorIcons.magnifyingGlass(), color: context.tpInkMute, size: 20),
+                            Icon(PhosphorIcons.magnifyingGlass(),
+                              color: _isSearching ? kPrimary : context.tpInkMute,
+                              size: 20),
                             const SizedBox(width: Sp.sm),
-                            Text('Recherche un event…', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchCtrl,
+                                focusNode: _searchFocus,
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                                decoration: InputDecoration(
+                                  hintText: 'Recherche un event…',
+                                  hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                                onChanged: (v) => setState(() => _searchQuery = v),
+                                textInputAction: TextInputAction.search,
+                              ),
+                            ),
+                            if (_isSearching)
+                              GestureDetector(
+                                onTap: () {
+                                  _searchCtrl.clear();
+                                  _searchFocus.unfocus();
+                                  setState(() => _searchQuery = '');
+                                },
+                                child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
+                              ),
                           ],
                         ),
                       ),
@@ -107,97 +164,170 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: TpFilterChipRow(
-                labels: _chips,
-                activeIndex: _filterIndex,
-                onChanged: (i) => setState(() => _filterIndex = i),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Près de toi', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
-                    Text('Voir tout', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
-                  ],
+            // Chips de filtre (masquées pendant la recherche)
+            if (!_isSearching)
+              SliverToBoxAdapter(
+                child: TpFilterChipRow(
+                  labels: _chips,
+                  activeIndex: _filterIndex,
+                  onChanged: (i) => setState(() => _filterIndex = i),
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 280,
-                child: nearbyAsync.when(
-                  loading: () => _HorizontalSkeleton(),
-                  error: (_, _) => _ErrorHint(onRetry: () => ref.read(nearbyEventsFeedProvider.notifier).refresh()),
-                  data: (events) {
-                    final filtered = _applyFilter(events);
-                    if (filtered.isEmpty) {
-                      return Center(child: Text('Aucun event pour le moment 😔', style: TextStyle(color: context.tpInkSub, fontSize: 14, fontWeight: FontWeight.w600)));
-                    }
-                    return ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final event = filtered[i];
-                        return Semantics(
-                          button: true,
-                          label: 'Voir ${event.title}',
-                          child: GestureDetector(
-                            onTap: () => context.push('/event/${event.id}'),
-                            child: _EventCard(event: event),
+
+            // ── MODE RECHERCHE ─────────────────────────────────────────────
+            if (_isSearching)
+              nearbyAsync.when(
+                loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                error:   (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                data: (nearby) => trendingAsync.when(
+                  loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error:   (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  data: (trending) {
+                    final results = _runSearch(nearby, trending);
+                    if (results.isEmpty) {
+                      return SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🔍', style: TextStyle(fontSize: 48)),
+                              const SizedBox(height: 12),
+                              Text('Aucun résultat pour « $_searchQuery »',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
+                              const SizedBox(height: 4),
+                              Text('Essaie un autre nom, quartier ou catégorie.',
+                                style: TextStyle(fontSize: 13, color: context.tpInkSub)),
+                            ],
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    }
+                    return SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) {
+                          final event = results[i];
+                          return Semantics(
+                            button: true,
+                            label: 'Voir ${event.title}',
+                            child: GestureDetector(
+                              onTap: () => context.push('/event/${event.id}'),
+                              child: _TrendRow(event: event, rank: i + 1),
+                            ),
+                          );
+                        },
+                        childCount: results.length,
+                      ),
                     );
                   },
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('🔥 Tendances', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
-                    Text('Voir tout', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
-                  ],
+
+            // ── MODE NORMAL ────────────────────────────────────────────────
+            if (!_isSearching) ...[
+              const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
+              // Section "Près de toi"
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Près de toi', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
+                      Semantics(
+                        button: true,
+                        label: 'Voir tous les events sur la carte',
+                        child: GestureDetector(
+                          onTap: () => context.push('/map'),
+                          child: const Text('Voir tout',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
-            trendingAsync.when(
-              loading: () => const SliverToBoxAdapter(child: _ListSkeleton()),
-              error: (_, _) => SliverToBoxAdapter(
-                child: _ErrorHint(onRetry: () => ref.read(trendingEventsFeedProvider.notifier).refresh()),
-              ),
-              data: (events) {
-                final filtered = _applyFilter(events);
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) {
-                      final event = filtered[i];
-                      return Semantics(
-                        button: true,
-                        label: 'Voir l\'événement tendance ${event.title}',
-                        child: GestureDetector(
-                          onTap: () => context.push('/event/${event.id}'),
-                          child: _TrendRow(event: event, rank: i + 1),
-                        ),
+              const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 280,
+                  child: nearbyAsync.when(
+                    loading: () => _HorizontalSkeleton(),
+                    error: (_, _) => _ErrorHint(onRetry: () => ref.read(nearbyEventsFeedProvider.notifier).refresh()),
+                    data: (events) {
+                      final filtered = _applyFilter(events);
+                      if (filtered.isEmpty) {
+                        return Center(child: Text('Aucun event pour le moment 😔', style: TextStyle(color: context.tpInkSub, fontSize: 14, fontWeight: FontWeight.w600)));
+                      }
+                      return ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final event = filtered[i];
+                          return Semantics(
+                            button: true,
+                            label: 'Voir ${event.title}',
+                            child: GestureDetector(
+                              onTap: () => context.push('/event/${event.id}'),
+                              child: _EventCard(event: event),
+                            ),
+                          );
+                        },
                       );
                     },
-                    childCount: filtered.take(6).length,
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
+              // Section "Tendances"
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('🔥 Tendances', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
+                      Semantics(
+                        button: true,
+                        label: 'Voir tous les événements tendances',
+                        child: GestureDetector(
+                          onTap: () => context.push('/map'),
+                          child: const Text('Voir tout',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
+              trendingAsync.when(
+                loading: () => const SliverToBoxAdapter(child: _ListSkeleton()),
+                error: (_, _) => SliverToBoxAdapter(
+                  child: _ErrorHint(onRetry: () => ref.read(trendingEventsFeedProvider.notifier).refresh()),
+                ),
+                data: (events) {
+                  final filtered = _applyFilter(events);
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final event = filtered[i];
+                        return Semantics(
+                          button: true,
+                          label: 'Voir l\'événement tendance ${event.title}',
+                          child: GestureDetector(
+                            onTap: () => context.push('/event/${event.id}'),
+                            child: _TrendRow(event: event, rank: i + 1),
+                          ),
+                        );
+                      },
+                      childCount: filtered.take(6).length,
+                    ),
+                  );
+                },
+              ),
+            ],
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
@@ -206,7 +336,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   }
 
   List<EventModel> _applyFilter(List<EventModel> events) {
-    var filtered = events;
+    // Toujours exclure les événements terminés côté client (filet de sécurité)
+    var filtered = events.where((e) => !e.isPast).toList();
     final now = DateTime.now();
 
     if (_dateFilter == 'tonight') {

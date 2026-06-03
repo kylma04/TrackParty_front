@@ -7,7 +7,8 @@ abstract final class Env {
     'WS_BASE_URL',
     defaultValue: 'ws://10.0.2.2:8000/ws',
   );
-  static const googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+  static const googleWebClientId  = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
+  static const googleMapsApiKey   = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 
   static const cloudinaryCloudName = String.fromEnvironment(
     'CLOUDINARY_CLOUD_NAME',
