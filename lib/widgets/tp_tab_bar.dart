@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import '../theme/gradients.dart';
 import '../theme/shadows.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class TpTabBar extends StatelessWidget {
   final int activeIndex;
@@ -17,11 +17,11 @@ class TpTabBar extends StatelessWidget {
   });
 
   static final _items = [
-    _TabItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Accueil'),
-    _TabItem(icon: Icons.map_outlined, activeIcon: Icons.map, label: 'Carte'),
-    _TabItem(icon: Icons.add, activeIcon: Icons.add, label: ''),
-    _TabItem(icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble, label: 'Messages'),
-    _TabItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profil'),
+    _TabItem(icon: PhosphorIcons.house(), activeIcon: PhosphorIcons.house(PhosphorIconsStyle.fill), label: 'Accueil'),
+    _TabItem(icon: PhosphorIcons.mapTrifold(), activeIcon: PhosphorIcons.mapTrifold(PhosphorIconsStyle.fill), label: 'Carte'),
+    _TabItem(icon: PhosphorIcons.plus(), activeIcon: PhosphorIcons.plus(), label: ''),
+    _TabItem(icon: PhosphorIcons.chatCircle(), activeIcon: PhosphorIcons.chatCircle(PhosphorIconsStyle.fill), label: 'Messages'),
+    _TabItem(icon: PhosphorIcons.user(), activeIcon: PhosphorIcons.user(PhosphorIconsStyle.fill), label: 'Profil'),
   ];
 
   @override
@@ -114,7 +114,7 @@ class TpTabBar extends StatelessWidget {
                           border: Border.all(color: bg, width: 3),
                           boxShadow: Shadows.brand,
                         ),
-                        child: Icon(Icons.add, color: Colors.white, size: 28),
+                        child: Icon(PhosphorIcons.plus(), color: Colors.white, size: 28),
                       ),
                     ),
                   ),

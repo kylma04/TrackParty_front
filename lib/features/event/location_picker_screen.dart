@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -90,7 +90,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   duration: const Duration(milliseconds: 150),
                   transform: Matrix4.translationValues(0, _moving ? -10 : 0, 0),
                   child: Icon(
-                    Icons.location_on,
+                    PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
                     color: kPrimary,
                     size: 52,
                     shadows: const [
@@ -129,7 +129,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: Shadows.sm,
                         ),
-                        child: Icon(Icons.close, color: context.tpInk, size: 18),
+                        child: Icon(PhosphorIcons.x(), color: context.tpInk, size: 18),
                       ),
                     ),
                   ),
@@ -173,7 +173,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.location_on_outlined, color: kPrimary, size: 15),
+                          Icon(PhosphorIcons.mapPin(), color: kPrimary, size: 15),
                           const SizedBox(width: 6),
                           Text(
                             '${_center.latitude.toStringAsFixed(5)},  ${_center.longitude.toStringAsFixed(5)}',
@@ -203,7 +203,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                                   BoxShadow(color: Color(0x4D7C3AED), blurRadius: 12, offset: Offset(0, 4)),
                                 ],
                               ),
-                              child: Icon(Icons.gps_fixed, color: Colors.white, size: 22),
+                              child: Icon(PhosphorIcons.crosshair(), color: Colors.white, size: 22),
                             ),
                           ),
                         ),

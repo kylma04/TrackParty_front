@@ -8,7 +8,7 @@ import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
   const MyProfileScreen({super.key});
@@ -93,13 +93,13 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 Semantics(
                   button: true,
                   label: 'Paramètres',
-                  child: _ProfileGlassBtn(icon: Icons.settings_outlined, onTap: () {}),
+                  child: _ProfileGlassBtn(icon: PhosphorIcons.gear(), onTap: () {}),
                 ),
                 const SizedBox(width: 8),
                 Semantics(
                   button: true,
                   label: 'Modifier le profil',
-                  child: _ProfileGlassBtn(icon: Icons.edit_outlined, onTap: () => context.push('/me/edit')),
+                  child: _ProfileGlassBtn(icon: PhosphorIcons.pencilSimple(), onTap: () => context.push('/me/edit')),
                 ),
               ]),
             ),
@@ -122,7 +122,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                         decoration: BoxDecoration(
                             color: kAccent, shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 2.5)),
-                        child: Icon(Icons.camera_alt_outlined, color: Colors.white, size: 14)),
+                        child: Icon(PhosphorIcons.camera(), color: Colors.white, size: 14)),
                     ),
                   ]),
                 ),
@@ -255,7 +255,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               border: Border.all(color: context.tpHair),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.logout, color: kError, size: 18),
+              Icon(PhosphorIcons.signOut(), color: kError, size: 18),
               SizedBox(width: 8),
               Text('Se déconnecter',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kError)),
@@ -432,7 +432,7 @@ class _SettingRow extends StatelessWidget {
                     ),
                   )
                 else
-                  Icon(Icons.chevron_right, color: context.tpInkMute, size: 20),
+                  Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 20),
               ]),
             ),
           ),

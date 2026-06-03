@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/services/moderation_service.dart';
@@ -113,7 +113,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                 width: 48, height: 48,
                 decoration: BoxDecoration(
                     color: kError.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
-                child: Icon(Icons.warning_amber_outlined, color: kError, size: 24),
+                child: Icon(PhosphorIcons.warning(), color: kError, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -132,7 +132,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                 decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(14)),
                 child: Row(children: [
                   const SizedBox(width: 4),
-                  Icon(Icons.flag_outlined, color: context.tpInkSub, size: 18),
+                  Icon(PhosphorIcons.flag(), color: context.tpInkSub, size: 18),
                   const SizedBox(width: 8),
                   Expanded(child: Text(widget.targetName!,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -186,7 +186,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                           color: active ? kPrimary : null,
                           border: active ? null : Border.all(color: context.tpHair, width: 2),
                         ),
-                        child: active ? Icon(Icons.check, color: Colors.white, size: 12) : null,
+                        child: active ? Icon(PhosphorIcons.check(), color: Colors.white, size: 12) : null,
                       ),
                     ]),
                   ),
@@ -203,7 +203,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                     width: 32, height: 32,
                     decoration: BoxDecoration(
                         color: kError.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                    child: Icon(Icons.block, color: kError, size: 18),
+                    child: Icon(PhosphorIcons.prohibit(), color: kError, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -278,7 +278,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                           ? const SizedBox(width: 22, height: 22,
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                           : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Icon(Icons.flag_outlined, color: Colors.white, size: 16),
+                              Icon(PhosphorIcons.flag(), color: Colors.white, size: 16),
                               const SizedBox(width: 6),
                               const Text('Envoyer',
                                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),

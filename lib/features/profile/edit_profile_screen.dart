@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
@@ -126,21 +126,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     const SizedBox(height: 24),
                     _buildSection(context, 'INFORMATIONS', [
                       _field(context, controller: _nameCtrl, label: 'Nom affiché',
-                          icon: Icons.person_outline,
+                          icon: PhosphorIcons.user(),
                           validator: (v) => (v?.trim().isEmpty ?? true) ? 'Requis' : null),
                       _field(context, controller: _phoneCtrl, label: 'Téléphone (optionnel)',
-                          icon: Icons.phone_outlined,
+                          icon: PhosphorIcons.phone(),
                           keyboardType: TextInputType.phone),
                       _field(context, controller: _bioCtrl, label: 'Bio',
-                          icon: Icons.notes,
+                          icon: PhosphorIcons.textAlignLeft(),
                           maxLines: 3),
                     ]),
                     const SizedBox(height: 16),
                     _buildSection(context, 'LOCALISATION', [
                       _field(context, controller: _cityCtrl, label: 'Ville',
-                          icon: Icons.location_city),
+                          icon: PhosphorIcons.city()),
                       _field(context, controller: _quartierCtrl, label: 'Quartier',
-                          icon: Icons.location_on_outlined),
+                          icon: PhosphorIcons.mapPin()),
                     ]),
                     const SizedBox(height: 24),
                     _buildSaveButton(context),
@@ -170,7 +170,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               child: Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.chevron_left, color: context.tpInk, size: 18),
+                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
               ),
             ),
             const SizedBox(width: 8),
@@ -231,7 +231,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       gradient: trackpartyGradient,
                       shape: BoxShape.circle,
                       border: Border.all(color: context.tpBg, width: 2)),
-                  child: Icon(Icons.camera_alt_outlined, color: Colors.white, size: 14),
+                  child: Icon(PhosphorIcons.camera(), color: Colors.white, size: 14),
                 ),
               ),
             ],

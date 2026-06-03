@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "TrackParty (local)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define-from-file=dart_defines/local.json"
+      ]
+    },
+    {
+      "name": "TrackParty (local) — profil",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "args": [
+        "--dart-define-from-file=dart_defines/local.json"
+      ]
+    }
+  ]
+}

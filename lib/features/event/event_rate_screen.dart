@@ -6,7 +6,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class EventRateScreen extends StatefulWidget {
   final String eventId;
@@ -57,7 +57,7 @@ class _EventRateScreenState extends State<EventRateScreen> {
                         child: Container(
                           width: 44, height: 44,
                           decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                          child: Icon(Icons.chevron_left, color: context.tpInk, size: 18),
+                          child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
                         ),
                       ),
                     ),
@@ -112,7 +112,7 @@ class _EventRateScreenState extends State<EventRateScreen> {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 5),
                           child: Icon(
-                            filled ? Icons.star : Icons.star,
+                            filled ? PhosphorIcons.star(PhosphorIconsStyle.fill) : PhosphorIcons.star(PhosphorIconsStyle.fill),
                             size: 44,
                             color: filled ? kWarning : kWarning.withValues(alpha: 0.15),
                           ),
@@ -232,7 +232,7 @@ class _EventRateScreenState extends State<EventRateScreen> {
                             borderRadius: BorderRadius.circular(7),
                             border: _public ? null : Border.all(color: context.tpHair, width: 1.5),
                           ),
-                          child: _public ? Icon(Icons.check, color: Colors.white, size: 14) : null,
+                          child: _public ? Icon(PhosphorIcons.check(), color: Colors.white, size: 14) : null,
                         ),
                         const SizedBox(width: 10),
                         Text('Publier sur le profil public de Karim',
@@ -248,7 +248,7 @@ class _EventRateScreenState extends State<EventRateScreen> {
                 padding: const EdgeInsets.fromLTRB(Sp.lg, 20, Sp.lg, 0),
                 child: TpButton(
                   label: 'Envoyer mon avis',
-                  icon: Icons.check,
+                  icon: PhosphorIcons.check(),
                   fullWidth: true,
                   state: _btnState,
                   onPressed: () async {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/models/notification_model.dart';
@@ -122,7 +122,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       boxShadow: Shadows.sm),
                   child: Row(
                     children: [
-                      Icon(Icons.check, color: kPrimary, size: 12),
+                      Icon(PhosphorIcons.check(), color: kPrimary, size: 12),
                       const SizedBox(width: 5),
                       Text('Tout lu',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
@@ -293,7 +293,7 @@ class _NotifRowState extends State<_NotifRow> {
                         decoration: BoxDecoration(
                             gradient: trackpartyGradient,
                             borderRadius: BorderRadius.circular(14)),
-                        child: Icon(Icons.group_outlined, color: Colors.white, size: 22))
+                        child: Icon(PhosphorIcons.users(), color: Colors.white, size: 22))
                     : TpAvatar(name: notif.title, size: 44),
                 Positioned(
                   bottom: -2, right: -2,

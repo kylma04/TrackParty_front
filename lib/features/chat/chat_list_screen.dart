@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-
+import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
+import '../../core/providers/auth_provider.dart' show authNotifierProvider, AuthAuthenticated;
 import '../../core/providers/chat_provider.dart';
+import '../../core/services/chat_service.dart';
+import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -25,6 +31,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
   static const _tabLabels = ['DM', 'Événements', 'Communautés'];
   static const _tabTypes  = ['private', 'event', 'community'];
+
+  void _showNewConversationSheet(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const _NewConversationSheet(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,22 +86,28 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           const Spacer(),
           Semantics(
             button: true,
-            label: 'Rechercher une conversation',
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(color: context.tpCard,
-                  borderRadius: BorderRadius.circular(12), boxShadow: Shadows.sm),
-              child: Icon(Icons.search, color: context.tpInk, size: 18),
+            label: 'Voir mes invitations',
+            child: GestureDetector(
+              onTap: () => context.push('/invitations'),
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: context.tpCard,
+                    borderRadius: BorderRadius.circular(12), boxShadow: Shadows.sm),
+                child: Icon(PhosphorIcons.envelope(), color: kAccent, size: 18),
+              ),
             ),
           ),
           const SizedBox(width: 8),
           Semantics(
             button: true,
             label: 'Nouvelle conversation',
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+            child: GestureDetector(
+              onTap: () => _showNewConversationSheet(context),
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+                child: Icon(PhosphorIcons.pencilSimple(), color: Colors.white, size: 18),
+              ),
             ),
           ),
         ],
@@ -217,6 +238,417 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 }
 
+// ── Nouvelle conversation ─────────────────────────────────────────────────────
+
+class _NewConversationSheet extends ConsumerStatefulWidget {
+  const _NewConversationSheet();
+
+  @override
+  ConsumerState<_NewConversationSheet> createState() => _NewConversationSheetState();
+}
+
+class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
+  final _ctrl = TextEditingController();
+  Timer? _debounce;
+
+  // Statut des connexions : userId → 'accepted' | 'pending'
+  final Map<String, String> _connections = {};
+  bool _loadingConnections = true;
+
+  // Recherche
+  List<UserSearchResult> _results = [];
+  bool _searching = false;
+
+  // Actions en cours
+  String? _acting;          // userId en cours de traitement
+  final Set<String> _done = {}; // userIds venant d'être invités
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConnections();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  // ── Chargement des connexions ───────────────────────────────────────────────
+
+  Future<void> _loadConnections() async {
+    final service = ref.read(invitationServiceProvider);
+
+    // Chaque appel est indépendant : une erreur sur l'un n'empêche pas les autres
+    Future<List<InvitationModel>> safe(Future<List<InvitationModel>> f) =>
+        f.onError((_, __) => []);
+
+    final sentAccepted     = await safe(service.getInvitations(direction: 'sent',     status: 'accepted'));
+    final receivedAccepted = await safe(service.getInvitations(direction: 'received', status: 'accepted'));
+    final sentPending      = await safe(service.getInvitations(direction: 'sent',     status: 'pending'));
+    final receivedPending  = await safe(service.getInvitations(direction: 'received', status: 'pending'));
+
+    final auth = ref.read(authNotifierProvider).valueOrNull;
+    final myId = auth is AuthAuthenticated ? auth.user.id : '';
+    final map  = <String, String>{};
+
+    // Invitations acceptées dans les 2 sens → peut envoyer un message
+    for (final inv in [...sentAccepted, ...receivedAccepted]) {
+      final otherId = inv.sender.id == myId ? inv.receiver.id : inv.sender.id;
+      if (otherId.isNotEmpty) map[otherId] = 'accepted';
+    }
+
+    // Invitations en attente dans les 2 sens → bouton désactivé
+    for (final inv in [...sentPending, ...receivedPending]) {
+      final otherId = inv.sender.id == myId ? inv.receiver.id : inv.sender.id;
+      if (otherId.isNotEmpty && !map.containsKey(otherId)) {
+        map[otherId] = 'pending';
+      }
+    }
+
+    if (mounted) setState(() { _connections.addAll(map); _loadingConnections = false; });
+  }
+
+  // ── Recherche ───────────────────────────────────────────────────────────────
+
+  void _onSearch(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () => _search(q));
+  }
+
+  Future<void> _search(String q) async {
+    if (q.trim().length < 2) {
+      setState(() { _results = []; _searching = false; });
+      return;
+    }
+    setState(() => _searching = true);
+    try {
+      final results = await ref.read(invitationServiceProvider).searchUsers(q.trim());
+      if (mounted) setState(() { _results = results; _searching = false; });
+    } catch (_) {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  Future<void> _openDm(UserSearchResult user) async {
+    if (_acting != null) return;
+    setState(() => _acting = user.id);
+    try {
+      final room = await ref.read(chatServiceProvider).getOrCreatePrivateRoom(user.id);
+      if (mounted) {
+        Navigator.pop(context);
+        context.push('/chat/${room.id}');
+        ref.read(chatRoomsProvider.notifier).refresh();
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _acting = null);
+    }
+  }
+
+  Future<void> _invite(UserSearchResult user) async {
+    if (_acting != null || _done.contains(user.id)) return;
+    setState(() => _acting = user.id);
+    try {
+      await ref.read(invitationServiceProvider).sendInvitation(receiverId: user.id);
+      if (mounted) {
+        setState(() {
+          _done.add(user.id);
+          _connections[user.id] = 'pending';
+          _acting = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Invitation envoyée à ${user.displayName} ✉️'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _acting = null);
+
+      final msg = e is ApiException ? e.message : 'Erreur lors de l\'envoi de l\'invitation';
+
+      // Si déjà connectés ou invitation existante, rafraîchir le statut
+      if (e is ApiException) {
+        if (msg.contains('connectés')) {
+          setState(() => _connections[user.id] = 'accepted');
+        } else if (msg.contains('attente')) {
+          setState(() => _connections[user.id] = 'pending');
+        } else {
+          // Rafraîchir pour être sûr du vrai statut
+          _loadConnections();
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: kError,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
+    }
+  }
+
+  // ── UI ──────────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        Sp.md, 12, Sp.md,
+        Sp.md + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 44, height: 5,
+              decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(3)),
+            ),
+            const SizedBox(height: 16),
+
+            // Titre
+            Row(
+              children: [
+                Text('Nouveau message',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                      color: context.tpInk, letterSpacing: -0.5)),
+                const Spacer(),
+                if (_loadingConnections)
+                  const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+            Text(
+              'Cherche un utilisateur. Tu peux lui écrire si une invitation est acceptée.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Champ de recherche
+            Container(
+              decoration: BoxDecoration(
+                color: context.tpBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: context.tpHair),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(PhosphorIcons.magnifyingGlass(), color: context.tpInkMute, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      autofocus: true,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                      decoration: InputDecoration(
+                        hintText: 'Recherche par nom…',
+                        hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute, fontWeight: FontWeight.w500),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onChanged: _onSearch,
+                    ),
+                  ),
+                  if (_searching)
+                    const SizedBox(
+                      width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+                    ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Résultats
+            if (_results.isEmpty && !_searching && _ctrl.text.length >= 2)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('Aucun utilisateur trouvé',
+                  style: TextStyle(fontSize: 14, color: context.tpInkSub, fontWeight: FontWeight.w600)),
+              )
+            else if (_results.isEmpty && _ctrl.text.length < 2)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('Commence à taper pour chercher…',
+                  style: TextStyle(fontSize: 13, color: context.tpInkMute, fontWeight: FontWeight.w600)),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.45),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _results.length,
+                  itemBuilder: (_, i) => _buildUserRow(_results[i]),
+                ),
+              ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserRow(UserSearchResult user) {
+    final status  = _connections[user.id];
+    final acting  = _acting == user.id;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          TpAvatar(name: user.displayName, imageUrl: user.avatarUrl, size: 46),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(user.displayName,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: context.tpInk)),
+                if (user.isPromoter)
+                  Text('Promoteur', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kPrimary)),
+                _StatusBadge(status: status),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _ActionButton(
+            status: status,
+            acting: acting,
+            onMessage: () => _openDm(user),
+            onInvite:  () => _invite(user),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Badge de statut ───────────────────────────────────────────────────────────
+
+class _StatusBadge extends StatelessWidget {
+  final String? status;
+  const _StatusBadge({this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == null) return const SizedBox.shrink();
+    final (label, color) = switch (status!) {
+      'accepted' => ('✓ Connecté', kSuccess),
+      'pending'  => ('⏳ En attente', context.tpInkMute),
+      _          => ('', context.tpInkMute),
+    };
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Text(label,
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color));
+  }
+}
+
+// ── Bouton d'action ───────────────────────────────────────────────────────────
+
+class _ActionButton extends StatelessWidget {
+  final String? status;
+  final bool acting;
+  final VoidCallback onMessage;
+  final VoidCallback onInvite;
+
+  const _ActionButton({
+    required this.status,
+    required this.acting,
+    required this.onMessage,
+    required this.onInvite,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (acting) {
+      return const SizedBox(
+        width: 80, height: 36,
+        child: Center(child: SizedBox(
+          width: 16, height: 16,
+          child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2),
+        )),
+      );
+    }
+
+    if (status == 'accepted') {
+      return GestureDetector(
+        onTap: onMessage,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: kPrimary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(PhosphorIcons.chatCircle(), color: Colors.white, size: 14),
+              const SizedBox(width: 5),
+              const Text('Message',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (status == 'pending') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: context.tpHair,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text('En attente',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInkMute)),
+      );
+    }
+
+    // Pas de connexion → bouton Inviter
+    return GestureDetector(
+      onTap: onInvite,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: trackpartyGradient,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 14),
+            const SizedBox(width: 5),
+            const Text('Inviter',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Chat row ──────────────────────────────────────────────────────────────────
 
 String _fmtTime(DateTime dt) {
@@ -262,7 +694,7 @@ class _ChatRow extends StatelessWidget {
                           gradient: trackpartyGradient,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Icon(Icons.group_outlined, color: Colors.white, size: 24),
+                        child: Icon(PhosphorIcons.users(), color: Colors.white, size: 24),
                       )
                     : TpAvatar(name: otherMember?.displayName ?? room.displayName, size: 52),
                 const SizedBox(width: 12),

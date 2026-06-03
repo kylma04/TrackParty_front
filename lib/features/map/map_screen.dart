@@ -1,15 +1,17 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/env.dart';
 import '../../core/models/event_model.dart';
 import '../../core/services/event_service.dart';
 import '../../theme/colors.dart';
@@ -18,6 +20,36 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_badge.dart';
+
+// ── Décodage de l'encoded polyline Google ─────────────────────────────────────
+
+List<LatLng> _decodePolyline(String encoded) {
+  final points = <LatLng>[];
+  int index = 0;
+  final len = encoded.length;
+  int lat = 0, lng = 0;
+
+  while (index < len) {
+    int result = 1, shift = 0, b;
+    do {
+      b = encoded.codeUnitAt(index++) - 63 - 1;
+      result += b << shift;
+      shift += 5;
+    } while (b >= 0x1f);
+    lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+    result = 1; shift = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63 - 1;
+      result += b << shift;
+      shift += 5;
+    } while (b >= 0x1f);
+    lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+    points.add(LatLng(lat / 1e5, lng / 1e5));
+  }
+  return points;
+}
 
 // ── Catégories ────────────────────────────────────────────────────────────────
 
@@ -120,10 +152,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   BitmapDescriptor?                 _positionIcon;
   Map<String, BitmapDescriptor>     _markerIcons = {};
 
+  // Recherche
+  final _searchCtrl  = TextEditingController();
+  final _searchFocus = FocusNode();
+  String _searchQuery = '';
+
   // API state
   List<EventModel> _events  = [];
   bool             _loading = true;
   String?          _error;
+
+  // Itinéraire réel (Directions API)
+  List<LatLng> _routePoints   = [];
+  bool         _routeLoading  = false;
+  String?      _routeDistance; // ex: "3,2 km"
+  String?      _routeDuration; // ex: "8 min"
 
   static const _abidjan = LatLng(5.3600, -4.0083);
   static const _chips   = ['Tous ✨', '5 km 📍', 'Ce soir 🌙', 'Gratuit 💸'];
@@ -144,9 +187,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (mounted) setState(() => _positionIcon = icon);
     });
     _requestLocation().then((_) {
-      if (_itineraryMode) _fitItinerary();
+      if (_itineraryMode) {
+        _fitItinerary();
+        _fetchRoute();
+      }
     });
     if (!_itineraryMode) _loadEvents();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  /// Events filtrés par la recherche texte (en plus des chips de filtre).
+  List<EventModel> get _filteredEvents {
+    if (_searchQuery.isEmpty) return _events;
+    final q = _searchQuery.toLowerCase().trim();
+    return _events.where((e) =>
+      e.title.toLowerCase().contains(q) ||
+      e.city.toLowerCase().contains(q) ||
+      e.quartier.toLowerCase().contains(q) ||
+      e.organizerName.toLowerCase().contains(q) ||
+      e.displayCategoryName.toLowerCase().contains(q),
+    ).toList();
   }
 
   // ── GPS ────────────────────────────────────────────────────────────────────
@@ -187,6 +253,71 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _ctrl!.animateCamera(CameraUpdate.newLatLngBounds(
       LatLngBounds(southwest: sw, northeast: ne),
       72,
+    ));
+  }
+
+  Future<void> _fetchRoute() async {
+    if (_destination == null || _userPos == null) return;
+    if (Env.googleMapsApiKey.isEmpty) return; // Clé non configurée → ligne droite
+    if (mounted) setState(() => _routeLoading = true);
+
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        queryParameters: {
+          'origin':      '${_userPos!.latitude},${_userPos!.longitude}',
+          'destination': '${_destination!.latitude},${_destination!.longitude}',
+          'mode':        'driving',
+          'language':    'fr',
+          'key':         Env.googleMapsApiKey,
+        },
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final status = data['status'] as String?;
+
+      if (status != 'OK') return; // Pas de résultat → on garde la ligne droite
+
+      final routes = data['routes'] as List<dynamic>;
+      if (routes.isEmpty) return;
+
+      final route   = routes.first as Map<String, dynamic>;
+      final encoded = (route['overview_polyline'] as Map<String, dynamic>)['points'] as String;
+      final legs    = (route['legs'] as List<dynamic>).first as Map<String, dynamic>;
+
+      final dist     = (legs['distance'] as Map<String, dynamic>)['text'] as String?;
+      final duration = (legs['duration'] as Map<String, dynamic>)['text'] as String?;
+
+      if (mounted) {
+        setState(() {
+          _routePoints   = _decodePolyline(encoded);
+          _routeDistance = dist;
+          _routeDuration = duration;
+          _routeLoading  = false;
+        });
+        // Recadrer la carte sur le vrai tracé
+        _fitRouteToScreen();
+      }
+    } catch (_) {
+      // Silencieux : on garde la ligne droite en fallback
+      if (mounted) setState(() => _routeLoading = false);
+    }
+  }
+
+  void _fitRouteToScreen() {
+    if (_routePoints.isEmpty || _ctrl == null) return;
+    double minLat = double.infinity,  maxLat = -double.infinity;
+    double minLng = double.infinity,  maxLng = -double.infinity;
+    for (final p in _routePoints) {
+      minLat = min(minLat, p.latitude);  maxLat = max(maxLat, p.latitude);
+      minLng = min(minLng, p.longitude); maxLng = max(maxLng, p.longitude);
+    }
+    _ctrl!.animateCamera(CameraUpdate.newLatLngBounds(
+      LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
+      ),
+      80,
     ));
   }
 
@@ -237,7 +368,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       );
 
       final withCoords = result.results
-          .where((e) => e.latitude != null && e.longitude != null)
+          .where((e) => e.latitude != null && e.longitude != null && !e.isPast)
           .toList();
 
       if (mounted) {
@@ -383,7 +514,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ));
       }
     } else {
-      for (final e in _events) {
+      for (final e in _filteredEvents) {
         final sel = _selectedId == e.id;
         set.add(Marker(
           markerId: MarkerId(e.id),
@@ -411,19 +542,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Set<Polyline> get _polylines {
     if (!_itineraryMode || _destination == null || _userPos == null) return {};
+
+    // Vrai tracé routier si disponible, sinon ligne droite en pointillés
+    final points = _routePoints.isNotEmpty
+        ? _routePoints
+        : [_userPos!, _destination!];
+
+    final isFallback = _routePoints.isEmpty;
+
     return {
       Polyline(
         polylineId: const PolylineId('route'),
-        points: [_userPos!, _destination!],
+        points: points,
         color: kPrimary,
-        width: 4,
-        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+        width: isFallback ? 3 : 5,
+        patterns: isFallback
+            ? [PatternItem.dash(16), PatternItem.gap(8)]
+            : [],
+        jointType: JointType.round,
+        endCap: Cap.roundCap,
+        startCap: Cap.roundCap,
       ),
     };
   }
 
   EventModel? get _selectedEvent =>
-      _selectedId == null ? null : _events.where((e) => e.id == _selectedId).firstOrNull;
+      _selectedId == null ? null : _filteredEvents.where((e) => e.id == _selectedId).firstOrNull;
 
   String _distanceFor(EventModel e) {
     if (_userPos == null) return '? km';
@@ -473,11 +617,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildItineraryScaffold() {
-    final distStr = _userPos != null && _destination != null
-        ? _fmtDistance(_kmBetween(
-            _userPos!.latitude, _userPos!.longitude,
-            _destination!.latitude, _destination!.longitude))
-        : null;
+    // Distance affichée : vraie route > vol d'oiseau > null
+    final distStr = _routeDistance ??
+        (_userPos != null && _destination != null
+            ? _fmtDistance(_kmBetween(
+                _userPos!.latitude, _userPos!.longitude,
+                _destination!.latitude, _destination!.longitude))
+            : null);
 
     return Scaffold(
       body: Stack(
@@ -504,7 +650,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         child: Container(
                           width: 36, height: 36,
                           decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
-                          child: Icon(Icons.chevron_left, color: context.tpInk, size: 18),
+                          child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
                         ),
                       ),
                     ),
@@ -524,17 +670,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         ],
                       ),
                     ),
-                    if (distStr != null) ...[
+                    if (_routeLoading)
+                      const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+                      )
+                    else if (distStr != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: kPrimary.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(distStr,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: kPrimary)),
+                        child: Text(
+                          _routeDuration != null ? '$distStr · $_routeDuration' : distStr,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: kPrimary),
+                        ),
                       ),
-                    ],
                   ],
                 ),
               ),
@@ -556,7 +708,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: Shadows.brand,
                   ),
-                  child: Icon(Icons.fullscreen, color: Colors.white, size: 22),
+                  child: Icon(PhosphorIcons.arrowsOut(), color: Colors.white, size: 22),
                 ),
               ),
             ),
@@ -580,10 +732,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         Text(widget.destinationTitle ?? 'Destination',
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: context.tpInk)),
-                        if (distStr != null)
-                          Text('📍 $distStr depuis ta position',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
-                        if (_userPos == null)
+                        if (_routeLoading)
+                          Row(children: [
+                            const SizedBox(
+                              width: 10, height: 10,
+                              child: CircularProgressIndicator(strokeWidth: 1.5, color: kPrimary),
+                            ),
+                            const SizedBox(width: 6),
+                            Text('Calcul de l\'itinéraire…',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                          ])
+                        else if (_routeDistance != null)
+                          Text(
+                            '🚗 $_routeDistance · $_routeDuration',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary),
+                          )
+                        else if (distStr != null)
+                          Text('📍 $distStr (vol d\'oiseau)',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub))
+                        else if (_userPos == null)
                           Text('Position GPS en cours…',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
                       ],
@@ -605,7 +772,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.navigation, color: Colors.white, size: 18),
+                            Icon(PhosphorIcons.navigationArrow(PhosphorIconsStyle.fill), color: Colors.white, size: 18),
                             const SizedBox(width: 8),
                             const Text('Naviguer', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
                           ],
@@ -648,21 +815,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   // ── Corps liste ────────────────────────────────────────────────────────────
 
   Widget _buildListBody() {
-    final topPad = MediaQuery.of(context).padding.top + 162.0;
+    final topPad   = MediaQuery.of(context).padding.top + 162.0;
+    final filtered = _filteredEvents;
 
-    if (!_loading && _events.isEmpty) {
+    if (!_loading && filtered.isEmpty) {
       return Padding(
         padding: EdgeInsets.only(top: topPad + 20),
         child: Center(
           child: Column(
             children: [
-              const Text('🎉', style: TextStyle(fontSize: 48)),
+              Text(_searchQuery.isNotEmpty ? '🔍' : '🎉',
+                style: const TextStyle(fontSize: 48)),
               const SizedBox(height: 12),
-              Text('Aucun événement ici',
+              Text(
+                _searchQuery.isNotEmpty
+                    ? 'Aucun résultat pour « $_searchQuery »'
+                    : 'Aucun événement ici',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
-                    color: context.tpInk)),
+                    color: context.tpInk), textAlign: TextAlign.center),
               const SizedBox(height: 4),
-              Text('Sois le premier à en créer un !',
+              Text(_searchQuery.isNotEmpty
+                    ? 'Essaie un autre mot-clé.'
+                    : 'Sois le premier à en créer un !',
                 style: TextStyle(fontSize: 13, color: context.tpInkSub)),
             ],
           ),
@@ -672,10 +846,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     return ListView.separated(
       padding: EdgeInsets.fromLTRB(Sp.md, topPad + 4, Sp.md, 100),
-      itemCount: _events.length,
+      itemCount: filtered.length,
       separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) {
-        final e = _events[i];
+        final e = filtered[i];
         return _MapListRow(
           event: e,
           distance: _distanceFor(e),
@@ -701,26 +875,54 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               decoration: BoxDecoration(
                 color: context.tpCard,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.tpHair),
+                border: Border.all(
+                  color: _searchFocus.hasFocus
+                      ? kPrimary.withValues(alpha: 0.5)
+                      : context.tpHair,
+                ),
                 boxShadow: Shadows.md,
               ),
               padding: const EdgeInsets.symmetric(horizontal: Sp.md),
               child: Row(
                 children: [
-                  Icon(Icons.search, color: context.tpInkMute, size: 20),
+                  Icon(PhosphorIcons.magnifyingGlass(),
+                    color: _searchQuery.isNotEmpty ? kPrimary : context.tpInkMute,
+                    size: 20),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text('Abidjan',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInk)),
-                  ),
-                  Container(
-                    width: 32, height: 32,
-                    decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(10),
+                    child: TextField(
+                      controller: _searchCtrl,
+                      focusNode: _searchFocus,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                      decoration: InputDecoration(
+                        hintText: 'Recherche un event, quartier…',
+                        hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                      textInputAction: TextInputAction.search,
                     ),
-                    child: Icon(Icons.tune, color: Colors.white, size: 16),
                   ),
+                  if (_searchQuery.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _searchCtrl.clear();
+                        _searchFocus.unfocus();
+                        setState(() => _searchQuery = '');
+                      },
+                      child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
+                    )
+                  else
+                    Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                        gradient: trackpartyGradient,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(PhosphorIcons.slidersHorizontal(), color: Colors.white, size: 16),
+                    ),
                 ],
               ),
             ),
@@ -742,14 +944,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _ToggleTab(
-                        icon: Icons.location_on_outlined,
+                        icon: PhosphorIcons.mapPin(),
                         label: 'Carte',
                         active: !_listMode,
                         onTap: () => setState(() { _listMode = false; _selectedId = null; }),
                       ),
                       const SizedBox(width: 2),
                       _ToggleTab(
-                        icon: Icons.list,
+                        icon: PhosphorIcons.list(),
                         label: 'Liste',
                         active: _listMode,
                         onTap: () => setState(() => _listMode = true),
@@ -768,7 +970,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     text: TextSpan(
                       children: [
                         TextSpan(
-                          text: '${_events.length}',
+                          text: '${_filteredEvents.length}',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: kPrimary),
                         ),
                         TextSpan(
@@ -850,7 +1052,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: Shadows.brand,
                 ),
-                child: Icon(Icons.navigation_outlined, color: Colors.white, size: 24),
+                child: Icon(PhosphorIcons.navigationArrow(), color: Colors.white, size: 24),
               ),
             ),
           ),
@@ -920,7 +1122,7 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_outlined, color: kError, size: 16),
+          Icon(PhosphorIcons.warning(), color: kError, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text('Impossible de charger les événements',
@@ -1097,7 +1299,7 @@ class _PinCard extends StatelessWidget {
                 label: 'Fermer',
                 child: GestureDetector(
                   onTap: onClose,
-                  child: Icon(Icons.close, color: context.tpInkMute, size: 18),
+                  child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
                 ),
               ),
               const SizedBox(height: 8),

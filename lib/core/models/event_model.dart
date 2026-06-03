@@ -55,6 +55,8 @@ class EventModel {
   final String title;
   final String? description;
   final String category;
+  final String? customCategoryLabel;
+  final String? customCategoryEmoji;
   final String? coverImageUrl;
   final DateTime startAt;
   final DateTime? endAt;
@@ -87,6 +89,8 @@ class EventModel {
     required this.title,
     this.description,
     required this.category,
+    this.customCategoryLabel,
+    this.customCategoryEmoji,
     this.coverImageUrl,
     required this.startAt,
     this.endAt,
@@ -120,6 +124,8 @@ class EventModel {
         title: j['title'] as String,
         description: j['description'] as String?,
         category: j['category'] as String,
+        customCategoryLabel: j['custom_category_label'] as String?,
+        customCategoryEmoji: j['custom_category_emoji'] as String?,
         coverImageUrl: j['cover_image_url'] as String?,
         startAt: DateTime.parse(j['start_at'] as String),
         endAt: j['end_at'] != null ? DateTime.parse(j['end_at'] as String) : null,
@@ -156,6 +162,35 @@ class EventModel {
             ? DateTime.parse(j['created_at'] as String)
             : null,
       );
+
+  /// Emoji à afficher pour cette catégorie (priorité au custom)
+  String get displayEmoji {
+    if (category == 'autre' && customCategoryEmoji != null && customCategoryEmoji!.isNotEmpty) {
+      return customCategoryEmoji!;
+    }
+    const emojis = {
+      'musique': '🎵', 'soiree': '🎉', 'cuisine': '🍽',
+      'sport': '⚽', 'art': '🎨', 'plage': '🏖',
+    };
+    return emojis[category] ?? '✨';
+  }
+
+  /// Label à afficher pour cette catégorie (priorité au custom)
+  String get displayCategoryName {
+    if (category == 'autre' && customCategoryLabel != null && customCategoryLabel!.isNotEmpty) {
+      return customCategoryLabel!;
+    }
+    const labels = {
+      'musique': 'Musique', 'soiree': 'Soirée', 'cuisine': 'Cuisine',
+      'sport': 'Sport', 'art': 'Art', 'plage': 'Plage', 'autre': 'Autre',
+    };
+    return labels[category] ?? category;
+  }
+
+  bool get isCustomCategory =>
+      category == 'autre' &&
+      customCategoryLabel != null &&
+      customCategoryLabel!.isNotEmpty;
 
   EventModel copyWith({bool? isParticipating, int? participantsCount, UserParticipation? userParticipation}) =>
       EventModel(

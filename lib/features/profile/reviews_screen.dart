@@ -6,7 +6,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ReviewsScreen extends StatefulWidget {
   final String promoterId;
@@ -94,7 +94,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               onTap: () => context.pop(),
               child: Container(width: 44, height: 44,
                 decoration: BoxDecoration(color: context.tpCard, borderRadius: BorderRadius.circular(12), boxShadow: Shadows.sm),
-                child: Icon(Icons.chevron_left, color: context.tpInk, size: 18)),
+                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18)),
             ),
           ),
           const SizedBox(width: 10),
@@ -124,7 +124,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
-                  children: List.generate(5, (i) => Icon(Icons.star,
+                  children: List.generate(5, (i) => Icon(PhosphorIcons.star(PhosphorIconsStyle.fill),
                     size: 12, color: i < 4 ? kWarning : kWarning.withValues(alpha: 0.30))),
                 ),
               ),
@@ -140,7 +140,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   child: Row(children: [
                     Text('${d.$1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
                     const SizedBox(width: 4),
-                    Icon(Icons.star, size: 10, color: kWarning),
+                    Icon(PhosphorIcons.star(PhosphorIconsStyle.fill), size: 10, color: kWarning),
                     const SizedBox(width: 6),
                     Expanded(
                       child: ClipRRect(
@@ -242,7 +242,7 @@ class _ReviewCard extends StatelessWidget {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
               const SizedBox(height: 2),
               Row(children: [
-                ...List.generate(5, (i) => Icon(Icons.star,
+                ...List.generate(5, (i) => Icon(PhosphorIcons.star(PhosphorIconsStyle.fill),
                   size: 11, color: i < review.rating ? kWarning : kWarning.withValues(alpha: 0.25))),
                 const SizedBox(width: 4),
                 Text('· ${review.date}',
@@ -272,12 +272,12 @@ class _ReviewCard extends StatelessWidget {
           const SizedBox(height: 10),
           // Actions
           Row(children: [
-            Icon(Icons.favorite_outline, color: context.tpInkSub, size: 14),
+            Icon(PhosphorIcons.heart(), color: context.tpInkSub, size: 14),
             const SizedBox(width: 4),
             Text('${review.likes}',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
             const SizedBox(width: 14),
-            Icon(Icons.chat_bubble_outline, color: context.tpInkSub, size: 14),
+            Icon(PhosphorIcons.chatCircle(), color: context.tpInkSub, size: 14),
             const SizedBox(width: 4),
             Text('Répondre',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),

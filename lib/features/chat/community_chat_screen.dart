@@ -6,7 +6,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class CommunityChatScreen extends StatelessWidget {
   final String promoterId;
@@ -60,7 +60,7 @@ class CommunityChatScreen extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.chevron_left, color: Colors.white, size: 18),
+                        child: Icon(PhosphorIcons.caretLeft(), color: Colors.white, size: 18),
                       ),
                     ),
                   ),
@@ -73,7 +73,7 @@ class CommunityChatScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
                     ),
-                    child: Icon(Icons.group_outlined, color: Colors.white, size: 22),
+                    child: Icon(PhosphorIcons.users(), color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -109,7 +109,7 @@ class CommunityChatScreen extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.more_vert, color: Colors.white, size: 20),
+                      child: Icon(PhosphorIcons.dotsThreeVertical(), color: Colors.white, size: 20),
                     ),
                   ),
                 ],
@@ -222,7 +222,7 @@ class CommunityChatScreen extends StatelessWidget {
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
-            child: Icon(Icons.send_outlined, color: Colors.white, size: 18),
+            child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 18),
           ),
         ],
       ),
@@ -338,7 +338,7 @@ class _CommunityPost extends StatelessWidget {
               ),
               Row(
                 children: [
-                  Icon(Icons.chat_bubble_outline, color: context.tpInkSub, size: 14),
+                  Icon(PhosphorIcons.chatCircle(), color: context.tpInkSub, size: 14),
                   const SizedBox(width: 4),
                   Text('$comments',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInkSub)),

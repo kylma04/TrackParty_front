@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/event_model.dart';
 import '../../core/services/event_service.dart';
@@ -195,7 +195,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: Shadows.sm,
                 ),
-                child: Icon(Icons.chevron_left, color: context.tpInk, size: 18),
+                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
               ),
             ),
           ),
@@ -226,7 +226,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [BoxShadow(color: Color(0x4D7C3AED), blurRadius: 10, offset: Offset(0, 4))],
                 ),
-                child: Icon(Icons.refresh, color: Colors.white, size: 18),
+                child: Icon(PhosphorIcons.arrowsClockwise(), color: Colors.white, size: 18),
               ),
             ),
           ),
@@ -602,7 +602,7 @@ class _PersonRow extends StatelessWidget {
                   color: context.tpBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.chat_bubble_outline, color: context.tpInkSub, size: 14),
+                child: Icon(PhosphorIcons.chatCircle(), color: context.tpInkSub, size: 14),
               ),
             ],
           ),

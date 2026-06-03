@@ -10,7 +10,7 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import 'trust_score_sheet.dart';
 import 'report_sheet.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class PromoterProfileScreen extends ConsumerStatefulWidget {
   final String id;
@@ -112,13 +112,13 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                   Semantics(
                     button: true,
                     label: 'Retour',
-                    child: _GlassBtn(icon: Icons.chevron_left, onTap: () => context.pop()),
+                    child: _GlassBtn(icon: PhosphorIcons.caretLeft(), onTap: () => context.pop()),
                   ),
                   Semantics(
                     button: true,
                     label: 'Signaler ce profil',
                     child: _GlassBtn(
-                      icon: Icons.more_vert,
+                      icon: PhosphorIcons.dotsThreeVertical(),
                       onTap: () => ReportSheet.show(context, targetType: 'user', targetId: widget.id, blockUserId: widget.id),
                     ),
                   ),
@@ -167,8 +167,8 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        ...List.generate(4, (_) => Icon(Icons.star, color: kWarning, size: 12)),
-                        Icon(Icons.star, color: Colors.white38, size: 12),
+                        ...List.generate(4, (_) => Icon(PhosphorIcons.star(PhosphorIconsStyle.fill), color: kWarning, size: 12)),
+                        Icon(PhosphorIcons.star(PhosphorIconsStyle.fill), color: Colors.white38, size: 12),
                         const SizedBox(width: 6),
                         const Text('4.8', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
                         const SizedBox(width: 4),
@@ -228,7 +228,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                     boxShadow: _following ? null : Shadows.brand,
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(_following ? Icons.check : Icons.add,
+                    Icon(_following ? PhosphorIcons.check() : PhosphorIcons.plus(),
                       color: _following ? kPrimary : Colors.white, size: 16),
                     const SizedBox(width: 6),
                     Text(_following ? 'Abonné ✓' : 'Suivre',
@@ -254,7 +254,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                     border: Border.all(color: kPrimary, width: 2),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.chat_bubble_outline, color: kPrimary, size: 18),
+                    Icon(PhosphorIcons.chatCircle(), color: kPrimary, size: 18),
                     SizedBox(width: 6),
                     Text('Message', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
                   ]),
@@ -430,7 +430,7 @@ class _MiniEventRow extends StatelessWidget {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
-            child: Icon(Icons.chevron_right, color: kPrimary, size: 20),
+            child: Icon(PhosphorIcons.caretRight(), color: kPrimary, size: 20),
           ),
         ],
       ),

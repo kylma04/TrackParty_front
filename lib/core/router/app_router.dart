@@ -13,6 +13,8 @@ import '../../features/map/map_screen.dart';
 import '../../features/chat/chat_list_screen.dart';
 import '../../features/chat/chat_thread_screen.dart';
 import '../../features/chat/community_chat_screen.dart';
+import '../../features/calls/incoming_call_screen.dart';
+import '../../features/chat/invitations_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../features/profile/my_profile_screen.dart';
 import '../../features/profile/promoter_profile_screen.dart';
@@ -53,6 +55,8 @@ final _routes = [
 
   // ── Notifications ──────────────────────────────────────────────────────────
   GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+  GoRoute(path: '/invitations',  builder: (_, _) => const InvitationsScreen()),
+  GoRoute(path: '/call/incoming', builder: (_, _) => const IncomingCallScreen()),
 
   // ── Events ────────────────────────────────────────────────────────────────
   GoRoute(path: '/event/new', builder: (_, _) => const EventCreateScreen()),

@@ -15,7 +15,7 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_field.dart';
 import '../../widgets/tp_logo.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -176,7 +176,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: Sp.xl),
                 TpField(
                   label: 'Email',
-                  prefixIcon: Icons.email_outlined,
+                  prefixIcon: PhosphorIcons.envelope(),
                   keyboardType: TextInputType.emailAddress,
                   controller: _emailCtrl,
                   validator: (v) => v == null || !v.contains('@') ? 'Email invalide' : null,
@@ -184,12 +184,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: Sp.md),
                 TpField(
                   label: 'Mot de passe',
-                  prefixIcon: Icons.lock_outline,
+                  prefixIcon: PhosphorIcons.lock(),
                   obscureText: _obscure,
                   controller: _passCtrl,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                      _obscure ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(),
                       color: context.tpInkMute, size: 20,
                     ),
                     onPressed: () => setState(() => _obscure = !_obscure),

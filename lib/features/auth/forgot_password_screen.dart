@@ -9,7 +9,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_field.dart';
-
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -84,7 +84,7 @@ class _FormView extends StatelessWidget {
           width: 96, height: 96,
           decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(28)),
           alignment: Alignment.center,
-          child: Icon(Icons.vpn_key_outlined, color: Colors.white, size: 48),
+          child: Icon(PhosphorIcons.lockKey(), color: Colors.white, size: 48),
         ),
         const SizedBox(height: Sp.lg),
         Text(
@@ -97,7 +97,7 @@ class _FormView extends StatelessWidget {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub),
         ),
         const SizedBox(height: Sp.xl),
-        TpField(label: 'Email', prefixIcon: Icons.email_outlined, keyboardType: TextInputType.emailAddress, controller: emailCtrl),
+        TpField(label: 'Email', prefixIcon: PhosphorIcons.envelope(), keyboardType: TextInputType.emailAddress, controller: emailCtrl),
         const SizedBox(height: Sp.lg),
         TpButton(
           label: 'Envoyer le lien',
