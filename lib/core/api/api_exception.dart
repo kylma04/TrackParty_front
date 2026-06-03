@@ -44,6 +44,9 @@ class ApiException implements Exception {
     return null;
   }
 
+  /// Code d'erreur métier renvoyé par le back (ex. 'email_not_verified').
+  String? get code => _fields?['code'] as String?;
+
   static String? _extractFirstFieldError(Map<String, dynamic> data) {
     for (final val in data.values) {
       if (val is List && val.isNotEmpty) return val.first as String;

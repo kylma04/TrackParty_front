@@ -67,15 +67,25 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     state = await AsyncValue.guard(() => _applyResponse(_service.login(email, password)));
   }
 
-  Future<void> register({
+  /// Inscription : vérification d'email obligatoire. Aucun token n'est délivré ;
+  /// on reste non authentifié et on retourne l'email pour l'écran de vérification.
+  /// Lève une [ApiException] en cas d'erreur (gérée par l'écran via le state).
+  Future<String> register({
     required String email,
     required String displayName,
     required String password,
   }) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _applyResponse(
-          _service.register(email: email, displayName: displayName, password: password),
-        ));
+    try {
+      final registeredEmail = await _service.register(
+        email: email, displayName: displayName, password: password,
+      );
+      state = const AsyncValue.data(AuthUnauthenticated());
+      return registeredEmail;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
   }
 
   Future<void> updateProfile(Map<String, dynamic> data) async {

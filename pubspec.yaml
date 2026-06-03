@@ -70,6 +70,13 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   flutter_launcher_icons: ^0.14.3
 
+# phosphor_flutter 2.1.0 (dernière publiée) étend IconData, devenue `final` dans
+# Flutter 3.43+/Dart 3.12 -> build cassé. On pointe vers une copie locale patchée
+# (extension types) tant qu'aucune version corrigée n'est publiée sur pub.dev.
+dependency_overrides:
+  phosphor_flutter:
+    path: vendor/phosphor_flutter
+
 flutter:
   uses-material-design: true
   assets:

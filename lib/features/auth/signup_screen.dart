@@ -40,13 +40,23 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     setState(() { _emailError = null; _nameError = null; });
     if (!_formKey.currentState!.validate()) return;
 
-    await ref.read(authNotifierProvider.notifier).register(
-          email: _emailCtrl.text.trim(),
-          displayName: _nameCtrl.text.trim(),
-          password: _passCtrl.text,
+    try {
+      final email = await ref.read(authNotifierProvider.notifier).register(
+            email: _emailCtrl.text.trim(),
+            displayName: _nameCtrl.text.trim(),
+            password: _passCtrl.text,
+          );
+      // Vérification d'email obligatoire : on dirige vers l'écran de vérification.
+      // Le mot de passe est transmis (extra) pour permettre un re-login direct.
+      if (mounted) {
+        context.go(
+          '/verify-email?email=${Uri.encodeComponent(email)}',
+          extra: _passCtrl.text,
         );
-    // If successful, router navigates to /feed.
-    // VerifyEmail screen is shown from /feed if is_verified is false (future task).
+      }
+    } on ApiException {
+      // Erreurs (email déjà pris, etc.) gérées par le ref.listen ci-dessous.
+    }
   }
 
   @override

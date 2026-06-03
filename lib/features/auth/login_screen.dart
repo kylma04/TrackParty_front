@@ -142,6 +142,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.listen(authNotifierProvider, (_, next) {
       if (next.hasError) {
         final err = next.error;
+        // Compte non vérifié : on dirige vers l'écran de vérification d'email,
+        // en transmettant le mot de passe (extra) pour un re-login direct.
+        if (err is ApiException && err.code == 'email_not_verified') {
+          final email = err.fieldError('email') ?? _emailCtrl.text.trim();
+          context.go(
+            '/verify-email?email=${Uri.encodeComponent(email)}',
+            extra: _passCtrl.text,
+          );
+          return;
+        }
         final msg = err is ApiException ? err.message : 'Une erreur est survenue.';
         _showError(msg);
       }
