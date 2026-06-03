@@ -6,6 +6,7 @@ import '../services/token_storage.dart';
 final dioProvider = Provider<Dio>((ref) => _buildDio());
 
 Dio _buildDio() {
+  print('BASE URL: ${Env.apiBaseUrl}');
   final dio = Dio(
     BaseOptions(
       baseUrl: '${Env.apiBaseUrl}/',
@@ -22,9 +23,15 @@ Dio _buildDio() {
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
+        print('REQUEST: ${options.method} ${options.baseUrl}${options.path}');
         handler.next(options);
       },
+      onResponse: (response, handler) {
+        print('📥 RESPONSE: ${response.statusCode}');
+        handler.next(response);
+      },
       onError: (error, handler) async {
+        print('❌ERROR: ${error.type} | ${error.message} | ${error.requestOptions.uri}');
         if (error.response?.statusCode != 401) {
           return handler.next(error);
         }
