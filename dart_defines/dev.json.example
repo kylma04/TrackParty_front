@@ -1,6 +1,6 @@
 {
   "ENV": "dev",
-  "API_BASE_URL": "http://192.168.1.4:8000/api",
-  "WS_BASE_URL": "ws://192.168.1.4:8000/ws",
+  "API_BASE_URL": "http://10.0.2.2:8000/api",
+  "WS_BASE_URL": "ws://10.0.2.2:8000/ws",
   "GOOGLE_MAPS_API_KEY": "YOUR_GOOGLE_MAPS_API_KEY"
 }
