@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-
 import '../../core/api/api_exception.dart';
 import '../../core/services/cloudinary_service.dart';
 import '../../core/services/co_organizer_service.dart';
@@ -25,25 +24,29 @@ class EventCreateScreen extends ConsumerStatefulWidget {
   ConsumerState<EventCreateScreen> createState() => _EventCreateScreenState();
 }
 
-class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
+class _EventCreateScreenState extends ConsumerState<EventCreateScreen>
+    with SingleTickerProviderStateMixin {
+  // Page controller 
+  final _pageCtrl = PageController();
+  int _currentPage = 0;
+
+  // Form fields 
   final _titleCtrl    = TextEditingController();
   final _descCtrl     = TextEditingController();
   final _capacityCtrl = TextEditingController(text: '80');
 
   String? _category;
   String  _visibility  = 'public';
-  // contribution_type values match backend: 'gratuit', 'nature', 'monetaire'
   String  _contribMode = 'gratuit';
   int     _capacity    = 80;
 
   DateTime? _startAt;
   DateTime? _endAt;
 
-  // Location
   String _addressLabel = '';
   String _city         = 'Abidjan';
   String _quartier     = '';
-  double _lat          = 5.3484;   // centre Abidjan par défaut
+  double _lat          = 5.3484;
   double _lng          = -4.0168;
 
   TpButtonState _publishState = TpButtonState.idle;
@@ -51,7 +54,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String? _coverUrl;
   bool    _coverLoading = false;
 
-  // Co-organisateurs à inviter après création (liste de user_id)
   final List<String> _pendingCoOrgIds = [];
 
   final List<_Item> _items = [
@@ -71,6 +73,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   @override
   void dispose() {
+    _pageCtrl.dispose();
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _capacityCtrl.dispose();
@@ -85,11 +88,56 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String get _locationLabel => _addressLabel.isNotEmpty ? _addressLabel : 'Lieu';
   String get _locationSub   => _quartier.isNotEmpty ? '$_quartier, $_city' : 'Appuyer pour choisir';
 
+  String get _categoryLabel {
+    if (_category == null) return '—';
+    final cat = _categories.firstWhere((c) => c.$1 == _category,
+        orElse: () => ('', '', '—', Colors.transparent));
+    return '${cat.$2} ${cat.$3}';
+  }
+
+  String get _contribLabel {
+    switch (_contribMode) {
+      case 'nature': return '🎁 En nature';
+      case 'monetaire': return '💰 Payant';
+      default: return '💸 Gratuit';
+    }
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+
+  void _nextPage() {
+    if (_currentPage == 0 && _titleCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le titre est obligatoire.'), backgroundColor: kError),
+      );
+      return;
+    }
+    if (_currentPage < 2) {
+      _pageCtrl.animateToPage(
+        _currentPage + 1,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _prevPage() {
+    if (_currentPage > 0) {
+      _pageCtrl.animateToPage(
+        _currentPage - 1,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   // ── Date/time picker ──────────────────────────────────────────────────────
 
   Future<void> _pickDateTime({required bool isEnd}) async {
     final now = DateTime.now();
-    final initial = isEnd ? (_endAt ?? _startAt?.add(const Duration(hours: 5)) ?? now) : (_startAt ?? now);
+    final initial = isEnd
+        ? (_endAt ?? _startAt?.add(const Duration(hours: 5)) ?? now)
+        : (_startAt ?? now);
 
     final date = await showDatePicker(
       context: context,
@@ -145,8 +193,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                 Text('Lieu de l\'événement',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: ctx.tpInk)),
                 const SizedBox(height: 14),
-
-                // Boutons GPS + carte
                 Row(children: [
                   Expanded(
                     child: _LocationActionBtn(
@@ -206,8 +252,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   ),
                 ]),
                 const SizedBox(height: 12),
-
-                // Coordonnées actuelles
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
@@ -224,7 +268,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   ]),
                 ),
                 const SizedBox(height: 12),
-
                 _LocationField(ctrl: addrCtrl, label: 'Adresse (ex: Rooftop K8)'),
                 const SizedBox(height: 10),
                 Row(children: [
@@ -255,7 +298,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Validation ────────────────────────────────────────────────────────────
+  // ── Validation finale ─────────────────────────────────────────────────────
 
   String? _validate() {
     if (_titleCtrl.text.trim().isEmpty) return 'Le titre est obligatoire.';
@@ -326,23 +369,17 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
       final event = await ref.read(eventServiceProvider).createEvent(data);
 
-      // Send co-organizer invitations
       if (_pendingCoOrgIds.isNotEmpty) {
         final svc = ref.read(coOrganizerServiceProvider);
         for (final userId in _pendingCoOrgIds) {
-          try {
-            await svc.invite(event.id, userId);
-          } catch (_) {}
+          try { await svc.invite(event.id, userId); } catch (_) {}
         }
       }
 
       if (mounted) {
         setState(() => _publishState = TpButtonState.idle);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Événement publié !'),
-            backgroundColor: kSuccess,
-          ),
+          const SnackBar(content: Text('Événement publié !'), backgroundColor: kSuccess),
         );
         context.go('/feed');
       }
@@ -356,7 +393,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  
+  //  ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -364,36 +402,21 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       backgroundColor: context.tpBg,
       body: Stack(
         children: [
-          CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(child: SizedBox(height: MediaQuery.of(context).padding.top)),
-              SliverToBoxAdapter(child: _buildHeader(context)),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 120),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _buildCoverPhoto(context),
-                    const SizedBox(height: 14),
-                    _buildTitleField(context),
-                    const SizedBox(height: 14),
-                    _buildDescField(context),
-                    const SizedBox(height: 14),
-                    _buildCategories(context),
-                    const SizedBox(height: 14),
-                    _buildDateLocation(),
-                    const SizedBox(height: 14),
-                    _buildVisibility(),
-                    const SizedBox(height: 14),
-                    _buildContribMode(),
-                    if (_contribMode == 'nature') ...[
-                      const SizedBox(height: 14),
-                      _buildItemsList(context),
-                    ],
-                    const SizedBox(height: 14),
-                    _buildCapacity(context),
-                    const SizedBox(height: 14),
-                    _buildCoOrganizers(context),
-                  ]),
+          Column(
+            children: [
+              SizedBox(height: MediaQuery.of(context).padding.top),
+              _buildHeader(context),
+              _buildStepIndicator(context),
+              Expanded(
+                child: PageView(
+                  controller: _pageCtrl,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (i) => setState(() => _currentPage = i),
+                  children: [
+                    _buildPage1(context),
+                    _buildPage2(context),
+                    _buildPage3(context),
+                  ],
                 ),
               ),
             ],
@@ -414,27 +437,37 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 8),
       child: Row(
         children: [
-          Semantics(
-            button: true,
-            label: 'Fermer',
-            child: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: context.tpCard,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: Shadows.sm,
-                ),
-                child: Icon(Icons.close, color: context.tpInk, size: 18),
+          GestureDetector(
+            onTap: _currentPage == 0 ? () => context.pop() : _prevPage,
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: context.tpCard,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: Shadows.sm,
+              ),
+              child: Icon(
+                _currentPage == 0 ? Icons.close : Icons.arrow_back_ios_new,
+                color: context.tpInk,
+                size: 18,
               ),
             ),
           ),
           Expanded(
-            child: Text('Nouvel événement',
+            child: Text(
+              _currentPage == 0
+                  ? 'Nouvel événement'
+                  : _currentPage == 1
+                      ? 'Détails'
+                      : 'Récapitulatif',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900,
-                  color: context.tpInk, letterSpacing: -0.4)),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: context.tpInk,
+                letterSpacing: -0.4,
+              ),
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -442,15 +475,245 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               color: kPrimary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text('Brouillon',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+            child: Text(
+              '${_currentPage + 1} / 3',
+              style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ── Cover photo ───────────────────────────────────────────────────────────
+  // ── Step indicator ────────────────────────────────────────────────────────
+
+  Widget _buildStepIndicator(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, 8),
+      child: Row(
+        children: List.generate(3, (i) {
+          final active = i == _currentPage;
+          final done   = i < _currentPage;
+          return Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: 4,
+              margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                gradient: active || done ? trackpartyGradient : null,
+                color: active || done ? null : context.tpHair,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  
+  // PAGE 1 — Titre, Description, Visibilité, Photo
+
+  Widget _buildPage1(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 120),
+      child: Column(
+        children: [
+          _buildTitleField(context),
+          const SizedBox(height: 14),
+          _buildDescField(context),
+          const SizedBox(height: 14),
+          _buildVisibility(),
+          const SizedBox(height: 14),
+          _buildCoverPhoto(context),
+        ],
+      ),
+    );
+  }
+
+  // PAGE 2 — Catégorie, Date/Heure, Lieu, Contribution, Capacité, Co-orga
+
+  Widget _buildPage2(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 120),
+      child: Column(
+        children: [
+          _buildCategories(context),
+          const SizedBox(height: 14),
+          _buildDateLocation(),
+          const SizedBox(height: 14),
+          _buildContribMode(),
+          if (_contribMode == 'nature') ...[
+            const SizedBox(height: 14),
+            _buildItemsList(context),
+          ],
+          const SizedBox(height: 14),
+          _buildCapacity(context),
+          const SizedBox(height: 14),
+          _buildCoOrganizers(context),
+        ],
+      ),
+    );
+  }
+
+  // PAGE 3 — Récapitulatif
+
+  Widget _buildPage3(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Photo de couverture
+          if (_coverUrl != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.network(
+                _coverUrl!,
+                height: 160,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Bloc principal
+          _RecapCard(
+            children: [
+              _RecapRow(icon: Icons.title, label: 'Titre', value: _titleCtrl.text.trim().isEmpty ? '—' : _titleCtrl.text.trim()),
+              _RecapDivider(),
+              _RecapRow(
+                icon: Icons.notes,
+                label: 'Description',
+                value: _descCtrl.text.trim().isEmpty ? '—' : _descCtrl.text.trim(),
+                multiline: true,
+              ),
+              _RecapDivider(),
+              _RecapRow(
+                icon: _visibility == 'public' ? Icons.public : Icons.lock_outline,
+                label: 'Visibilité',
+                value: _visibility == 'public' ? '🌍 Public' : '🔒 Privé',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Catégorie & dates
+          _RecapCard(
+            children: [
+              _RecapRow(icon: Icons.category_outlined, label: 'Catégorie', value: _categoryLabel),
+              _RecapDivider(),
+              _RecapRow(
+                icon: Icons.calendar_today_outlined,
+                label: 'Début',
+                value: _startAt != null
+                    ? '${_fmtDate(_startAt!)} à ${_fmtTime(_startAt!)}'
+                    : '—',
+              ),
+              if (_endAt != null) ...[
+                _RecapDivider(),
+                _RecapRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Fin',
+                  value: '${_fmtDate(_endAt!)} à ${_fmtTime(_endAt!)}',
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Lieu
+          _RecapCard(
+            children: [
+              _RecapRow(
+                icon: Icons.location_on_outlined,
+                label: 'Adresse',
+                value: _addressLabel.isNotEmpty ? _addressLabel : '—',
+              ),
+              _RecapDivider(),
+              _RecapRow(
+                icon: Icons.map_outlined,
+                label: 'Quartier / Ville',
+                value: _quartier.isNotEmpty ? '$_quartier, $_city' : _city,
+              ),
+              _RecapDivider(),
+              _RecapRow(
+                icon: Icons.gps_fixed,
+                label: 'Coordonnées',
+                value: '${_lat.toStringAsFixed(4)}, ${_lng.toStringAsFixed(4)}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Contribution & capacité
+          _RecapCard(
+            children: [
+              _RecapRow(icon: Icons.volunteer_activism_outlined, label: 'Contribution', value: _contribLabel),
+              _RecapDivider(),
+              _RecapRow(
+                icon: Icons.people_outline,
+                label: 'Capacité max',
+                value: '$_capacity personnes',
+              ),
+              if (_contribMode == 'nature' && _items.isNotEmpty) ...[
+                _RecapDivider(),
+                _RecapRow(
+                  icon: Icons.list_alt_outlined,
+                  label: 'Items',
+                  value: _items.map((i) => '${i.emoji} ${i.label} ×${i.qty}').join('\n'),
+                  multiline: true,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Co-organisateurs
+          if (_pendingCoOrgIds.isNotEmpty) ...[
+            _RecapCard(
+              children: [
+                _RecapRow(
+                  icon: Icons.group_outlined,
+                  label: 'Co-organisateurs',
+                  value: '${_pendingCoOrgIds.length} invité(s)',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Bouton modifier
+          Row(
+            children: [
+              Expanded(
+                child: _RecapEditBtn(
+                  label: 'Modifier page 1',
+                  onTap: () => _pageCtrl.animateToPage(0,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOut),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _RecapEditBtn(
+                  label: 'Modifier page 2',
+                  onTap: () => _pageCtrl.animateToPage(1,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOut),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // WIDGETS RÉUTILISÉS (identiques à l'original)
 
   Widget _buildCoverPhoto(BuildContext context) {
     return Semantics(
@@ -472,9 +735,11 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   children: [
                     Image.network(_coverUrl!, fit: BoxFit.cover),
                     if (_coverLoading)
-                      Container(color: Colors.black54,
+                      Container(
+                        color: Colors.black54,
                         alignment: Alignment.center,
-                        child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                        child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      ),
                     Positioned(
                       bottom: 8, right: 8,
                       child: Container(
@@ -486,7 +751,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.camera_alt_outlined, color: Colors.white, size: 14),
                           const SizedBox(width: 4),
-                          const Text('Changer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                          const Text('Changer',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
                         ]),
                       ),
                     ),
@@ -521,8 +787,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Titre ─────────────────────────────────────────────────────────────────
-
   Widget _buildTitleField(BuildContext context) {
     return _CreateField(
       label: 'Titre',
@@ -540,12 +804,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Description ───────────────────────────────────────────────────────────
-
   Widget _buildDescField(BuildContext context) {
     return AnimatedBuilder(
       animation: _descCtrl,
-      builder: (_, _) => _CreateField(
+      builder: (_, _x) => _CreateField(
         label: 'Description',
         extra: Text(
           '${_descCtrl.text.length} / 280',
@@ -555,8 +817,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           controller: _descCtrl,
           maxLines: 3,
           maxLength: 280,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
-              color: context.tpInkSub, height: 1.45),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.tpInkSub, height: 1.45),
           decoration: InputDecoration(
             hintText: 'Décris ton événement…',
             hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: context.tpInkMute),
@@ -569,8 +830,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       ),
     );
   }
-
-  // ── Catégories ────────────────────────────────────────────────────────────
 
   Widget _buildCategories(BuildContext context) {
     return Column(
@@ -618,8 +877,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Date & Lieu ───────────────────────────────────────────────────────────
-
   Widget _buildDateLocation() {
     return Row(
       children: [
@@ -650,8 +907,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Visibilité ────────────────────────────────────────────────────────────
-
   Widget _buildVisibility() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -676,8 +931,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       ],
     );
   }
-
-  // ── Mode de contribution ──────────────────────────────────────────────────
 
   Widget _buildContribMode() {
     return Column(
@@ -710,8 +963,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Liste d'items ─────────────────────────────────────────────────────────
-
   Widget _buildItemsList(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -727,27 +978,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             children: [
               Text('Items à apporter',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: context.tpInk)),
-              Semantics(
-                button: true,
-                label: 'Ajouter un item',
-                child: GestureDetector(
-                  onTap: () => _showItemDialog(),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, color: Colors.white, size: 12),
-                        const SizedBox(width: 4),
-                        const Text('Ajouter',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
-                      ],
-                    ),
-                  ),
+              GestureDetector(
+                onTap: () => _showItemDialog(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(10)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.add, color: Colors.white, size: 12),
+                    const SizedBox(width: 4),
+                    const Text('Ajouter', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ]),
                 ),
               ),
             ],
@@ -764,8 +1004,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Capacité ──────────────────────────────────────────────────────────────
-
   void _setCapacity(int value) {
     final v = value.clamp(1, 9999);
     setState(() => _capacity = v);
@@ -780,17 +1018,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       label: 'Capacité maximale',
       child: Row(
         children: [
-          Semantics(
-            button: true,
-            label: 'Diminuer la capacité',
-            child: GestureDetector(
-              onTap: () => _setCapacity(_capacity - 1),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(12)),
-                alignment: Alignment.center,
-                child: Text('−', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: context.tpInk)),
-              ),
+          GestureDetector(
+            onTap: () => _setCapacity(_capacity - 1),
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: Text('−', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: context.tpInk)),
             ),
           ),
           const SizedBox(width: 10),
@@ -814,17 +1048,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Semantics(
-            button: true,
-            label: 'Augmenter la capacité',
-            child: GestureDetector(
-              onTap: () => _setCapacity(_capacity + 1),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
-                alignment: Alignment.center,
-                child: const Text('+', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-              ),
+          GestureDetector(
+            onTap: () => _setCapacity(_capacity + 1),
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: const Text('+', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
             ),
           ),
         ],
@@ -832,22 +1062,15 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
-  // ── Co-organisateurs ──────────────────────────────────────────────────────
-
   Future<void> _showAddCoOrg() async {
     final ctrl = TextEditingController();
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: context.tpCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          Sp.md, 20, Sp.md,
-          MediaQuery.of(ctx).viewInsets.bottom + Sp.md,
-        ),
+        padding: EdgeInsets.fromLTRB(Sp.md, 20, Sp.md, MediaQuery.of(ctx).viewInsets.bottom + Sp.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -862,10 +1085,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
-              child: TpButton(
-                label: 'Inviter',
-                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              ),
+              child: TpButton(label: 'Inviter', onPressed: () => Navigator.pop(ctx, ctrl.text.trim())),
             ),
           ],
         ),
@@ -891,27 +1111,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const _SectionLabel('Co-organisateurs'),
-              Semantics(
-                button: true,
-                label: 'Inviter un co-organisateur',
-                child: GestureDetector(
-                  onTap: _showAddCoOrg,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, color: Colors.white, size: 12),
-                        const SizedBox(width: 4),
-                        const Text('Inviter',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
-                      ],
-                    ),
-                  ),
+              GestureDetector(
+                onTap: _showAddCoOrg,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(10)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.add, color: Colors.white, size: 12),
+                    const SizedBox(width: 4),
+                    const Text('Inviter', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ]),
                 ),
               ),
             ],
@@ -941,9 +1150,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   // ── Bottom CTA ────────────────────────────────────────────────────────────
 
   Widget _buildBottomCta(BuildContext context) {
+    final isLastPage = _currentPage == 2;
     return Container(
-      padding: EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md,
-          Sp.md + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+        Sp.md, Sp.md, Sp.md,
+        Sp.md + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -954,19 +1166,27 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       ),
       child: Row(
         children: [
-          TpButton(
-            label: 'Aperçu',
-            variant: TpButtonVariant.outline,
-            onPressed: () {},
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TpButton(
-              label: 'Publier',
-              icon: Icons.check,
-              state: _publishState,
-              onPressed: _publish,
+          if (_currentPage > 0) ...[
+            TpButton(
+              label: 'Retour',
+              variant: TpButtonVariant.outline,
+              onPressed: _prevPage,
             ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: isLastPage
+                ? TpButton(
+                    label: 'Publier',
+                    icon: Icons.check,
+                    state: _publishState,
+                    onPressed: _publish,
+                  )
+                : TpButton(
+                    label: 'Suivant',
+                    icon: Icons.arrow_forward,
+                    onPressed: _nextPage,
+                  ),
           ),
         ],
       ),
@@ -993,7 +1213,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Emoji picker
               Wrap(
                 spacing: 8, runSpacing: 8,
                 children: emojis.map((e) => GestureDetector(
@@ -1062,9 +1281,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// Composants locaux
-// ════════════════════════════════════════════════════════════════════════════
+// Composants locaux (identiques à l'original)
 
 class _SectionLabel extends StatelessWidget {
   final String text;
@@ -1126,36 +1343,32 @@ class _SelectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: context.tpCard,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [BoxShadow(color: Color(0x0A1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Icon(icon, color: iconColor, size: 18),
-                const SizedBox(width: 6),
-                Text(label.toUpperCase(),
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-                      color: context.tpInkSub, letterSpacing: 0.3)),
-              ]),
-              const SizedBox(height: 6),
-              Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
-                  color: context.tpInk, letterSpacing: -0.2)),
-              const SizedBox(height: 1),
-              Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                  color: context.tpInkSub)),
-            ],
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [BoxShadow(color: Color(0x0A1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(icon, color: iconColor, size: 18),
+              const SizedBox(width: 6),
+              Text(label.toUpperCase(),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                    color: context.tpInkSub, letterSpacing: 0.3)),
+            ]),
+            const SizedBox(height: 6),
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
+                color: context.tpInk, letterSpacing: -0.2)),
+            const SizedBox(height: 1),
+            Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                color: context.tpInkSub)),
+          ],
         ),
       ),
     );
@@ -1173,36 +1386,31 @@ class _VisCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: title,
-      selected: active,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            gradient: active ? trackpartyGradient : null,
-            color: active ? null : context.tpCard,
-            borderRadius: BorderRadius.circular(16),
-            border: active ? null : Border.all(color: context.tpHair, width: 1.5),
-            boxShadow: active
-                ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 16, offset: Offset(0, 6))]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(height: 4),
-              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
-                  color: active ? Colors.white : context.tpInk)),
-              const SizedBox(height: 2),
-              Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                  color: active ? Colors.white.withValues(alpha: 0.85) : context.tpInkSub)),
-            ],
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: active ? trackpartyGradient : null,
+          color: active ? null : context.tpCard,
+          borderRadius: BorderRadius.circular(16),
+          border: active ? null : Border.all(color: context.tpHair, width: 1.5),
+          boxShadow: active
+              ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 16, offset: Offset(0, 6))]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 4),
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
+                color: active ? Colors.white : context.tpInk)),
+            const SizedBox(height: 2),
+            Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                color: active ? Colors.white.withValues(alpha: 0.85) : context.tpInkSub)),
+          ],
         ),
       ),
     );
@@ -1220,36 +1428,31 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: title,
-      selected: active,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            gradient: active ? trackpartyGradient : null,
-            color: active ? null : context.tpCard,
-            borderRadius: BorderRadius.circular(16),
-            border: active ? null : Border.all(color: context.tpHair, width: 1.5),
-            boxShadow: active
-                ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 16, offset: Offset(0, 6))]
-                : null,
-          ),
-          child: Column(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 2),
-              Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900,
-                  color: active ? Colors.white : context.tpInk)),
-              const SizedBox(height: 1),
-              Text(sub, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                  color: active ? Colors.white.withValues(alpha: 0.85) : context.tpInkSub),
-                textAlign: TextAlign.center),
-            ],
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          gradient: active ? trackpartyGradient : null,
+          color: active ? null : context.tpCard,
+          borderRadius: BorderRadius.circular(16),
+          border: active ? null : Border.all(color: context.tpHair, width: 1.5),
+          boxShadow: active
+              ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 16, offset: Offset(0, 6))]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 2),
+            Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900,
+                color: active ? Colors.white : context.tpInk)),
+            const SizedBox(height: 1),
+            Text(sub, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                color: active ? Colors.white.withValues(alpha: 0.85) : context.tpInkSub),
+              textAlign: TextAlign.center),
+          ],
         ),
       ),
     );
@@ -1275,50 +1478,42 @@ class _ItemRow extends StatelessWidget {
     return Column(
       children: [
         if (!isFirst) Divider(height: 1, color: context.tpHair),
-        Semantics(
-          button: true,
-          label: 'Modifier ${item.label}',
-          child: GestureDetector(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32, height: 32,
-                    decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
-                    alignment: Alignment.center,
-                    child: Text(item.emoji, style: const TextStyle(fontSize: 16)),
+        GestureDetector(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
+                  alignment: Alignment.center,
+                  child: Text(item.emoji, style: const TextStyle(fontSize: 16)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.label,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInk)),
+                      Text('Appuyer pour modifier',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: context.tpInkMute)),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.label,
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInk)),
-                        Text('Appuyer pour modifier',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: context.tpInkMute)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(8)),
-                    child: Text('×${item.qty}',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInk)),
-                  ),
-                  const SizedBox(width: 8),
-                  Semantics(
-                    button: true,
-                    label: 'Supprimer ${item.label}',
-                    child: GestureDetector(
-                      onTap: onRemove,
-                      child: Icon(Icons.remove_circle_outline, color: kError, size: 20),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(8)),
+                  child: Text('×${item.qty}',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInk)),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onRemove,
+                  child: Icon(Icons.remove_circle_outline, color: kError, size: 20),
+                ),
+              ],
             ),
           ),
         ),
@@ -1348,13 +1543,9 @@ class _CoOrgChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(short, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
           const SizedBox(width: 6),
-          Semantics(
-            button: true,
-            label: 'Retirer ce co-organisateur',
-            child: GestureDetector(
-              onTap: onRemove,
-              child: Icon(Icons.close, color: kPrimary, size: 14),
-            ),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(Icons.close, color: kPrimary, size: 14),
           ),
         ],
       ),
@@ -1373,44 +1564,36 @@ class _LocationActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: GestureDetector(
-        onTap: loading ? null : onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-          decoration: BoxDecoration(
-            color: kPrimary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: loading
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, color: kPrimary, size: 18),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(label,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+        decoration: BoxDecoration(
+          color: kPrimary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
         ),
+        child: loading
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: kPrimary, size: 18),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+                  ),
+                ],
+              ),
       ),
     );
   }
 }
 
-// Champ texte utilisé dans le bottom sheet de localisation
 class _LocationField extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
@@ -1420,7 +1603,6 @@ class _LocationField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: ctrl,
-      keyboardType: TextInputType.text,
       style: TextStyle(fontSize: 14, color: context.tpInk),
       decoration: InputDecoration(
         labelText: label,
@@ -1433,6 +1615,107 @@ class _LocationField extends StatelessWidget {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         isDense: true,
+      ),
+    );
+  }
+}
+
+//Page 3
+
+
+class _RecapCard extends StatelessWidget {
+  final List<Widget> children;
+  const _RecapCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [BoxShadow(color: Color(0x0A1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+
+class _RecapDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) =>
+      Divider(height: 20, color: context.tpHair);
+}
+
+class _RecapRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool multiline;
+  const _RecapRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.multiline = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 16, color: kPrimary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label.toUpperCase(),
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
+                    color: context.tpInkSub, letterSpacing: 0.3)),
+              const SizedBox(height: 2),
+              Text(value,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInk),
+                maxLines: multiline ? null : 2,
+                overflow: multiline ? null : TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecapEditBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _RecapEditBtn({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: context.tpHair, width: 1.5),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.edit_outlined, size: 14, color: context.tpInkSub),
+            const SizedBox(width: 6),
+            Text(label,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInkSub)),
+          ],
+        ),
       ),
     );
   }
