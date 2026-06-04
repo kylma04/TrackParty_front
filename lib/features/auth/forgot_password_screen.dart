@@ -11,6 +11,7 @@ import '../../core/services/auth_service.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/otp_countdown.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_field.dart';
 
@@ -22,15 +23,17 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
-  int _step = 0; // 0=email, 1=code, 2=nouveau mot de passe
+  int _step    = 0; // 0=email, 1=code, 2=nouveau mot de passe
+  int _timerKey = 0; // incrémenté à chaque renvoi pour relancer le countdown
 
   final _emailCtrl    = TextEditingController();
   final _codeCtrl     = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl  = TextEditingController();
 
-  bool _loading = false;
-  bool _obscure = true;
+  bool _loading     = false;
+  bool _obscure     = true;
+  bool _codeExpired = false;
   String? _error;
 
   @override
@@ -50,11 +53,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       return;
     }
     // Naviguer immédiatement sans attendre l'API
-    setState(() { _step = 1; _error = null; });
+    setState(() { _step = 1; _error = null; _codeExpired = false; _timerKey++; });
     // Lancer l'envoi en arrière-plan
     unawaited(
       ref.read(authServiceProvider).requestPasswordReset(email).catchError((e) {
-        // L'utilisateur voit déjà l'étape 2 avec un bouton "Renvoyer le code"
         if (mounted) setState(() => _error = 'Problème d\'envoi. Appuie sur "Renvoyer le code".');
       }),
     );
@@ -121,12 +123,15 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 onSubmit: _sendCode,
               ),
             1 => _CodeStep(
-                key: const ValueKey(1),
+                key: ValueKey('code-$_timerKey'),
                 email: _emailCtrl.text.trim(),
                 ctrl: _codeCtrl,
                 error: _error,
+                codeExpired: _codeExpired,
+                timerKey: _timerKey,
                 onSubmit: _verifyCode,
                 onResend: _sendCode,
+                onExpired: () => setState(() => _codeExpired = true),
               ),
             _ => _PasswordStep(
                 key: const ValueKey(2),
@@ -185,9 +190,22 @@ class _CodeStep extends StatelessWidget {
   final String email;
   final TextEditingController ctrl;
   final String? error;
+  final bool codeExpired;
+  final int timerKey;
   final VoidCallback onSubmit;
   final VoidCallback onResend;
-  const _CodeStep({super.key, required this.email, required this.ctrl, required this.error, required this.onSubmit, required this.onResend});
+  final VoidCallback onExpired;
+  const _CodeStep({
+    super.key,
+    required this.email,
+    required this.ctrl,
+    required this.error,
+    required this.codeExpired,
+    required this.timerKey,
+    required this.onSubmit,
+    required this.onResend,
+    required this.onExpired,
+  });
 
   @override
   Widget build(BuildContext context) => Column(children: [
@@ -205,36 +223,58 @@ class _CodeStep extends StatelessWidget {
         Text('Code envoyé à $email',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub, height: 1.5)),
-        const SizedBox(height: Sp.xl),
-        TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          maxLength: 6,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 16, color: context.tpInk),
-          decoration: InputDecoration(
-            counterText: '',
-            hintText: '______',
-            hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
-            filled: true,
-            fillColor: context.tpCard,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+        const SizedBox(height: Sp.lg),
+
+        // ── Countdown ─────────────────────────────────────────────────
+        OtpCountdown(
+          key: ValueKey(timerKey),
+          duration: const Duration(minutes: 10),
+          onExpired: onExpired,
+        ),
+        const SizedBox(height: Sp.lg),
+
+        // ── Saisie du code ────────────────────────────────────────────
+        Opacity(
+          opacity: codeExpired ? 0.4 : 1.0,
+          child: TextField(
+            controller: ctrl,
+            enabled: !codeExpired,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            maxLength: 6,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 16, color: context.tpInk),
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: '______',
+              hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
+              filled: true,
+              fillColor: context.tpCard,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 18),
             ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 18),
           ),
         ),
+
         if (error != null) ...[
           const SizedBox(height: 8),
           Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
         ],
         const SizedBox(height: Sp.lg),
-        TpButton(label: 'Continuer', fullWidth: true, onPressed: onSubmit),
+
+        if (!codeExpired)
+          TpButton(label: 'Continuer', fullWidth: true, onPressed: onSubmit),
         const SizedBox(height: Sp.sm),
-        TpButton(label: 'Renvoyer le code', fullWidth: true, variant: TpButtonVariant.ghost, onPressed: onResend),
+        TpButton(
+          label: codeExpired ? 'Obtenir un nouveau code' : 'Renvoyer le code',
+          fullWidth: true,
+          variant: codeExpired ? TpButtonVariant.gradient : TpButtonVariant.ghost,
+          onPressed: onResend,
+        ),
       ]);
 }
 

@@ -8,6 +8,7 @@ import '../../core/services/auth_service.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/otp_countdown.dart';
 import '../../widgets/tp_button.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
@@ -21,9 +22,11 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   final _codeCtrl = TextEditingController();
-  bool _verifying = false;
-  bool _resending = false;
-  bool _resentOk  = false;
+  bool _verifying  = false;
+  bool _resending  = false;
+  bool _resentOk   = false;
+  bool _codeExpired = false;
+  int  _timerKey   = 0; // incrémenté au renvoi pour relancer le countdown
   String? _error;
 
   String? get _resolvedEmail =>
@@ -62,7 +65,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     setState(() { _resending = true; _resentOk = false; _error = null; });
     try {
       await ref.read(authServiceProvider).resendVerification(email);
-      if (mounted) setState(() { _resending = false; _resentOk = true; });
+      if (mounted) setState(() {
+        _resending = false;
+        _resentOk = true;
+        _codeExpired = false;
+        _timerKey++;   // relance le countdown
+      });
     } catch (_) {
       if (mounted) setState(() => _resending = false);
     }
@@ -103,33 +111,43 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub, height: 1.5),
             ),
-            const SizedBox(height: Sp.xl),
+            const SizedBox(height: Sp.lg),
+
+            // ── Countdown ────────────────────────────────────────────────────
+            OtpCountdown(
+              key: ValueKey(_timerKey),
+              duration: const Duration(minutes: 15),
+              onExpired: () => setState(() { _codeExpired = true; _error = null; }),
+            ),
+
+            const SizedBox(height: Sp.lg),
 
             // ── Saisie du code ───────────────────────────────────────────────
-            TextField(
-              controller: _codeCtrl,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              maxLength: 6,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 16, color: context.tpInk),
-              decoration: InputDecoration(
-                counterText: '',
-                hintText: '______',
-                hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
-                filled: true,
-                fillColor: context.tpCard,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
+            Opacity(
+              opacity: _codeExpired ? 0.4 : 1.0,
+              child: TextField(
+                controller: _codeCtrl,
+                enabled: !_codeExpired,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                maxLength: 6,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 16, color: context.tpInk),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: '______',
+                  hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
+                  filled: true,
+                  fillColor: context.tpCard,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                onChanged: (_) { if (_error != null) setState(() => _error = null); },
               ),
-              onChanged: (_) { if (_error != null) setState(() => _error = null); },
             ),
 
             if (_error != null) ...[
@@ -141,12 +159,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
             const SizedBox(height: Sp.lg),
 
-            TpButton(
-              label: 'Vérifier',
-              fullWidth: true,
-              state: _verifying ? TpButtonState.loading : TpButtonState.idle,
-              onPressed: _verifying ? null : _verify,
-            ),
+            if (!_codeExpired)
+              TpButton(
+                label: 'Vérifier',
+                fullWidth: true,
+                state: _verifying ? TpButtonState.loading : TpButtonState.idle,
+                onPressed: _verifying ? null : _verify,
+              ),
 
             const SizedBox(height: Sp.md),
 
@@ -155,9 +174,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green.shade600))
             else
               TpButton(
-                label: 'Renvoyer le code',
+                label: _codeExpired ? 'Obtenir un nouveau code' : 'Renvoyer le code',
                 fullWidth: true,
-                variant: TpButtonVariant.ghost,
+                variant: _codeExpired ? TpButtonVariant.gradient : TpButtonVariant.ghost,
                 state: _resending ? TpButtonState.loading : TpButtonState.idle,
                 onPressed: _resending ? null : _resend,
               ),
