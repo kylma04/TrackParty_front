@@ -88,6 +88,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     }
   }
 
+  /// Applique une AuthResponse déjà obtenue (ex: tokens retournés par verify-email-code).
+  Future<void> loginWithResponse(AuthResponse response) async {
+    state = AsyncValue.data(await _applyResponse(Future.value(response)));
+  }
+
   Future<void> updateProfile(Map<String, dynamic> data) async {
     await _service.patchMe(data);
     await refreshUser();

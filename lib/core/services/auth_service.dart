@@ -61,7 +61,26 @@ class AuthService {
         await _dio.post('auth/password-reset/', data: {'email': email});
       });
 
-  /// Renvoi du lien de vérification — endpoint public, prend l'email en body.
+  /// Vérifie le code OTP et retourne les tokens JWT directement (1 seul appel réseau).
+  Future<AuthResponse> verifyEmailCode(String email, String code) => _call(() async {
+        final resp = await _dio.post('auth/verify-email-code/', data: {'email': email, 'code': code});
+        return AuthResponse.fromJson(resp.data as Map<String, dynamic>);
+      });
+
+  Future<void> confirmPasswordResetCode({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) =>
+      _call(() async {
+        await _dio.post('auth/password-reset/confirm-code/', data: {
+          'email': email,
+          'code': code,
+          'new_password': newPassword,
+        });
+      });
+
+  /// Renvoi du code de vérification — endpoint public, prend l'email en body.
   Future<void> resendVerification(String email) => _call(() async {
         await _dio.post('auth/resend-verification/', data: {'email': email});
       });

@@ -1,13 +1,59 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/event_model.dart';
 import '../services/event_service.dart';
+
+// ── Localisation utilisateur ──────────────────────────────────────────────────
+
+final userLocationProvider = FutureProvider<Position?>((ref) async {
+  try {
+    LocationPermission perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+      return null;
+    }
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.medium,
+    );
+  } catch (_) {
+    return null;
+  }
+});
 
 // ── Feed providers ────────────────────────────────────────────────────────────
 
 final nearbyEventsFeedProvider =
-    AsyncNotifierProvider<FeedNotifier, List<EventModel>>(
-  () => FeedNotifier(filter: 'upcoming', ordering: 'start_at'),
+    AsyncNotifierProvider<NearbyFeedNotifier, List<EventModel>>(
+  NearbyFeedNotifier.new,
 );
+
+class NearbyFeedNotifier extends AsyncNotifier<List<EventModel>> {
+  @override
+  Future<List<EventModel>> build() async {
+    final loc = await ref.watch(userLocationProvider.future);
+    return _fetch(loc);
+  }
+
+  Future<List<EventModel>> _fetch(Position? loc) async {
+    final service = ref.read(eventServiceProvider);
+    final page = await service.getFeed(
+      filter: 'upcoming',
+      lat: loc?.latitude,
+      lng: loc?.longitude,
+      radius: 25,
+      ordering: 'start_at',
+    );
+    return page.results;
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    final loc = await ref.read(userLocationProvider.future);
+    state = await AsyncValue.guard(() => _fetch(loc));
+  }
+}
 
 final trendingEventsFeedProvider =
     AsyncNotifierProvider<FeedNotifier, List<EventModel>>(
@@ -102,3 +148,10 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
     );
   }
 }
+
+// ── Stats événements de l'utilisateur ────────────────────────────────────────
+
+final myEventStatsProvider = FutureProvider<Map<String, int>>((ref) async {
+  final service = ref.read(eventServiceProvider);
+  return service.getMyEventStats();
+});

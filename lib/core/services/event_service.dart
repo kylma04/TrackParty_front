@@ -129,4 +129,18 @@ class EventService {
       throw ApiException.fromDioException(e);
     }
   }
+
+  Future<Map<String, int>> getMyEventStats() async {
+    try {
+      final res = await _dio.get('auth/me/stats/');
+      final data = res.data as Map<String, dynamic>;
+      return {
+        'organized_upcoming': (data['organized_upcoming'] as num).toInt(),
+        'confirmed_participations': (data['confirmed_participations'] as num).toInt(),
+        'past_events': (data['past_events'] as num).toInt(),
+      };
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

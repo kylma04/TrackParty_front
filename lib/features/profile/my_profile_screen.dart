@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/event_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
@@ -187,19 +188,48 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
 
   // ── My events ───────────────────────────────────────────────────────────────
   Widget _buildMyEvents(BuildContext context) {
+    final statsAsync = ref.watch(myEventStatsProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 18, Sp.md, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('MES EVENTS',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
         const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: _ActionTile(icon: '📅', label: 'À venir', count: '—', color: kPrimary, active: true)),
-          const SizedBox(width: 8),
-          Expanded(child: _ActionTile(icon: '✅', label: 'Confirmés', count: '—', color: kSecondary, active: false)),
-          const SizedBox(width: 8),
-          Expanded(child: _ActionTile(icon: '📜', label: 'Historique', count: '—', color: kAccent, active: false)),
-        ]),
+        statsAsync.when(
+          loading: () => Row(children: [
+            Expanded(child: _ActionTile(icon: '📅', label: 'À venir', count: '…', color: kPrimary, active: true)),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionTile(icon: '✅', label: 'Confirmés', count: '…', color: kSecondary, active: false)),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionTile(icon: '📜', label: 'Historique', count: '…', color: kAccent, active: false)),
+          ]),
+          error: (_, __) => Row(children: [
+            Expanded(child: _ActionTile(icon: '📅', label: 'À venir', count: '—', color: kPrimary, active: true)),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionTile(icon: '✅', label: 'Confirmés', count: '—', color: kSecondary, active: false)),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionTile(icon: '📜', label: 'Historique', count: '—', color: kAccent, active: false)),
+          ]),
+          data: (stats) => Row(children: [
+            Expanded(child: _ActionTile(
+              icon: '📅', label: 'À venir',
+              count: '${stats['organized_upcoming'] ?? 0}',
+              color: kPrimary, active: true,
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionTile(
+              icon: '✅', label: 'Confirmés',
+              count: '${stats['confirmed_participations'] ?? 0}',
+              color: kSecondary, active: false,
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: _ActionTile(
+              icon: '📜', label: 'Historique',
+              count: '${stats['past_events'] ?? 0}',
+              color: kAccent, active: false,
+            )),
+          ]),
+        ),
       ]),
     );
   }

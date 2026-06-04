@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,8 +12,6 @@ import '../../widgets/tp_button.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String? email;
-  // Transmis depuis login/signup (flux non authentifié) pour permettre un
-  // re-login direct une fois l'email vérifié. Null pour un user déjà connecté.
   final String? password;
   const VerifyEmailScreen({super.key, this.email, this.password});
 
@@ -21,25 +20,46 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 }
 
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
-  bool _resending  = false;
-  bool _resentOk   = false;
-  bool _checking   = false;
-  String? _checkError;
+  final _codeCtrl = TextEditingController();
+  bool _verifying = false;
+  bool _resending = false;
+  bool _resentOk  = false;
+  String? _error;
 
-  /// Email courant : celui passé à l'écran, sinon celui de l'utilisateur connecté.
   String? get _resolvedEmail =>
       widget.email ??
       (ref.read(authNotifierProvider).valueOrNull is AuthAuthenticated
           ? (ref.read(authNotifierProvider).value as AuthAuthenticated).user.email
           : null);
 
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    final email = _resolvedEmail;
+    final code = _codeCtrl.text.trim();
+    if (email == null) { setState(() => _error = 'Adresse email introuvable.'); return; }
+    if (code.length != 6) { setState(() => _error = 'Saisis le code à 6 chiffres.'); return; }
+
+    setState(() { _verifying = true; _error = null; });
+    try {
+      // Un seul appel réseau : le backend vérifie ET retourne les tokens JWT
+      final authResponse = await ref.read(authServiceProvider).verifyEmailCode(email, code);
+      if (!mounted) return;
+      // Applique les tokens → navigation immédiate déclenchée par le router
+      await ref.read(authNotifierProvider.notifier).loginWithResponse(authResponse);
+    } catch (e) {
+      if (mounted) setState(() { _verifying = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+    }
+  }
+
   Future<void> _resend() async {
     final email = _resolvedEmail;
-    if (email == null) {
-      setState(() => _checkError = 'Adresse email introuvable.');
-      return;
-    }
-    setState(() { _resending = true; _resentOk = false; });
+    if (email == null) return;
+    setState(() { _resending = true; _resentOk = false; _error = null; });
     try {
       await ref.read(authServiceProvider).resendVerification(email);
       if (mounted) setState(() { _resending = false; _resentOk = true; });
@@ -48,56 +68,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     }
   }
 
-  Future<void> _checkVerification() async {
-    setState(() { _checking = true; _checkError = null; });
-    try {
-      // Flux strict (non authentifié) : on retente la connexion. Si l'email a
-      // été vérifié, le login réussit et le router redirige vers le feed.
-      if (widget.password != null && widget.email != null) {
-        await ref.read(authNotifierProvider.notifier).login(widget.email!, widget.password!);
-        if (!mounted) return;
-        if (ref.read(authNotifierProvider).valueOrNull is AuthAuthenticated) {
-          context.go('/feed');
-        } else {
-          setState(() {
-            _checking = false;
-            _checkError = 'Email pas encore vérifié. Vérifie ta boîte mail.';
-          });
-        }
-        return;
-      }
-
-      // Cas d'un utilisateur déjà connecté mais non vérifié (ex. social) :
-      // on relit le profil pour détecter la vérification.
-      final user = await ref.read(authServiceProvider).getMe();
-      if (!mounted) return;
-      if (user.isVerified) {
-        await ref.read(authNotifierProvider.notifier).refreshUser();
-        if (mounted) context.go('/feed');
-      } else {
-        setState(() {
-          _checking = false;
-          _checkError = 'Email pas encore vérifié. Vérifie ta boîte mail.';
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _checking = false;
-          _checkError = 'Impossible de vérifier. Réessaie.';
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final email = widget.email ?? ref.watch(
-      authNotifierProvider.select((v) =>
-          v.valueOrNull is AuthAuthenticated
-              ? (v.value as AuthAuthenticated).user.email
-              : null),
-    );
+    final email = widget.email ??
+        ref.watch(authNotifierProvider.select((v) =>
+            v.valueOrNull is AuthAuthenticated
+                ? (v.value as AuthAuthenticated).user.email
+                : null));
 
     return Scaffold(
       backgroundColor: context.tpBg,
@@ -116,50 +93,69 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             const SizedBox(height: Sp.lg),
             Text(
               'Vérifie ton email',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900,
-                  letterSpacing: -0.8, color: context.tpInk),
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -0.8, color: context.tpInk),
             ),
             const SizedBox(height: Sp.sm),
             Text(
               email != null
-                  ? 'On a envoyé un lien de vérification à\n$email'
-                  : 'On t\'a envoyé un lien de vérification.',
+                  ? 'On a envoyé un code à 6 chiffres à\n$email'
+                  : 'On t\'a envoyé un code à 6 chiffres.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                  color: context.tpInkSub, height: 1.5),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Clique sur le lien dans l\'email, puis reviens ici.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: context.tpInkMute, height: 1.4),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub, height: 1.5),
             ),
             const SizedBox(height: Sp.xl),
 
-            TpButton(
-              label: 'J\'ai vérifié mon email',
-              fullWidth: true,
-              state: _checking ? TpButtonState.loading : TpButtonState.idle,
-              onPressed: _checking ? null : _checkVerification,
+            // ── Saisie du code ───────────────────────────────────────────────
+            TextField(
+              controller: _codeCtrl,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              maxLength: 6,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 16, color: context.tpInk),
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '______',
+                hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
+                filled: true,
+                fillColor: context.tpCard,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 18),
+              ),
+              onChanged: (_) { if (_error != null) setState(() => _error = null); },
             ),
 
-            if (_checkError != null) ...[
+            if (_error != null) ...[
               const SizedBox(height: 10),
-              Text(_checkError!,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+              Text(_error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
             ],
+
+            const SizedBox(height: Sp.lg),
+
+            TpButton(
+              label: 'Vérifier',
+              fullWidth: true,
+              state: _verifying ? TpButtonState.loading : TpButtonState.idle,
+              onPressed: _verifying ? null : _verify,
+            ),
 
             const SizedBox(height: Sp.md),
 
             if (_resentOk)
-              Text(
-                'Email renvoyé ✓',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green.shade600),
-              )
+              Text('Code renvoyé ✓',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green.shade600))
             else
               TpButton(
-                label: 'Renvoyer l\'email',
+                label: 'Renvoyer le code',
                 fullWidth: true,
                 variant: TpButtonVariant.ghost,
                 state: _resending ? TpButtonState.loading : TpButtonState.idle,
