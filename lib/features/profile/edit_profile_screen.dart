@@ -143,7 +143,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           icon: PhosphorIcons.mapPin()),
                     ]),
                     const SizedBox(height: 24),
-                    _buildSaveButton(context),
                   ],
                 ),
               ),
@@ -287,24 +286,4 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
-  Widget _buildSaveButton(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Sauvegarder le profil',
-      child: GestureDetector(
-        onTap: _loading ? null : _save,
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-              gradient: trackpartyGradient, borderRadius: BorderRadius.circular(16)),
-          alignment: Alignment.center,
-          child: _loading
-              ? const SizedBox(width: 22, height: 22,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-              : const Text('Sauvegarder les modifications',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        ),
-      ),
-    );
-  }
 }

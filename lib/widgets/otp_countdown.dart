@@ -71,7 +71,7 @@ class _OtpCountdownState extends State<OtpCountdown> {
             tween: Tween(begin: 1.0, end: _progress),
             duration: const Duration(milliseconds: 800),
             curve: Curves.easeOut,
-            builder: (_, value, __) => LinearProgressIndicator(
+            builder: (_, value, _) => LinearProgressIndicator(
               value: value,
               minHeight: 4,
               backgroundColor: const Color(0xFFECECF3),

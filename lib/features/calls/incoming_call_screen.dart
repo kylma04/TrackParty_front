@@ -190,7 +190,7 @@ class _PulsingAvatarState extends State<_PulsingAvatar>
       children: [
         AnimatedBuilder(
           animation: _ctrl,
-          builder: (_, __) => Transform.scale(
+          builder: (_, _) => Transform.scale(
             scale: _scale.value,
             child: Container(
               width: 110, height: 110,

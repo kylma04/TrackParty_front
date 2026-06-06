@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/services/auth_service.dart';
@@ -65,12 +64,14 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     setState(() { _resending = true; _resentOk = false; _error = null; });
     try {
       await ref.read(authServiceProvider).resendVerification(email);
-      if (mounted) setState(() {
-        _resending = false;
-        _resentOk = true;
-        _codeExpired = false;
-        _timerKey++;   // relance le countdown
-      });
+      if (mounted) {
+        setState(() {
+          _resending = false;
+          _resentOk = true;
+          _codeExpired = false;
+          _timerKey++;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _resending = false);
     }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -187,10 +188,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       child: ListView.builder(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80),
         itemCount: rooms.length,
-        itemBuilder: (_, i) => _ChatRow(
-          room: rooms[i],
-          onTap: () => context.push('/chat/${rooms[i].id}'),
-        ),
+        itemBuilder: (_, i) {
+          final room = rooms[i];
+          final dest = room.isCommunity && room.promoterId != null
+              ? '/community/${room.promoterId}'
+              : '/chat/${room.id}';
+          return _ChatRow(room: room, onTap: () => context.push(dest));
+        },
       ),
     );
   }
@@ -283,7 +287,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
 
     // Chaque appel est indépendant : une erreur sur l'un n'empêche pas les autres
     Future<List<InvitationModel>> safe(Future<List<InvitationModel>> f) =>
-        f.onError((_, __) => []);
+        f.onError((_, _) => []);
 
     final sentAccepted     = await safe(service.getInvitations(direction: 'sent',     status: 'accepted'));
     final receivedAccepted = await safe(service.getInvitations(direction: 'received', status: 'accepted'));
@@ -649,6 +653,47 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+// ── Avatar groupe ─────────────────────────────────────────────────────────────
+
+class _GroupAvatar extends StatelessWidget {
+  final ChatRoomModel room;
+  const _GroupAvatar({required this.room});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = room.roomAvatarUrl;
+
+    if (url != null && url.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: CachedNetworkImage(
+          imageUrl: url,
+          width: 52, height: 52,
+          fit: BoxFit.cover,
+          errorWidget: (ctx, url, err) => _fallback(ctx),
+          placeholder: (ctx, url) => _fallback(ctx),
+        ),
+      );
+    }
+
+    return _fallback(context);
+  }
+
+  Widget _fallback(BuildContext context) {
+    final icon = room.isEvent
+        ? PhosphorIcons.confetti()
+        : PhosphorIcons.users();
+    return Container(
+      width: 52, height: 52,
+      decoration: BoxDecoration(
+        gradient: trackpartyGradient,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(icon, color: Colors.white, size: 24),
+    );
+  }
+}
+
 // ── Chat row ──────────────────────────────────────────────────────────────────
 
 String _fmtTime(DateTime dt) {
@@ -688,15 +733,12 @@ class _ChatRow extends StatelessWidget {
               children: [
                 // Avatar
                 isGroup
-                    ? Container(
-                        width: 52, height: 52,
-                        decoration: BoxDecoration(
-                          gradient: trackpartyGradient,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(PhosphorIcons.users(), color: Colors.white, size: 24),
-                      )
-                    : TpAvatar(name: otherMember?.displayName ?? room.displayName, size: 52),
+                    ? _GroupAvatar(room: room)
+                    : TpAvatar(
+                        name: otherMember?.displayName ?? room.displayName,
+                        imageUrl: otherMember?.avatarUrl,
+                        size: 52,
+                      ),
                 const SizedBox(width: 12),
                 // Content
                 Expanded(

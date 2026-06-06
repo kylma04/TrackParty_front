@@ -9,10 +9,13 @@ import 'dart:async';
 
 import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
+import '../../core/models/event_model.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/services/cloudinary_service.dart';
 import '../../core/services/co_organizer_service.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/invitation_service.dart';
+import '../../widgets/event_preview_sheet.dart';
 import 'location_picker_screen.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -23,7 +26,12 @@ import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_button.dart';
 
 class EventCreateScreen extends ConsumerStatefulWidget {
-  const EventCreateScreen({super.key});
+  final EventModel? initialEvent;
+  final bool isClone;
+
+  const EventCreateScreen({super.key, this.initialEvent, this.isClone = false});
+
+  bool get isEditing => initialEvent != null && !isClone;
 
   @override
   ConsumerState<EventCreateScreen> createState() => _EventCreateScreenState();
@@ -74,6 +82,40 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     ('art',     '🎨', 'Art',      Color(0xFF84CC16)),
     ('plage',   '🏖', 'Plage',    Color(0xFFF59E0B)),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final ev = widget.initialEvent;
+    if (ev != null) {
+      _titleCtrl.text      = widget.isClone ? 'Copie de ${ev.title}' : ev.title;
+      _descCtrl.text       = ev.description ?? '';
+      _category            = ev.category;
+      _customCategoryLabel = ev.customCategoryLabel;
+      _customCategoryEmoji = ev.customCategoryEmoji;
+      _visibility          = ev.visibility;
+      _contribMode         = ev.contributionType;
+      _capacity            = ev.maxParticipants ?? 80;
+      _capacityCtrl.text   = _capacity.toString();
+      // En mode clone, ne pas reprendre les dates passées
+      if (!widget.isClone) {
+        _startAt = ev.startAt;
+        _endAt   = ev.endAt;
+      }
+      _addressLabel = ev.addressLabel;
+      _city         = ev.city;
+      _quartier     = ev.quartier;
+      _lat          = ev.latitude  ?? 5.3484;
+      _lng          = ev.longitude ?? -4.0168;
+      _coverUrl     = ev.coverImageUrl;
+      if (ev.contributionItems.isNotEmpty) {
+        _items.clear();
+        _items.addAll(ev.contributionItems.map(
+          (i) => _Item(emoji: i.emoji, label: i.name, qty: i.quantityTotal),
+        ));
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -339,14 +381,20 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           }).toList(),
       };
 
-      final event = await ref.read(eventServiceProvider).createEvent(data);
+      final svc = ref.read(eventServiceProvider);
+      final EventModel event;
+      if (widget.isEditing) {
+        event = await svc.updateEvent(widget.initialEvent!.id, data);
+      } else {
+        event = await svc.createEvent(data);
+      }
 
-      // Send co-organizer invitations
-      if (_pendingCoOrgs.isNotEmpty) {
-        final svc = ref.read(coOrganizerServiceProvider);
+      // Send co-organizer invitations (creation only)
+      if (!widget.isEditing && _pendingCoOrgs.isNotEmpty) {
+        final coOrgSvc = ref.read(coOrganizerServiceProvider);
         for (final coOrg in _pendingCoOrgs) {
           try {
-            await svc.invite(event.id, coOrg.id);
+            await coOrgSvc.invite(event.id, coOrg.id);
           } catch (_) {}
         }
       }
@@ -354,12 +402,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       if (mounted) {
         setState(() => _publishState = TpButtonState.idle);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Événement publié !'),
+          SnackBar(
+            content: Text(widget.isEditing ? 'Événement mis à jour !' : 'Événement publié !'),
             backgroundColor: kSuccess,
           ),
         );
-        context.go('/feed');
+        if (widget.isEditing) {
+          context.pop();
+        } else {
+          context.go('/feed');
+        }
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -446,7 +498,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             ),
           ),
           Expanded(
-            child: Text('Nouvel événement',
+            child: Text(
+              widget.isEditing ? 'Modifier l\'événement'
+                  : widget.isClone ? 'Dupliquer l\'événement'
+                  : 'Nouvel événement',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900,
                   color: context.tpInk, letterSpacing: -0.4)),
@@ -454,11 +509,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.08),
+              color: (widget.isEditing ? kAccent : widget.isClone ? const Color(0xFF22A865) : kPrimary).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text('Brouillon',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+            child: Text(
+              widget.isEditing ? 'Édition' : widget.isClone ? 'Clone' : 'Brouillon',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                  color: widget.isEditing ? kAccent : widget.isClone ? const Color(0xFF22A865) : kPrimary)),
           ),
         ],
       ),
@@ -998,6 +1055,32 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
+  // ── Preview ───────────────────────────────────────────────────────────────
+
+  void _showPreview() {
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final me = authState is AuthAuthenticated ? authState.user : null;
+    showEventPreviewSheet(
+      context,
+      title: _titleCtrl.text.trim(),
+      description: _descCtrl.text.trim(),
+      category: _category,
+      customCategoryLabel: _customCategoryLabel,
+      customCategoryEmoji: _customCategoryEmoji,
+      coverUrl: _coverUrl,
+      startAt: _startAt,
+      endAt: _endAt,
+      addressLabel: _addressLabel,
+      city: _city,
+      quartier: _quartier,
+      visibility: _visibility,
+      contribMode: _contribMode,
+      capacity: _capacity,
+      organizerName: me?.displayName ?? 'Moi',
+      organizerAvatarUrl: me?.avatarUrl,
+    );
+  }
+
   // ── Bottom CTA ────────────────────────────────────────────────────────────
 
   Widget _buildBottomCta(BuildContext context) {
@@ -1017,12 +1100,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           TpButton(
             label: 'Aperçu',
             variant: TpButtonVariant.outline,
-            onPressed: () {},
+            onPressed: _showPreview,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: TpButton(
-              label: 'Publier',
+              label: widget.isEditing ? 'Enregistrer' : widget.isClone ? 'Dupliquer' : 'Publier',
               icon: PhosphorIcons.check(),
               state: _publishState,
               onPressed: _publish,
@@ -1272,7 +1355,7 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
 
               AnimatedBuilder(
                 animation: _labelCtrl,
-                builder: (_, __) => TpButton(
+                builder: (_, _) => TpButton(
                   label: 'Créer "${_labelCtrl.text.trim().isEmpty ? '…' : _labelCtrl.text.trim()}"',
                   icon: PhosphorIcons.check(),
                   state: _labelCtrl.text.trim().isEmpty ? TpButtonState.disabled : TpButtonState.idle,
@@ -2091,7 +2174,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _results.length,
-                  separatorBuilder: (_, __) => Divider(height: 1, color: context.tpHair),
+                  separatorBuilder: (_, _) => Divider(height: 1, color: context.tpHair),
                   itemBuilder: (_, i) {
                     final user    = _results[i];
                     final added   = _justAdded.contains(user.id) ||

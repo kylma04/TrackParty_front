@@ -13,6 +13,7 @@ import '../../features/map/map_screen.dart';
 import '../../features/chat/chat_list_screen.dart';
 import '../../features/chat/chat_thread_screen.dart';
 import '../../features/chat/community_chat_screen.dart';
+import '../../features/chat/new_chat_screen.dart';
 import '../../features/calls/incoming_call_screen.dart';
 import '../../features/chat/invitations_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
@@ -21,9 +22,21 @@ import '../../features/profile/promoter_profile_screen.dart';
 import '../../features/profile/reviews_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/event/event_detail_screen.dart';
+import '../../features/ticket/ticket_screen.dart';
+import '../../features/ticket/my_tickets_screen.dart';
+import '../../features/ticket/checkin_scanner_screen.dart';
+import '../../features/ticket/event_checkins_screen.dart';
+import '../../features/ticket/event_staff_screen.dart';
+import '../../features/event/event_coorganizers_screen.dart';
+import '../../features/event/event_dashboard_screen.dart';
+import '../../features/event/co_organizer_invitations_screen.dart';
 import '../../features/event/event_create_screen.dart';
+import '../models/event_model.dart';
 import '../../features/event/event_participants_screen.dart';
 import '../../features/event/event_rate_screen.dart';
+import '../../features/settings/settings_screen.dart';
+import '../../features/profile/saved_events_screen.dart';
+import '../../features/ticket/event_waitlist_screen.dart';
 import '../providers/auth_provider.dart';
 import 'main_shell.dart';
 
@@ -63,6 +76,20 @@ final _routes = [
 
   // ── Events ────────────────────────────────────────────────────────────────
   GoRoute(path: '/event/new', builder: (_, _) => const EventCreateScreen()),
+  GoRoute(
+    path: '/event/:id/edit',
+    builder: (_, s) {
+      final event = s.extra as EventModel?;
+      return EventCreateScreen(initialEvent: event);
+    },
+  ),
+  GoRoute(
+    path: '/event/:id/clone',
+    builder: (_, s) {
+      final event = s.extra as EventModel?;
+      return EventCreateScreen(initialEvent: event, isClone: true);
+    },
+  ),
   GoRoute(path: '/event/:id', builder: (_, s) => EventDetailScreen(id: s.pathParameters['id']!)),
   GoRoute(
     path: '/event/:id/participants',
@@ -72,8 +99,82 @@ final _routes = [
     path: '/event/:id/rate',
     builder: (_, s) => EventRateScreen(eventId: s.pathParameters['id']!),
   ),
+  GoRoute(
+    path: '/event/:id/scan',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return CheckinScannerScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+  GoRoute(
+    path: '/ticket/:eventId',
+    builder: (_, s) => TicketScreen(eventId: s.pathParameters['eventId']!),
+  ),
+  GoRoute(
+    path: '/my-tickets',
+    builder: (_, _) => const MyTicketsScreen(),
+  ),
+  GoRoute(
+    path: '/event/:id/checkins',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventCheckinsScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+  GoRoute(
+    path: '/event/:id/staff',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventStaffScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/dashboard',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventDashboardScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+  GoRoute(
+    path: '/event/:id/co-organizers',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventCoOrganizersScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+  GoRoute(
+    path: '/co-organizer-invitations',
+    builder: (_, _) => const CoOrganizerInvitationsScreen(),
+  ),
 
   // ── Chat ──────────────────────────────────────────────────────────────────
+  GoRoute(
+    path: '/chat/new',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>? ?? {};
+      return NewChatScreen(
+        userId: extra['userId'] as String,
+        displayName: extra['displayName'] as String,
+        avatarUrl: extra['avatarUrl'] as String?,
+      );
+    },
+  ),
   GoRoute(
     path: '/chat/:roomId',
     builder: (_, s) => ChatThreadScreen(roomId: s.pathParameters['roomId']!),
@@ -84,6 +185,18 @@ final _routes = [
   ),
 
   // ── Profiles ──────────────────────────────────────────────────────────────
+  GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+  GoRoute(path: '/saved-events', builder: (_, _) => const SavedEventsScreen()),
+  GoRoute(
+    path: '/event/:id/waitlist',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventWaitlistScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
   GoRoute(path: '/me/edit', builder: (_, _) => const EditProfileScreen()),
   GoRoute(
     path: '/promoter/:id',

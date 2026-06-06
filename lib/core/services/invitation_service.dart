@@ -58,12 +58,19 @@ class InvitationService {
 
   Future<InvitationModel> respondToInvitation(
     String invitationId,
-    String action, // 'accept' | 'refuse'
-  ) =>
+    String action, { // 'accept' | 'refuse'
+    String? contributionItemId,
+    int quantity = 1,
+  }) =>
       _call(() async {
+        final body = <String, dynamic>{'action': action};
+        if (action == 'accept' && contributionItemId != null) {
+          body['contribution_item_id'] = contributionItemId;
+          body['quantity'] = quantity;
+        }
         final res = await _dio.patch(
           'chat/invitations/$invitationId/respond/',
-          data: {'action': action},
+          data: body,
         );
         return InvitationModel.fromJson(res.data as Map<String, dynamic>);
       });

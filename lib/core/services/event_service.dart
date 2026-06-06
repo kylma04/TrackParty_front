@@ -130,6 +130,62 @@ class EventService {
     }
   }
 
+  Future<void> saveEvent(String eventId) async {
+    try {
+      await _dio.post('events/$eventId/save/');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> unsaveEvent(String eventId) async {
+    try {
+      await _dio.delete('events/$eventId/save/');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<List<EventModel>> getSavedEvents() async {
+    try {
+      final res = await _dio.get('events/saved/');
+      final data = res.data;
+      final List<dynamic> list = data is Map ? (data['results'] as List) : (data as List);
+      return list.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<List<ParticipantModel>> getWaitlist(String eventId) async {
+    try {
+      final res = await _dio.get('events/$eventId/waitlist/');
+      final list = res.data as List<dynamic>;
+      return list.map((j) => ParticipantModel.fromJson(j as Map<String, dynamic>)).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> waitlistAction(String eventId, String participationId, {required bool accept}) async {
+    try {
+      await _dio.patch('events/$eventId/waitlist/$participationId/', data: {
+        'action': accept ? 'accept' : 'reject',
+      });
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<EventStats> getEventStats(String eventId) async {
+    try {
+      final res = await _dio.get('events/$eventId/stats/');
+      return EventStats.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<Map<String, int>> getMyEventStats() async {
     try {
       final res = await _dio.get('auth/me/stats/');

@@ -14,6 +14,7 @@ class ReportSheet extends ConsumerStatefulWidget {
   final String targetId;
   final String? targetName;
   final String? blockUserId; // if provided, shows "also block" toggle
+  final String? organizerName; // shown in event card when targetType == 'event'
 
   const ReportSheet({
     super.key,
@@ -21,6 +22,7 @@ class ReportSheet extends ConsumerStatefulWidget {
     required this.targetId,
     this.targetName,
     this.blockUserId,
+    this.organizerName,
   });
 
   static Future<void> show(
@@ -29,6 +31,7 @@ class ReportSheet extends ConsumerStatefulWidget {
     required String targetId,
     String? targetName,
     String? blockUserId,
+    String? organizerName,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -39,6 +42,7 @@ class ReportSheet extends ConsumerStatefulWidget {
         targetId: targetId,
         targetName: targetName,
         blockUserId: blockUserId,
+        organizerName: organizerName,
       ),
     );
   }
@@ -117,7 +121,8 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
               ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Signaler ce contenu',
+                Text(
+                  widget.targetType == 'event' ? 'Signaler cet événement' : 'Signaler ce contenu',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900,
                       color: context.tpInk, letterSpacing: -0.4)),
                 const SizedBox(height: 2),
@@ -125,7 +130,66 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub)),
               ])),
             ]),
-            if (widget.targetName != null) ...[
+            if (widget.targetType == 'event' && widget.targetName != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8)]),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        height: 64,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFFEC4899)],
+                          ),
+                        ),
+                        child: Center(
+                          child: Text('🎉', style: const TextStyle(fontSize: 32)),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        color: context.tpCard,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(widget.targetName!,
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
+                            const SizedBox(height: 2),
+                            Row(children: [
+                              Text(
+                                'par ${widget.organizerName ?? '…'}',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: kError.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Text('⚠️', style: TextStyle(fontSize: 9)),
+                                  const SizedBox(width: 3),
+                                  Text('suspect',
+                                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: kError)),
+                                ]),
+                              ),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ] else if (widget.targetName != null) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(10),

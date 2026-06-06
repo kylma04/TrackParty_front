@@ -34,6 +34,11 @@ class ChatService {
         return ChatRoomModel.fromJson(res.data as Map<String, dynamic>);
       });
 
+  Future<ChatRoomModel> getOrCreateCommunityRoom(String promoterId) => _call(() async {
+        final res = await _dio.get('chat/rooms/community/$promoterId/');
+        return ChatRoomModel.fromJson(res.data as Map<String, dynamic>);
+      });
+
   Future<List<ChatMessage>> getMessages(String roomId, {int page = 1}) => _call(() async {
         final res = await _dio.get(
           'chat/rooms/$roomId/messages/',
@@ -57,48 +62,84 @@ class ChatService {
     String content, {
     String messageType = 'text',
     String? eventInviteId,
+    bool attachEvent = true,
   }) =>
       _call(() async {
         final res = await _dio.post('chat/rooms/$roomId/messages/send/', data: {
           'content': content,
           'message_type': messageType,
           'event_invite_id': eventInviteId,
+          'attach_event': attachEvent,
         });
         return ChatMessage.fromJson(res.data as Map<String, dynamic>);
       });
 
-  Future<ChatMessage> sendImageMessage(String roomId, XFile image) => _call(() async {
+  Future<ChatMessage> sendImageMessage(String roomId, XFile image, {bool attachEvent = true}) => _call(() async {
         final formData = FormData.fromMap({
           'content': '',
           'message_type': 'image',
-          'image': await MultipartFile.fromFile(
-            image.path,
-            filename: image.name,
-          ),
+          'attach_event': attachEvent,
+          'image': await MultipartFile.fromFile(image.path, filename: image.name),
         });
-        final res = await _dio.post(
-          'chat/rooms/$roomId/messages/send/',
-          data: formData,
-        );
+        final res = await _dio.post('chat/rooms/$roomId/messages/send/', data: formData);
         return ChatMessage.fromJson(res.data as Map<String, dynamic>);
       });
 
   Future<ChatMessage> sendVoiceMessage(
     String roomId,
     String filePath,
-    int durationSeconds,
-  ) =>
+    int durationSeconds, {
+    bool attachEvent = true,
+  }) =>
       _call(() async {
         final formData = FormData.fromMap({
           'content': '',
           'message_type': 'voice',
           'voice_duration': durationSeconds,
+          'attach_event': attachEvent,
           'voice_file': await MultipartFile.fromFile(filePath),
         });
-        final res = await _dio.post(
-          'chat/rooms/$roomId/messages/send/',
-          data: formData,
-        );
+        final res = await _dio.post('chat/rooms/$roomId/messages/send/', data: formData);
         return ChatMessage.fromJson(res.data as Map<String, dynamic>);
+      });
+
+  /// Toggle une réaction emoji sur un message.
+  Future<List<MessageReaction>> reactToMessage(
+      String roomId, String messageId, String emoji) =>
+      _call(() async {
+        final res = await _dio.post(
+          'chat/rooms/$roomId/messages/$messageId/react/',
+          data: {'emoji': emoji},
+        );
+        final raw = (res.data['reactions'] as List<dynamic>);
+        return raw.map((e) => MessageReaction.fromJson(e as Map<String, dynamic>)).toList();
+      });
+
+  /// Change le mode du groupe événement (admin uniquement).
+  Future<void> updateGroupMode(String roomId, String groupMode) =>
+      _call(() async {
+        await _dio.patch('chat/rooms/$roomId/config/', data: {'group_mode': groupMode});
+      });
+
+  /// Met à jour le nom d'une salle communauté.
+  Future<String> updateCommunityName(String roomId, String name) => _call(() async {
+        final res = await _dio.patch('chat/rooms/$roomId/name/', data: {'name': name});
+        return res.data['display_name'] as String;
+      });
+
+  /// Met à jour l'avatar d'une salle communauté.
+  Future<String> updateCommunityAvatar(String roomId, XFile image) => _call(() async {
+        final formData = FormData.fromMap({
+          'avatar': await MultipartFile.fromFile(image.path, filename: image.name),
+        });
+        final res = await _dio.patch('chat/rooms/$roomId/avatar/', data: formData);
+        return res.data['room_avatar_url'] as String;
+      });
+
+  /// Liste les membres d'une salle (hors soi-même).
+  Future<List<RoomMemberModel>> getRoomMembers(String roomId) => _call(() async {
+        final res  = await _dio.get('chat/rooms/$roomId/members/');
+        final list = res.data as List<dynamic>;
+        return list.map((e) => RoomMemberModel.fromJson(e as Map<String, dynamic>)).toList();
       });
 }

@@ -4,6 +4,25 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Custom URL scheme: trackparty://event/{id} -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>ci.trackparty.trackparty</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>trackparty</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Universal Links: https://trackparty.ci/event/{id} (requires hosted .well-known/apple-app-site-association) -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:trackparty.ci</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

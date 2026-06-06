@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/models/event_model.dart';
+import '../../core/services/event_service.dart';
+import '../../core/api/api_exception.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -8,23 +12,30 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-class EventRateScreen extends StatefulWidget {
+class EventRateScreen extends ConsumerStatefulWidget {
   final String eventId;
   const EventRateScreen({super.key, required this.eventId});
   @override
-  State<EventRateScreen> createState() => _EventRateScreenState();
+  ConsumerState<EventRateScreen> createState() => _EventRateScreenState();
 }
 
-class _EventRateScreenState extends State<EventRateScreen> {
-  int _rating = 4;
-  final Set<int> _tags = {0, 1, 2};
+class _EventRateScreenState extends ConsumerState<EventRateScreen> {
+  int _rating = 0;
+  final Set<int> _tags = {};
   final _ctrl = TextEditingController();
   bool _public = true;
   TpButtonState _btnState = TpButtonState.idle;
 
+  EventModel? _event;
+  bool _loadingEvent = true;
+
   static const _tagLabels = [
     '🎵 Ambiance', '🍾 Boissons', '👥 Monde sympa',
     '📍 Lieu', '⏰ Ponctualité', '🍽 Bouffe',
+  ];
+
+  static const _tagKeys = [
+    'ambiance', 'boissons', 'monde_sympa', 'lieu', 'ponctualite', 'bouffe',
   ];
 
   static const _ratingLabels = [
@@ -32,10 +43,62 @@ class _EventRateScreenState extends State<EventRateScreen> {
   ];
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    _loadEvent();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadEvent() async {
+    try {
+      final event = await ref.read(eventServiceProvider).getEvent(widget.eventId);
+      if (mounted) setState(() { _event = event; _loadingEvent = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingEvent = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_rating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choisis une note avant d\'envoyer.')));
+      return;
+    }
+    setState(() => _btnState = TpButtonState.loading);
+    try {
+      await ref.read(eventServiceProvider).submitReview(
+        widget.eventId,
+        rating: _rating,
+        comment: _ctrl.text.trim().isEmpty ? null : _ctrl.text.trim(),
+        isPublic: _public,
+        tags: _tags.map((i) => _tagKeys[i]).toList(),
+      );
+      if (!mounted) return;
+      setState(() => _btnState = TpButtonState.idle);
+      context.pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Merci pour ton avis ! 🙏')));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _btnState = TpButtonState.idle);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _btnState = TpButtonState.idle);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final eventTitle = _event?.title ?? '…';
+    final eventCity = _event?.city ?? '';
+    final organizerName = _event?.organizerName ?? '…';
+
     return Scaffold(
       backgroundColor: context.tpBg,
       body: SafeArea(
@@ -43,33 +106,39 @@ class _EventRateScreenState extends State<EventRateScreen> {
           padding: const EdgeInsets.only(bottom: 40),
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Semantics(
-                      button: true,
-                      label: 'Retour',
+                      button: true, label: 'Retour',
                       child: GestureDetector(
                         onTap: () => context.pop(),
                         child: Container(
                           width: 44, height: 44,
-                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                              color: context.tpCard,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: Shadows.sm),
                           child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
                         ),
                       ),
                     ),
-                    Text('Passer',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: context.tpInkSub)),
+                    Semantics(
+                      button: true, label: 'Passer',
+                      child: GestureDetector(
+                        onTap: () => context.pop(),
+                        child: Text('Passer',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: context.tpInkSub)),
+                      ),
+                    ),
                   ],
                 ),
               ),
 
-              // Hero
               Padding(
-                padding: const EdgeInsets.fromLTRB(Sp.lg, 4, Sp.lg, 0),
+                padding: const EdgeInsets.fromLTRB(Sp.lg, 20, Sp.lg, 0),
                 child: Column(
                   children: [
                     Container(
@@ -84,19 +153,29 @@ class _EventRateScreenState extends State<EventRateScreen> {
                     ),
                     const SizedBox(height: 18),
                     Text('Comment c\'était ?',
+                      textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900,
                           color: context.tpInk, letterSpacing: -0.8, height: 1.15)),
                     const SizedBox(height: 6),
-                    Text('Afro Sunset Rooftop · Plateau',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-                    const SizedBox(height: 2),
-                    Text('organisé par Karim Diallo',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                    if (_loadingEvent)
+                      Container(
+                        width: 180, height: 14,
+                        decoration: BoxDecoration(
+                          color: context.tpHair, borderRadius: BorderRadius.circular(4)),
+                      )
+                    else ...[
+                      Text('$eventTitle${eventCity.isNotEmpty ? ' · $eventCity' : ''}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInkSub)),
+                      const SizedBox(height: 2),
+                      Text('organisé par $organizerName',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                    ],
                   ],
                 ),
               ),
 
-              // Stars
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 26, 0, 0),
                 child: Row(
@@ -112,7 +191,7 @@ class _EventRateScreenState extends State<EventRateScreen> {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 5),
                           child: Icon(
-                            filled ? PhosphorIcons.star(PhosphorIconsStyle.fill) : PhosphorIcons.star(PhosphorIconsStyle.fill),
+                            PhosphorIcons.star(PhosphorIconsStyle.fill),
                             size: 44,
                             color: filled ? kWarning : kWarning.withValues(alpha: 0.15),
                           ),
@@ -124,11 +203,14 @@ class _EventRateScreenState extends State<EventRateScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Text(_rating > 0 ? _ratingLabels[_rating] : '',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
+                child: AnimatedOpacity(
+                  opacity: _rating > 0 ? 1 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Text(_rating > 0 ? _ratingLabels[_rating] : '',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
+                ),
               ),
 
-              // Tags
               Padding(
                 padding: const EdgeInsets.fromLTRB(Sp.lg, 24, Sp.lg, 0),
                 child: Column(
@@ -165,7 +247,6 @@ class _EventRateScreenState extends State<EventRateScreen> {
                 ),
               ),
 
-              // Comment
               Padding(
                 padding: const EdgeInsets.fromLTRB(Sp.lg, 20, Sp.lg, 0),
                 child: Column(
@@ -173,9 +254,11 @@ class _EventRateScreenState extends State<EventRateScreen> {
                   children: [
                     RichText(
                       text: TextSpan(children: [
-                        TextSpan(text: 'Un mot pour Karim ?',
+                        TextSpan(
+                          text: 'Un mot pour $organizerName ?',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
-                        TextSpan(text: ' (optionnel)',
+                        TextSpan(
+                          text: ' (optionnel)',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkMute)),
                       ]),
                     ),
@@ -213,18 +296,17 @@ class _EventRateScreenState extends State<EventRateScreen> {
                 ),
               ),
 
-              // Public toggle
               Padding(
                 padding: const EdgeInsets.fromLTRB(Sp.lg, 12, Sp.lg, 0),
                 child: Semantics(
-                  button: true,
-                  toggled: _public,
-                  label: 'Publier sur le profil public de Karim',
+                  button: true, toggled: _public,
+                  label: 'Publier sur le profil public de $organizerName',
                   child: GestureDetector(
                     onTap: () => setState(() => _public = !_public),
                     child: Row(
                       children: [
-                        Container(
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
                           width: 22, height: 22,
                           decoration: BoxDecoration(
                             gradient: _public ? trackpartyGradient : null,
@@ -232,33 +314,30 @@ class _EventRateScreenState extends State<EventRateScreen> {
                             borderRadius: BorderRadius.circular(7),
                             border: _public ? null : Border.all(color: context.tpHair, width: 1.5),
                           ),
-                          child: _public ? Icon(PhosphorIcons.check(), color: Colors.white, size: 14) : null,
+                          child: _public
+                              ? Icon(PhosphorIcons.check(), color: Colors.white, size: 14)
+                              : null,
                         ),
                         const SizedBox(width: 10),
-                        Text('Publier sur le profil public de Karim',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub)),
+                        Expanded(
+                          child: Text(
+                            'Publier sur le profil public de $organizerName',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub)),
+                        ),
                       ],
                     ),
                   ),
                 ),
               ),
 
-              // Submit
               Padding(
                 padding: const EdgeInsets.fromLTRB(Sp.lg, 20, Sp.lg, 0),
                 child: TpButton(
                   label: 'Envoyer mon avis',
-                  icon: PhosphorIcons.check(),
+                  icon: PhosphorIcons.paperPlaneTilt(),
                   fullWidth: true,
                   state: _btnState,
-                  onPressed: () async {
-                    setState(() => _btnState = TpButtonState.loading);
-                    final nav = Navigator.of(context);
-                    await Future.delayed(const Duration(seconds: 1));
-                    if (!mounted) return;
-                    setState(() => _btnState = TpButtonState.idle);
-                    nav.pop();
-                  },
+                  onPressed: _submit,
                 ),
               ),
             ],

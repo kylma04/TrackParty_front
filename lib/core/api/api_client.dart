@@ -3,9 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/env.dart';
 import '../services/token_storage.dart';
 
-final dioProvider = Provider<Dio>((ref) => _buildDio());
+// Incremented by the Dio interceptor when refresh fails.
+// AuthNotifier listens to this to trigger an immediate logout without creating
+// a circular dependency (dioProvider → authService → dioProvider).
+final forceLogoutSignalProvider = StateProvider<int>((ref) => 0);
 
-Dio _buildDio() {
+final dioProvider = Provider<Dio>((ref) => _buildDio(ref));
+
+Dio _buildDio(Ref ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: '${Env.apiBaseUrl}/',
@@ -29,9 +34,11 @@ Dio _buildDio() {
           return handler.next(error);
         }
 
-        // Try silent token refresh
         final refreshToken = await TokenStorage.getRefreshToken();
-        if (refreshToken == null) return handler.next(error);
+        if (refreshToken == null) {
+          ref.read(forceLogoutSignalProvider.notifier).update((n) => n + 1);
+          return handler.next(error);
+        }
 
         try {
           final refreshDio = Dio(BaseOptions(baseUrl: '${Env.apiBaseUrl}/'));
@@ -39,18 +46,17 @@ Dio _buildDio() {
             'auth/token/refresh/',
             data: {'refresh': refreshToken},
           );
-          final newAccess = resp.data['access'] as String;
+          final newAccess  = resp.data['access']  as String;
           final newRefresh = resp.data['refresh'] as String;
           await TokenStorage.save(access: newAccess, refresh: newRefresh);
 
-          // Retry original request with new token
           final opts = error.requestOptions;
           opts.headers['Authorization'] = 'Bearer $newAccess';
           final retried = await dio.fetch(opts);
           handler.resolve(retried);
         } catch (_) {
-          // Refresh failed — clear tokens, let 401 propagate
           await TokenStorage.clear();
+          ref.read(forceLogoutSignalProvider.notifier).update((n) => n + 1);
           handler.next(error);
         }
       },

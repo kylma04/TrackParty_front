@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../api/api_client.dart';
 import '../api/api_exception.dart';
 import '../models/auth_response.dart';
 import '../models/user_model.dart';
@@ -43,6 +44,12 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   @override
   Future<AuthState> build() async {
+    // Force logout when Dio interceptor can't renew the access token.
+    // Called before any await to ensure the listener is always registered.
+    ref.listen<int>(forceLogoutSignalProvider, (prev, next) {
+      state = const AsyncValue.data(AuthUnauthenticated());
+    });
+
     final stored = await TokenStorage.load();
     if (stored == null) return const AuthUnauthenticated();
     try {
@@ -117,6 +124,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       } catch (_) {}
     }
     await TokenStorage.clear();
+    // On ne supprime PAS les credentials biométriques à la déconnexion
+    // pour permettre une reconnexion rapide par biométrie
     state = const AsyncValue.data(AuthUnauthenticated());
   }
 

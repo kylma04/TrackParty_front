@@ -71,7 +71,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (_, __) => _hangup(),
+      onPopInvokedWithResult: (_, _) => _hangup(),
       child: Scaffold(
         backgroundColor: const Color(0xFF0B0F1A),
         body: SafeArea(
@@ -215,7 +215,7 @@ class _PulsingOutgoingAvatarState extends State<_PulsingOutgoingAvatar>
       children: [
         AnimatedBuilder(
           animation: _ctrl,
-          builder: (_, __) => Transform.scale(
+          builder: (_, _) => Transform.scale(
             scale: _scale.value,
             child: Container(
               width: 110, height: 110,

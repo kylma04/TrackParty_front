@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Directory;
 
 import 'package:path_provider/path_provider.dart';
 
@@ -18,7 +17,9 @@ import '../../core/providers/auth_provider.dart' show authNotifierProvider, Auth
 import '../../core/providers/chat_provider.dart';
 import '../../core/services/call_service.dart';
 import '../../core/services/chat_websocket_service.dart';
+import '../../core/services/invitation_service.dart';
 import '../calls/outgoing_call_screen.dart';
+import 'room_members_sheet.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -47,11 +48,13 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   Timer? _typingClearTimer;
   StreamSubscription<TypingEvent>? _typingSub;
 
+  // Mode événement (annonce + carte événement) — admin de groupe événement uniquement
+  bool _attachEvent = true;
+
   // Voice recording — style WhatsApp
   _VoiceMode _voiceMode   = _VoiceMode.idle;
   bool       _recordPaused = false;
   int        _recordSecs  = 0;
-  String?    _recordPath;
   Timer?     _recordTimer;
   // Drag tracking pendant le hold
   double _holdDragX    = 0;
@@ -63,6 +66,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   void initState() {
     super.initState();
     _ctrl.addListener(_onTextChanged);
+    _scrollCtrl.addListener(_onScroll);
 
     // Écouter les events de typing du WS
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -78,16 +82,24 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     });
   }
 
+  void _onScroll() {
+    if (!_scrollCtrl.hasClients) return;
+    if (_scrollCtrl.position.pixels <= 80) {
+      ref.read(chatThreadProvider(widget.roomId).notifier).loadOlderMessages();
+    }
+  }
+
   @override
   void dispose() {
     _ctrl.removeListener(_onTextChanged);
+    _scrollCtrl.removeListener(_onScroll);
     _ctrl.dispose();
     _scrollCtrl.dispose();
     _typingTimer?.cancel();
     _typingClearTimer?.cancel();
     _typingSub?.cancel();
     _recordTimer?.cancel();
-    if (_voiceMode != _VoiceMode.idle) _recorder.stop().catchError((_) {});
+    if (_voiceMode != _VoiceMode.idle) _recorder.stop().catchError((_) => null);
     _recorder.dispose();
     ref.read(chatRoomsProvider.notifier).refresh();
     super.dispose();
@@ -125,14 +137,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
     _ctrl.clear();
-    await ref.read(chatThreadProvider(widget.roomId).notifier).sendTextMessage(text);
+    await ref.read(chatThreadProvider(widget.roomId).notifier)
+        .sendTextMessage(text, attachEvent: _attachEvent);
     _scrollToBottom();
   }
 
   Future<void> _pickImage() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (file == null) return;
-    await ref.read(chatThreadProvider(widget.roomId).notifier).sendImageMessage(file);
+    await ref.read(chatThreadProvider(widget.roomId).notifier)
+        .sendImageMessage(file, attachEvent: _attachEvent);
     _scrollToBottom();
   }
 
@@ -148,29 +162,33 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     try {
       final hasPermission = await _recorder.hasPermission();
       if (!hasPermission) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Permission micro refusée — autorise le micro dans les réglages.'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Permission micro refusée — autorise le micro dans les réglages.'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ));
+        }
         return false;
       }
       final dir  = await getTemporaryDirectory();
       final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
       if (mounted) {
-        setState(() { _recordPath = path; _recordSecs = 0; _recordPaused = false; });
+        setState(() { _recordSecs = 0; _recordPaused = false; });
         _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
           if (mounted && !_recordPaused) setState(() => _recordSecs++);
         });
       }
       return true;
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Erreur micro : $e'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur micro : $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
       return false;
     }
   }
@@ -239,7 +257,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     setState(() { _voiceMode = _VoiceMode.idle; _recordPaused = false; });
     if (path != null && secs >= 1) {
       await ref.read(chatThreadProvider(widget.roomId).notifier)
-          .sendVoiceMessage(path, secs);
+          .sendVoiceMessage(path, secs, attachEvent: _attachEvent);
       _scrollToBottom();
     }
   }
@@ -252,10 +270,18 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messagesAsync = ref.watch(chatThreadProvider(widget.roomId));
-    final room          = ref.watch(chatRoomByIdProvider(widget.roomId));
-    final authState     = ref.watch(authNotifierProvider).valueOrNull;
-    final me            = authState is AuthAuthenticated ? authState.user : null;
+    final messagesAsync    = ref.watch(chatThreadProvider(widget.roomId));
+    final room             = ref.watch(chatRoomByIdProvider(widget.roomId));
+    final authState        = ref.watch(authNotifierProvider).valueOrNull;
+    final me               = authState is AuthAuthenticated ? authState.user : null;
+    final partnerReadAt    = room?.isPrivate == true
+        ? ref.watch(chatPartnerReadAtProvider(widget.roomId))
+        : null;
+
+    final canWrite = room == null ||
+        room.isPrivate ||
+        room.isAdmin ||
+        room.groupMode == 'open';
 
     ref.listen(chatThreadProvider(widget.roomId), (_, next) {
       if (next is AsyncData) _scrollToBottom();
@@ -274,27 +300,27 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 child: Text('Erreur de chargement',
                   style: TextStyle(color: context.tpInkSub)),
               ),
-              data: (msgs) => _buildMessageList(context, msgs, me?.id),
+              data: (msgs) => _buildMessageList(context, msgs, me?.id, partnerReadAt, canWrite),
             ),
           ),
           if (_typingUserName != null && _voiceMode == _VoiceMode.idle)
             _TypingIndicator(userName: _typingUserName!),
-          // Indicateur de verrouillage (au-dessus du composer, visible en mode hold)
-          if (_voiceMode == _VoiceMode.holding)
-            _buildLockIndicator(context),
-          // Zone du bas
-          if (_voiceMode == _VoiceMode.locked || _voiceMode == _VoiceMode.paused)
-            _buildLockedBar(context)
-          else
-            // Le GestureDetector du bouton micro DOIT rester dans l'arbre
-            // pendant tout le geste hold → on superpose l'overlay avec IgnorePointer
-            Stack(
-              children: [
-                _buildComposer(context),
-                if (_voiceMode == _VoiceMode.holding)
-                  IgnorePointer(child: _buildHoldingOverlay(context)),
-              ],
-            ),
+          if (!canWrite)
+            _BroadcastBanner()
+          else ...[
+            if (_voiceMode == _VoiceMode.holding)
+              _buildLockIndicator(context),
+            if (_voiceMode == _VoiceMode.locked || _voiceMode == _VoiceMode.paused)
+              _buildLockedBar(context)
+            else
+              Stack(
+                children: [
+                  _buildComposer(context, isAdmin: room?.isAdmin == true && room?.isEvent == true),
+                  if (_voiceMode == _VoiceMode.holding)
+                    IgnorePointer(child: _buildHoldingOverlay(context)),
+                ],
+              ),
+          ],
         ],
       ),
     );
@@ -333,6 +359,35 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     }
   }
 
+  // ── Membres du groupe ─────────────────────────────────────────────────────
+
+  void _showMembersSheet(BuildContext context, ChatRoomModel room) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => RoomMembersSheet(room: room),
+    );
+  }
+
+  // ── Mode groupe ───────────────────────────────────────────────────────────
+
+  Future<void> _showGroupModeSheet(ChatRoomModel room) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GroupModeSheet(
+        isBroadcast: room.isBroadcast,
+        onToggle: () async {
+          final newMode = room.isBroadcast ? 'open' : 'broadcast';
+          await ref.read(groupModeUpdateProvider)(room.id, newMode);
+          if (!mounted) return;
+          await ref.read(chatRoomsProvider.notifier).refresh();
+        },
+      ),
+    );
+  }
+
   // ── NavBar ────────────────────────────────────────────────────────────────
 
   Widget _buildNavBar(BuildContext context, ChatRoomModel? room) {
@@ -362,7 +417,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             const SizedBox(width: 10),
             TpAvatar(
               name: other?.displayName ?? name,
-              imageUrl: other?.avatarUrl,
+              imageUrl: room?.roomAvatarUrl ?? other?.avatarUrl,
               size: 40,
             ),
             const SizedBox(width: 10),
@@ -395,11 +450,32 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               ),
               const SizedBox(width: 4),
             ],
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-              child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
-            ),
+            if (room?.isEvent == true) ...[
+              GestureDetector(
+                onTap: () => _showMembersSheet(context, room!),
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                  child: Icon(PhosphorIcons.usersThree(), color: context.tpInk, size: 20),
+                ),
+              ),
+              if (room?.isAdmin == true) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () => _showGroupModeSheet(room!),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                    child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
+                  ),
+                ),
+              ],
+            ] else
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
+              ),
           ],
         ),
       ),
@@ -408,7 +484,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   // ── Liste ──────────────────────────────────────────────────────────────────
 
-  Widget _buildMessageList(BuildContext context, List<ChatMessage> messages, String? myId) {
+  Widget _buildMessageList(BuildContext context, List<ChatMessage> messages, String? myId, DateTime? partnerReadAt, bool canWrite) {
+    final notifier     = ref.read(chatThreadProvider(widget.roomId).notifier);
+    final isLoadingOld = notifier.loadingOlder;
+    final hasMoreOld   = notifier.hasMoreOlder;
+
     if (messages.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -420,17 +500,43 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       );
     }
 
+    // Index du dernier message envoyé par moi, pour afficher "Vu"
+    final lastMyMsgIdx = messages.lastIndexWhere((m) => m.sender.id == myId);
+
     return ListView.builder(
       controller: _scrollCtrl,
       padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: Sp.md),
-      itemCount: messages.length,
+      // +1 pour l'indicateur de chargement en tête
+      itemCount: messages.length + 1,
       itemBuilder: (_, i) {
-        final msg     = messages[i];
-        final isMe    = msg.sender.id == myId;
-        final showDay = i == 0 || !_sameDay(messages[i - 1].createdAt, msg.createdAt);
+        // Slot 0 : indicateur "charger plus" ou "début de conversation"
+        if (i == 0) {
+          if (isLoadingOld) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: SizedBox(width: 20, height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary))),
+            );
+          }
+          if (!hasMoreOld) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: Text('Début de la conversation',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkMute))),
+            );
+          }
+          return const SizedBox.shrink();
+        }
+
+        final idx  = i - 1;
+        final msg  = messages[idx];
+        final isMe = msg.sender.id == myId;
+        final showDay = idx == 0 || !_sameDay(messages[idx - 1].createdAt, msg.createdAt);
+        final showRead = isMe && idx == lastMyMsgIdx && partnerReadAt != null
+            && !partnerReadAt.isBefore(msg.createdAt);
         return Column(children: [
           if (showDay) _buildDaySeparator(context, msg.createdAt),
-          _MessageBubble(message: msg, isMe: isMe, roomId: widget.roomId),
+          _MessageBubble(message: msg, isMe: isMe, roomId: widget.roomId, showRead: showRead, canReact: canWrite),
         ]);
       },
     );
@@ -464,17 +570,26 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   // ── Composer ──────────────────────────────────────────────────────────────
 
-  Widget _buildComposer(BuildContext context) {
-    final hasText = _ctrl.text.isNotEmpty;
+  Widget _buildComposer(BuildContext context, {bool isAdmin = false}) {
+    final hasText  = _ctrl.text.isNotEmpty;
+    final hintText = isAdmin
+        ? (_attachEvent ? 'Poster une annonce…' : 'Écris un message…')
+        : 'Écris un message…';
 
     return Container(
-      padding: EdgeInsets.fromLTRB(Sp.md, 10, Sp.md,
-          10 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
         color: context.tpCard,
         border: Border(top: BorderSide(color: context.tpHair)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Bandeau "Mode événement" (admin d'un groupe événement uniquement)
+          if (isAdmin) _buildEventModeBanner(context),
+          Padding(
+            padding: EdgeInsets.fromLTRB(Sp.md, 10, Sp.md,
+                10 + MediaQuery.of(context).padding.bottom),
+            child: Row(
         children: [
           // Image picker
           if (!hasText)
@@ -508,7 +623,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 maxLines: null,
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
                 decoration: InputDecoration(
-                  hintText: 'Écris un message…',
+                  hintText: hintText,
                   hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
                   border: InputBorder.none,
                   isDense: true,
@@ -556,8 +671,18 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                     child: Icon(PhosphorIcons.microphone(), color: context.tpInkSub, size: 20),
                   ),
                 ),
+          ],
+        ),
+        ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEventModeBanner(BuildContext context) {
+    return EventModeBanner(
+      attachEvent: _attachEvent,
+      onToggle: () => setState(() => _attachEvent = !_attachEvent),
     );
   }
 
@@ -814,7 +939,7 @@ class _RecordingDotsState extends State<_RecordingDots>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, __) {
+      builder: (_, _) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {
@@ -841,16 +966,28 @@ class _MessageBubble extends ConsumerWidget {
   final ChatMessage message;
   final bool isMe;
   final String roomId;
+  final bool showRead;
+  final bool canReact;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.roomId,
+    this.showRead = false,
+    this.canReact = true,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final time = DateFormat('HH:mm').format(message.createdAt.toLocal());
+
+    // Les annonces admin sont affichées pleine largeur
+    if (message.isAnnouncement) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: _AnnouncementBubble(message: message, roomId: roomId, time: time),
+      );
+    }
 
     Widget content;
     if (message.isImage) {
@@ -862,13 +999,15 @@ class _MessageBubble extends ConsumerWidget {
         isMe: isMe,
       );
     } else if (message.isEventInvite) {
-      content = _EventInviteContent(
-        eventId: message.eventInviteId,
-        isMe: isMe,
-      );
+      content = message.invitationId != null
+          ? _InvitationDmBubble(message: message, roomId: roomId, isMe: isMe)
+          : _EventInviteContent(eventId: message.eventInviteId, isMe: isMe);
     } else {
       content = _TextContent(text: message.content, isMe: isMe);
     }
+
+    // Réactions existantes sous la bulle
+    final hasReactions = message.reactions.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -890,17 +1029,42 @@ class _MessageBubble extends ConsumerWidget {
                     child: Text(message.sender.displayName,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                   ),
-                content,
-                Padding(
-                  padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
-                  child: Text(time,
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                GestureDetector(
+                  onLongPress: canReact ? () => _showReactionPicker(context, ref, message.id, roomId) : null,
+                  child: content,
+                ),
+                if (hasReactions && canReact)
+                  _InlineReactionRow(message: message, roomId: roomId, isMe: isMe),
+                Row(
+                  mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, left: 4, right: 4),
+                      child: Text(time,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                    ),
+                    if (showRead) ...[
+                      const SizedBox(width: 2),
+                      Text('Vu',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF3B82F6))),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.done_all_rounded, size: 12, color: Color(0xFF3B82F6)),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  static void _showReactionPicker(BuildContext context, WidgetRef ref, String messageId, String roomId) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReactionPickerSheet(messageId: messageId, roomId: roomId),
     );
   }
 }
@@ -964,13 +1128,13 @@ class _ImageContent extends StatelessWidget {
         width: MediaQuery.of(context).size.width * 0.6,
         height: 200,
         fit: BoxFit.cover,
-        placeholder: (_, __) => Container(
+        placeholder: (_, _) => Container(
           width: MediaQuery.of(context).size.width * 0.6,
           height: 200,
           color: context.tpHair,
           child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         ),
-        errorWidget: (_, __, ___) => Container(
+        errorWidget: (_, _, _) => Container(
           width: MediaQuery.of(context).size.width * 0.6,
           height: 80,
           color: context.tpHair,
@@ -1111,7 +1275,7 @@ class _VoiceContentState extends State<_VoiceContent> {
   }
 }
 
-// ── Contenu invitation événement ──────────────────────────────────────────────
+// ── Contenu invitation événement (simple lien) ────────────────────────────────
 
 class _EventInviteContent extends StatelessWidget {
   final String? eventId;
@@ -1179,6 +1343,754 @@ class _EventInviteContent extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Carte d'invitation dans un DM (Accept / Refuser) ─────────────────────────
+
+class _InvitationDmBubble extends ConsumerWidget {
+  final ChatMessage message;
+  final String roomId;
+  final bool isMe;
+
+  const _InvitationDmBubble({
+    required this.message,
+    required this.roomId,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final data   = message.eventInviteData;
+    final status = message.invitationStatus;
+    final isPending = status == 'pending' || status == null;
+
+    final catLabel = data != null ? EventInviteData.categoryLabel(data.category) : 'SOIRÉE';
+    final dateStr  = data != null
+        ? DateFormat('EEE d MMM · HH\'h\'', 'fr_FR').format(data.startAt.toLocal())
+        : '';
+    final location = data != null
+        ? '${data.addressLabel}${data.quartier.isNotEmpty ? ' · ${data.quartier}' : ''}'
+        : '';
+    final contrib = data?.contributionItems.isNotEmpty == true
+        ? 'Apporte ${data!.contributionItems.first['emoji']} ${data.contributionItems.first['name']}'
+        : null;
+
+    return Container(
+      width: MediaQuery.of(context).size.width * 0.78,
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: const BorderRadius.all(Radius.circular(20)),
+        boxShadow: Shadows.sm,
+        border: Border.all(color: context.tpHair),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header gradient
+          Container(
+            height: 80,
+            decoration: BoxDecoration(gradient: trackpartyGradient),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(catLabel,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Invitation · ${message.sender.displayName}',
+                    style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w800,
+                      color: kPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Event info
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+            child: Text(
+              data?.title ?? 'Événement',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk),
+            ),
+          ),
+          if (location.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 2),
+              child: Text('📍 $location',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
+            child: Row(
+              children: [
+                Text('🗓 $dateStr',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                if (contrib != null) ...[
+                  const SizedBox(width: 8),
+                  const Text('·', style: TextStyle(color: Colors.grey)),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(contrib,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Buttons or status
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: isPending && !isMe
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: _InviteActionBtn(
+                          label: 'Refuser',
+                          isPrimary: false,
+                          onTap: () => _respond(context, ref, 'refuse'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _InviteActionBtn(
+                          label: '✓  Accepter',
+                          isPrimary: true,
+                          onTap: () => _respond(context, ref, 'accept'),
+                        ),
+                      ),
+                    ],
+                  )
+                : _StatusChip(status: status ?? 'pending', isMe: isMe),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _respond(BuildContext context, WidgetRef ref, String action) async {
+    if (message.invitationId == null) return;
+    try {
+      await ref.read(invitationServiceProvider).respondToInvitation(message.invitationId!, action);
+      ref.read(chatThreadProvider(roomId).notifier).updateInvitationStatus(message.invitationId!, action == 'accept' ? 'accepted' : 'refused');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erreur : $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+    }
+  }
+}
+
+class _InviteActionBtn extends StatelessWidget {
+  final String label;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const _InviteActionBtn({required this.label, required this.isPrimary, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          gradient: isPrimary ? trackpartyGradient : null,
+          color: isPrimary ? null : context.tpBg,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isPrimary ? Shadows.brand : null,
+          border: isPrimary ? null : Border.all(color: context.tpHair),
+        ),
+        child: Center(
+          child: Text(label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: isPrimary ? Colors.white : context.tpInk,
+            )),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  final bool isMe;
+
+  const _StatusChip({required this.status, required this.isMe});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAccepted = status == 'accepted';
+    final label = isAccepted ? '✓ Acceptée' : (status == 'refused' ? '✗ Refusée' : 'En attente…');
+    final color = isAccepted ? const Color(0xFF22C55E) : (status == 'refused' ? kError : context.tpInkMute);
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(label,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+      ),
+    );
+  }
+}
+
+// ── Bulle d'annonce admin (texte + carte événement + réactions) ───────────────
+
+class _AnnouncementBubble extends ConsumerWidget {
+  final ChatMessage message;
+  final String roomId;
+  final String time;
+
+  const _AnnouncementBubble({
+    required this.message,
+    required this.roomId,
+    required this.time,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final data = message.eventInviteData;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: Shadows.sm,
+        border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Sender row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Row(
+              children: [
+                TpAvatar(
+                  name: message.sender.displayName,
+                  imageUrl: message.sender.avatarUrl,
+                  size: 36,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(message.sender.displayName,
+                            style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kPrimary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text('ADMIN',
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: kPrimary)),
+                          ),
+                        ],
+                      ),
+                      Text(time,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Message text
+          if (message.content.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: Text(message.content,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk, height: 1.45)),
+            ),
+          // Image attachée
+          if (message.imageUrl != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: CachedNetworkImage(
+                  imageUrl: message.imageUrl!,
+                  width: double.infinity,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(height: 200, color: context.tpHair,
+                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+                  errorWidget: (_, _, _) => Container(height: 80, color: context.tpHair,
+                    child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute)),
+                ),
+              ),
+            ),
+          // Note vocale attachée
+          if (message.voiceUrl != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: _VoiceContent(
+                voiceUrl: message.voiceUrl,
+                duration: message.voiceDuration ?? 0,
+                isMe: false,
+              ),
+            ),
+          // Event mini-card
+          if (data != null)
+            GestureDetector(
+              onTap: () => context.push('/event/${data.id}'),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [kPrimary.withValues(alpha: 0.08), kAccent.withValues(alpha: 0.06)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
+                ),
+                child: Row(
+                  children: [
+                    const Text('📍', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(data.title,
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: context.tpInk),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(
+                            '${data.quartier.isNotEmpty ? data.quartier : data.addressLabel} · ${DateFormat('EEE d MMM', 'fr_FR').format(data.startAt.toLocal())}',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 14),
+                  ],
+                ),
+              ),
+            ),
+          // Réactions
+          if (message.reactions.isNotEmpty || true) // toujours montrer pour permettre de réagir
+            _ReactionRow(message: message, roomId: roomId),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Ligne de réactions ────────────────────────────────────────────────────────
+
+class _ReactionRow extends ConsumerWidget {
+  final ChatMessage message;
+  final String roomId;
+
+  const _ReactionRow({required this.message, required this.roomId});
+
+  static const _emojis = ['🔥', '❤️', '🎉'];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: Row(
+        children: [
+          // Comptes des réactions existantes
+          for (final r in message.reactions)
+            _ReactionChip(
+              emoji: r.emoji,
+              count: r.count,
+              onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+                  .reactToMessage(message.id, r.emoji),
+            ),
+          const Spacer(),
+          // Boutons pour réagir
+          for (final emoji in _emojis)
+            GestureDetector(
+              onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+                  .reactToMessage(message.id, emoji),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(emoji, style: const TextStyle(fontSize: 18)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReactionChip extends StatelessWidget {
+  final String emoji;
+  final int count;
+  final VoidCallback onTap;
+
+  const _ReactionChip({required this.emoji, required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: kPrimary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 4),
+            Text('$count',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Picker de réactions (long-press) ─────────────────────────────────────────
+
+class _ReactionPickerSheet extends ConsumerWidget {
+  final String messageId;
+  final String roomId;
+
+  const _ReactionPickerSheet({required this.messageId, required this.roomId});
+
+  static const _emojis = ['🔥', '❤️', '🎉', '😂', '👏', '😮', '😢', '👍'];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom + 12),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text('Réagir',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: _emojis.map((emoji) => GestureDetector(
+              onTap: () {
+                ref.read(chatThreadProvider(roomId).notifier).reactToMessage(messageId, emoji);
+                Navigator.of(context).pop();
+              },
+              child: Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: context.tpBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: context.tpHair),
+                ),
+                alignment: Alignment.center,
+                child: Text(emoji, style: const TextStyle(fontSize: 26)),
+              ),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Réactions inline sous une bulle normale ───────────────────────────────────
+
+class _InlineReactionRow extends ConsumerWidget {
+  final ChatMessage message;
+  final String roomId;
+  final bool isMe;
+
+  const _InlineReactionRow({
+    required this.message,
+    required this.roomId,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+      child: Wrap(
+        spacing: 4,
+        children: message.reactions.map((r) => GestureDetector(
+          onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+              .reactToMessage(message.id, r.emoji),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(r.emoji, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 3),
+                Text('${r.count}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
+              ],
+            ),
+          ),
+        )).toList(),
+      ),
+    );
+  }
+}
+
+// ── Bannière mode broadcast ───────────────────────────────────────────────────
+
+class _BroadcastBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        Sp.md, 14, Sp.md, 14 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        border: Border(top: BorderSide(color: context.tpHair)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(PhosphorIcons.megaphone(), color: context.tpInkMute, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            'Seuls les organisateurs peuvent envoyer des messages',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Bandeau toggle mode événement ─────────────────────────────────────────────
+
+class EventModeBanner extends StatelessWidget {
+  final bool attachEvent;
+  final VoidCallback onToggle;
+
+  const EventModeBanner({
+    super.key,
+    required this.attachEvent,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 6),
+        decoration: BoxDecoration(
+          gradient: attachEvent
+              ? LinearGradient(
+                  colors: [kPrimary.withValues(alpha: 0.12), kAccent.withValues(alpha: 0.08)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : null,
+          color: attachEvent ? null : context.tpBg,
+          border: Border(bottom: BorderSide(color: context.tpHair)),
+        ),
+        child: Row(children: [
+          Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              gradient: attachEvent ? trackpartyGradient : null,
+              color: attachEvent ? null : context.tpHair,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              attachEvent
+                  ? PhosphorIcons.megaphone(PhosphorIconsStyle.fill)
+                  : PhosphorIcons.megaphone(),
+              color: attachEvent ? Colors.white : context.tpInkMute,
+              size: 14,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  attachEvent ? 'Mode annonce activé' : 'Mode annonce désactivé',
+                  style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800,
+                    color: attachEvent ? kPrimary : context.tpInkMute,
+                  ),
+                ),
+                Text(
+                  attachEvent
+                      ? 'Les messages seront des annonces officielles'
+                      : 'Messages envoyés en mode conversation normale',
+                  style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w600,
+                    color: attachEvent ? kPrimary.withValues(alpha: 0.7) : context.tpInkMute,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            attachEvent ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+            color: attachEvent ? kPrimary : context.tpInkMute,
+            size: 28,
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _GroupModeSheet extends StatelessWidget {
+  final bool isBroadcast;
+  final Future<void> Function() onToggle;
+  const _GroupModeSheet({required this.isBroadcast, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(Sp.md),
+      padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
+          ),
+          Row(children: [
+            Icon(
+              isBroadcast
+                ? PhosphorIcons.megaphone(PhosphorIconsStyle.fill)
+                : PhosphorIcons.megaphone(),
+              color: isBroadcast ? kPrimary : context.tpInkSub,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Paramètres du groupe',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
+                  const SizedBox(height: 2),
+                  Text(
+                    isBroadcast
+                      ? 'Mode diffusion — seuls les admins peuvent écrire'
+                      : 'Groupe ouvert — tout le monde peut écrire',
+                    style: TextStyle(fontSize: 12, color: context.tpInkSub),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(context);
+              onToggle();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 14),
+              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(16)),
+              child: Row(children: [
+                Icon(
+                  isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
+                  color: isBroadcast ? kSuccess : kWarning,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isBroadcast ? 'Ouvrir aux participants' : 'Passer en mode diffusion',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInk),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isBroadcast
+                          ? 'Les participants pourront envoyer des messages'
+                          : 'Seuls les admins pourront envoyer des messages',
+                        style: TextStyle(fontSize: 12, color: context.tpInkSub),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(PhosphorIcons.caretRight(), color: context.tpInkSub, size: 16),
+              ]),
+            ),
+          ),
+          const SizedBox(height: Sp.sm),
         ],
       ),
     );

@@ -31,6 +31,24 @@ class ContributionItemModel {
       );
 }
 
+class CoOrganizerUser {
+  final String id;
+  final String displayName;
+  final String? avatarUrl;
+
+  const CoOrganizerUser({
+    required this.id,
+    required this.displayName,
+    this.avatarUrl,
+  });
+
+  factory CoOrganizerUser.fromJson(Map<String, dynamic> j) => CoOrganizerUser(
+        id: j['id'] as String,
+        displayName: (j['display_name'] as String?) ?? '',
+        avatarUrl: j['avatar_url'] as String?,
+      );
+}
+
 class UserParticipation {
   final String id;
   final String status;
@@ -76,9 +94,16 @@ class EventModel {
   final String organizerName;
   final String? organizerAvatarUrl;
   final bool organizerIsPromoter;
+  final bool organizerIsFollowing;
   final bool isPast;
   final bool isFull;
   final bool isParticipating;
+  final bool isWaitlisted;
+  final int? waitlistPosition;
+  final bool canScan;
+  final bool isCoOrganizer;
+  final bool isSaved;
+  final List<CoOrganizerUser> coOrganizers;
   final UserModel? organizer;
   final List<ContributionItemModel> contributionItems;
   final UserParticipation? userParticipation;
@@ -110,9 +135,16 @@ class EventModel {
     required this.organizerName,
     this.organizerAvatarUrl,
     required this.organizerIsPromoter,
+    this.organizerIsFollowing = false,
     required this.isPast,
     required this.isFull,
     required this.isParticipating,
+    this.isWaitlisted = false,
+    this.waitlistPosition,
+    this.canScan = false,
+    this.isCoOrganizer = false,
+    this.isSaved = false,
+    this.coOrganizers = const [],
     this.organizer,
     this.contributionItems = const [],
     this.userParticipation,
@@ -145,9 +177,19 @@ class EventModel {
         organizerName: j['organizer_name'] as String,
         organizerAvatarUrl: j['organizer_avatar_url'] as String?,
         organizerIsPromoter: j['organizer_is_promoter'] as bool,
+        organizerIsFollowing: j['organizer_is_following'] as bool? ?? false,
         isPast: j['is_past'] as bool,
         isFull: j['is_full'] as bool,
         isParticipating: j['is_participating'] as bool,
+        isWaitlisted: j['is_waitlisted'] as bool? ?? false,
+        waitlistPosition: j['waitlist_position'] as int?,
+        canScan: j['can_scan'] as bool? ?? false,
+        isCoOrganizer: j['is_co_organizer'] as bool? ?? false,
+        isSaved: j['is_saved'] as bool? ?? false,
+        coOrganizers: (j['co_organizers'] as List<dynamic>?)
+                ?.map((e) => CoOrganizerUser.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
         organizer: j['organizer'] != null
             ? UserModel.fromJson(j['organizer'] as Map<String, dynamic>)
             : null,
@@ -192,8 +234,15 @@ class EventModel {
       customCategoryLabel != null &&
       customCategoryLabel!.isNotEmpty;
 
-  EventModel copyWith({bool? isParticipating, int? participantsCount, UserParticipation? userParticipation}) =>
-      EventModel(
+  EventModel copyWith({
+    bool? isParticipating,
+    int? participantsCount,
+    UserParticipation? userParticipation,
+    bool? isFull,
+    bool? isWaitlisted,
+    int? waitlistPosition,
+    bool? isSaved,
+  }) => EventModel(
         id: id,
         title: title,
         description: description,
@@ -218,8 +267,14 @@ class EventModel {
         organizerAvatarUrl: organizerAvatarUrl,
         organizerIsPromoter: organizerIsPromoter,
         isPast: isPast,
-        isFull: isFull,
+        isFull: isFull ?? this.isFull,
         isParticipating: isParticipating ?? this.isParticipating,
+        isWaitlisted: isWaitlisted ?? this.isWaitlisted,
+        waitlistPosition: waitlistPosition ?? this.waitlistPosition,
+        isSaved: isSaved ?? this.isSaved,
+        canScan: canScan,
+        isCoOrganizer: isCoOrganizer,
+        coOrganizers: coOrganizers,
         organizer: organizer,
         contributionItems: contributionItems,
         userParticipation: userParticipation ?? this.userParticipation,
@@ -291,4 +346,59 @@ class PaginatedEvents {
             .map((e) => EventModel.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
+}
+
+// ── Statistiques événement (dashboard organisateur) ───────────────────────────
+
+class EventStats {
+  final int participantsCount;
+  final int? maxParticipants;
+  final int checkinsCount;
+  final int waitlistCount;
+  final int staffCount;
+  final int coOrganizersCount;
+  final double avgRating;
+  final int reviewsCount;
+  final String contributionType;
+  final double? contributionAmount;
+  final String status;
+  final String title;
+
+  const EventStats({
+    required this.participantsCount,
+    this.maxParticipants,
+    required this.checkinsCount,
+    required this.waitlistCount,
+    required this.staffCount,
+    required this.coOrganizersCount,
+    required this.avgRating,
+    required this.reviewsCount,
+    required this.contributionType,
+    this.contributionAmount,
+    required this.status,
+    required this.title,
+  });
+
+  factory EventStats.fromJson(Map<String, dynamic> j) => EventStats(
+        participantsCount:  j['participants_count'] as int,
+        maxParticipants:    j['max_participants'] as int?,
+        checkinsCount:      j['checkins_count'] as int,
+        waitlistCount:      j['waitlist_count'] as int,
+        staffCount:         j['staff_count'] as int,
+        coOrganizersCount:  j['co_organizers_count'] as int,
+        avgRating:          (j['avg_rating'] as num).toDouble(),
+        reviewsCount:       j['reviews_count'] as int,
+        contributionType:   j['contribution_type'] as String,
+        contributionAmount: (j['contribution_amount'] as num?)?.toDouble(),
+        status:             j['status'] as String,
+        title:              j['title'] as String,
+      );
+
+  double get fillRate => maxParticipants != null && maxParticipants! > 0
+      ? participantsCount / maxParticipants!
+      : 0;
+
+  double get checkinRate => participantsCount > 0
+      ? checkinsCount / participantsCount
+      : 0;
 }

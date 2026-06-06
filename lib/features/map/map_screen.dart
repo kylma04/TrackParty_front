@@ -534,7 +534,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         icon: _positionIcon!,
         anchor: const Offset(0.5, 0.896),
         zIndexInt: 10,
-        onTap: () {},
       ));
     }
     return set;

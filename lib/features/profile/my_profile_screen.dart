@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/co_organizer_provider.dart';
 import '../../core/providers/event_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -19,7 +20,6 @@ class MyProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
-  bool _notificationsEnabled = true;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,9 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             _buildHeader(context, user),
             _buildMiniStats(context, user),
             _buildMyEvents(context),
-            _buildSettings(context),
+            _buildMyTickets(context),
+            _buildSavedEvents(context),
+            _buildCoOrgaInvitations(context),
             _buildLogout(context),
             const SizedBox(height: 12),
             Text('TrackParty · v1.0.0 · 🇨🇮',
@@ -94,7 +96,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 Semantics(
                   button: true,
                   label: 'Paramètres',
-                  child: _ProfileGlassBtn(icon: PhosphorIcons.gear(), onTap: () {}),
+                  child: _ProfileGlassBtn(icon: PhosphorIcons.gear(), onTap: () => context.push('/settings')),
                 ),
                 const SizedBox(width: 8),
                 Semantics(
@@ -203,7 +205,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             const SizedBox(width: 8),
             Expanded(child: _ActionTile(icon: '📜', label: 'Historique', count: '…', color: kAccent, active: false)),
           ]),
-          error: (_, __) => Row(children: [
+          error: (_, _) => Row(children: [
             Expanded(child: _ActionTile(icon: '📅', label: 'À venir', count: '—', color: kPrimary, active: true)),
             const SizedBox(width: 8),
             Expanded(child: _ActionTile(icon: '✅', label: 'Confirmés', count: '—', color: kSecondary, active: false)),
@@ -234,35 +236,158 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     );
   }
 
-  // ── Settings ────────────────────────────────────────────────────────────────
-  Widget _buildSettings(BuildContext context) {
+  // ── Mes billets ─────────────────────────────────────────────────────────────
+  Widget _buildMyTickets(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 18, Sp.md, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('COMPTE & CONFIDENTIALITÉ',
+        Text('MES BILLETS',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
         const SizedBox(height: 10),
-        Container(
-          decoration: BoxDecoration(
-            color: context.tpCard,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
-          ),
-          child: Column(children: [
-            _SettingRow(
-              icon: '🔔', color: kAccent,
-              label: 'Notifications', sub: 'Push, email, SMS',
-              toggle: true,
-              toggleValue: _notificationsEnabled,
-              onToggle: (v) => setState(() => _notificationsEnabled = v),
-              isLast: false,
+        GestureDetector(
+          onTap: () => context.push('/my-tickets'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: context.tpCard,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
             ),
-            _SettingRow(icon: '🛡', color: kSecondary, label: 'Confidentialité', sub: 'Localisation, profil', isLast: false),
-            _SettingRow(icon: '🚫', color: kError, label: 'Utilisateurs bloqués', sub: '0 personne', isLast: false),
-            _SettingRow(icon: '🌙', color: kInfo, label: 'Apparence', sub: 'Light · Auto · Dark', isLast: false),
-            _SettingRow(icon: '💳', color: kSuccess, label: 'Méthodes de paiement', sub: 'Bientôt', disabled: true, isLast: false),
-            _SettingRow(icon: '❓', color: kTertiary, label: 'Aide & support', sub: '', isLast: true),
-          ]),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  gradient: trackpartyGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Mes billets',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
+                  Text('Accède à tes QR codes d\'entrée',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                ]),
+              ),
+              Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ── Favoris ─────────────────────────────────────────────────────────────────
+  Widget _buildSavedEvents(BuildContext context) {
+    final savedAsync = ref.watch(savedEventsProvider);
+    final count = savedAsync.valueOrNull?.length ?? 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 18, Sp.md, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('MES ENVIES',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => context.push('/saved-events'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: context.tpCard,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
+            ),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEC4899).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(PhosphorIcons.heart(PhosphorIconsStyle.fill),
+                    color: const Color(0xFFEC4899), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Événements sauvegardés',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
+                  Text(count > 0 ? '$count événement${count > 1 ? 's' : ''} sauvegardé${count > 1 ? 's' : ''}' : 'Découvre et sauvegarde des events',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                ]),
+              ),
+              if (count > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFEC4899),
+                      borderRadius: BorderRadius.circular(999)),
+                  child: Text('$count',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white)),
+                )
+              else
+                Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ── Co-organisateur invitations ──────────────────────────────────────────────
+  Widget _buildCoOrgaInvitations(BuildContext context) {
+    final invitationsAsync = ref.watch(coOrganizerInvitationsProvider);
+    final count = invitationsAsync.valueOrNull?.length ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 18, Sp.md, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('COLLABORATION',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => context.push('/co-organizer-invitations'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: context.tpCard,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
+            ),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(PhosphorIcons.usersThree(),
+                    color: const Color(0xFF8B5CF6), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Invitations co-organisateur',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
+                  Text(count > 0 ? '$count invitation${count > 1 ? 's' : ''} en attente' : 'Gérer tes co-organisations',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                ]),
+              ),
+              if (count > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6),
+                      borderRadius: BorderRadius.circular(999)),
+                  child: Text('$count',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white)),
+                )
+              else
+                Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
+            ]),
+          ),
         ),
       ]),
     );
@@ -395,77 +520,3 @@ class _ActionTile extends StatelessWidget {
       );
 }
 
-class _SettingRow extends StatelessWidget {
-  final String icon, label, sub;
-  final Color color;
-  final bool toggle, disabled, isLast;
-  final bool? toggleValue;
-  final void Function(bool)? onToggle;
-
-  const _SettingRow({
-    required this.icon,
-    required this.label,
-    required this.sub,
-    required this.color,
-    required this.isLast,
-    this.toggle = false,
-    this.toggleValue,
-    this.onToggle,
-    this.disabled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) => Opacity(
-        opacity: disabled ? 0.5 : 1,
-        child: Semantics(
-          button: !toggle,
-          toggled: toggle ? toggleValue : null,
-          label: label,
-          enabled: !disabled,
-          child: GestureDetector(
-            onTap: disabled ? null : (toggle ? () => onToggle?.call(!(toggleValue ?? false)) : () {}),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                  border: isLast ? null : Border(bottom: BorderSide(color: context.tpHair))),
-              child: Row(children: [
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10)),
-                  alignment: Alignment.center,
-                  child: Text(icon, style: const TextStyle(fontSize: 16)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
-                  if (sub.isNotEmpty) Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-                ])),
-                if (toggle)
-                  GestureDetector(
-                    onTap: disabled ? null : () => onToggle?.call(!(toggleValue ?? false)),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 44, height: 26,
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: (toggleValue ?? false) ? kPrimary : context.tpHair,
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                      alignment: (toggleValue ?? false) ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        width: 22, height: 22,
-                        decoration: const BoxDecoration(
-                          color: Colors.white, shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 3)],
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 20),
-              ]),
-            ),
-          ),
-        ),
-      );
-}

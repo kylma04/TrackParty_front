@@ -1,3 +1,4 @@
+import 'package:app_links/app_links.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,10 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/api/api_client.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/notification_provider.dart';
+import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/services/call_service.dart';
 import 'core/services/user_channel_service.dart';
-import 'features/calls/incoming_call_screen.dart';
 import 'theme/app_theme.dart';
 
 class TrackPartyApp extends ConsumerStatefulWidget {
@@ -26,6 +27,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     _setupFcmListeners();
     _setupCallService();
     _setupCallListener();
+    _setupDeepLinks();
   }
 
   void _setupCallService() {
@@ -88,21 +90,76 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     });
   }
 
+  void _setupDeepLinks() async {
+    final appLinks = AppLinks();
+
+    // App lancée depuis un deeplink (cold start)
+    try {
+      final initial = await appLinks.getInitialLink();
+      if (initial != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _handleDeepLink(initial));
+      }
+    } catch (_) {}
+
+    // App déjà en cours (foreground / background)
+    appLinks.uriLinkStream.listen(_handleDeepLink, onError: (_) {});
+  }
+
+  void _handleDeepLink(Uri uri) {
+    if (!mounted) return;
+    final router = ref.read(routerProvider);
+    final segments = uri.pathSegments;
+
+    // trackparty://event/{id}  ou  https://trackparty.ci/event/{id}
+    if (segments.length >= 2 && segments[0] == 'event') {
+      router.push('/event/${segments[1]}');
+    }
+    // trackparty://event/{id}/scan
+    else if (segments.length >= 3 && segments[0] == 'event' && segments[2] == 'scan') {
+      router.push('/event/${segments[1]}/scan');
+    }
+  }
+
   void _navigateFromMessage(RemoteMessage message) {
     final router = ref.read(routerProvider);
-    final data = message.data;
-    final type = data['type'] as String?;
+    final data   = message.data;
+    final type   = data['type'] as String?;
 
-    if (type == 'new_message') {
-      final roomId = data['room_id'];
-      if (roomId != null) {
-        router.push('/chat/$roomId');
-        return;
-      }
+    switch (type) {
+      case 'new_message':
+        final roomId = data['room_id'];
+        if (roomId != null) { router.push('/chat/$roomId'); return; }
+
+      case 'co_org_invite':
+        router.push('/co-organizer-invitations'); return;
+
+      case 'invitation':
+      case 'invitation_accepted':
+        router.push('/invitations'); return;
+
+      case 'new_follower':
+        final followerId = data['follower_id'];
+        if (followerId != null) { router.push('/promoter/$followerId'); return; }
+        router.push('/notifications'); return;
+
+      case 'co_org_accepted':
+        final eventId = data['event_id'];
+        if (eventId != null) {
+          router.push('/event/$eventId/dashboard', extra: {'title': ''});
+          return;
+        }
     }
 
-    if (type != null && data['event_id'] != null) {
-      router.push('/event/${data['event_id']}');
+    // Types avec event_id : event_reminder, event_updated, event_cancelled,
+    // participation_confirmed, waitlist_promoted, new_review, review_reply, review_request, checkin_review
+    final eventId = data['event_id'];
+    if (eventId != null) {
+      final screen = data['screen'] as String?;
+      if (screen == 'event_rate') {
+        router.push('/event/$eventId/rate');
+      } else {
+        router.push('/event/$eventId');
+      }
       return;
     }
 
@@ -111,12 +168,13 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final router = ref.watch(routerProvider);
+    final router    = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
       title: 'TrackParty',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       locale: const Locale('fr', 'FR'),

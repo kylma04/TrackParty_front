@@ -6,7 +6,6 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/services/call_service.dart';
-import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 
 class ActiveCallScreen extends StatefulWidget {
@@ -115,7 +114,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (_, __) { _hangup(); },
+      onPopInvokedWithResult: (_, _) { _hangup(); },
       child: Scaffold(
         backgroundColor: Colors.black,
         body: isVideo ? _buildVideoUI(s) : _buildAudioUI(s),

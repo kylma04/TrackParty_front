@@ -45,6 +45,8 @@ dependencies:
   cached_network_image: ^3.3.0
   record: 6.2.0
   audioplayers: ^6.0.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.0
 
   # WebRTC (appels audio/vidéo)
   flutter_webrtc: ^1.4.0
@@ -52,8 +54,13 @@ dependencies:
   # Fonts
   google_fonts: ^6.1.0
 
-  # Secure token storage
+  # Secure token storage & biométrie
   flutter_secure_storage: ^9.2.2
+  local_auth: ^2.3.0
+
+  # Partage & deeplinks
+  share_plus: ^10.0.0
+  app_links: ^6.3.0
 
   # UX
   flutter_svg: ^2.0.9

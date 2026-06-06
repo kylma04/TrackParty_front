@@ -150,19 +150,35 @@ class _InvitationCard extends ConsumerStatefulWidget {
 class _InvitationCardState extends ConsumerState<_InvitationCard> {
   bool _loading = false;
 
-  Future<void> _respond(String action) async {
+  Future<void> _handleAccept() async {
+    final event = widget.invitation.event;
+    if (event != null && event.needsContribution) {
+      final result = await showModalBottomSheet<({String itemId, int qty})>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _ContribPickerSheet(items: event.contributionItems),
+      );
+      if (!mounted || result == null) return;
+      await _respond('accept', contributionItemId: result.itemId, quantity: result.qty);
+    } else {
+      await _respond('accept');
+    }
+  }
+
+  Future<void> _respond(String action, {String? contributionItemId, int quantity = 1}) async {
     if (_loading) return;
     setState(() => _loading = true);
     try {
       await ref.read(invitationsProvider.notifier).respondToInvitation(
         widget.invitation.id,
         action,
+        contributionItemId: contributionItemId,
+        quantity: quantity,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(action == 'accept'
-              ? '🎉 Invitation acceptée !'
-              : 'Invitation refusée'),
+          content: Text(action == 'accept' ? '🎉 Invitation acceptée !' : 'Invitation refusée'),
           backgroundColor: action == 'accept' ? kPrimary : null,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -253,7 +269,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                             event.coverImageUrl!,
                             height: 120,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
+                            errorBuilder: (_, _, _) => Container(
                               height: 120,
                               color: kPrimary.withValues(alpha: 0.1),
                               child: const Center(child: Text('🎉', style: TextStyle(fontSize: 40))),
@@ -323,7 +339,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: GestureDetector(
-                        onTap: _loading ? null : () => _respond('accept'),
+                        onTap: _loading ? null : _handleAccept,
                         child: Container(
                           height: 46,
                           decoration: BoxDecoration(
@@ -382,5 +398,135 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
     if (diff.inHours < 1) return '${diff.inMinutes} min';
     if (diff.inDays < 1) return '${diff.inHours}h';
     return DateFormat('d MMM', 'fr_FR').format(dt);
+  }
+}
+
+// ── Sélecteur de contribution ─────────────────────────────────────────────────
+
+class _ContribPickerSheet extends StatefulWidget {
+  final List<InvitationContribItem> items;
+  const _ContribPickerSheet({required this.items});
+
+  @override
+  State<_ContribPickerSheet> createState() => _ContribPickerSheetState();
+}
+
+class _ContribPickerSheetState extends State<_ContribPickerSheet> {
+  String? _selectedId;
+  int _qty = 1;
+
+  InvitationContribItem? get _selected =>
+      _selectedId == null ? null : widget.items.where((i) => i.id == _selectedId).firstOrNull;
+
+  @override
+  Widget build(BuildContext context) {
+    final sel = _selected;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 44, height: 5,
+              decoration: BoxDecoration(color: const Color(0xFFECECF3), borderRadius: BorderRadius.circular(3))),
+          const SizedBox(height: 16),
+          Text('Que vas-tu apporter ?',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                  color: Theme.of(context).textTheme.bodyLarge?.color, letterSpacing: -0.5)),
+          const SizedBox(height: 4),
+          Text('Choisis un item pour accepter l\'invitation',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                  color: Theme.of(context).textTheme.bodySmall?.color)),
+          const SizedBox(height: 16),
+          ...widget.items.map((item) {
+            final isSelected = _selectedId == item.id;
+            return GestureDetector(
+              onTap: item.isAvailable ? () => setState(() { _selectedId = item.id; _qty = 1; }) : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: !item.isAvailable
+                      ? const Color(0xFFECECF3)
+                      : isSelected ? kPrimary.withValues(alpha: 0.08) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected ? kPrimary : const Color(0xFFECECF3),
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Row(children: [
+                  Text(item.emoji, style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(item.name,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800,
+                            color: item.isAvailable ? const Color(0xFF1B1A2E) : const Color(0xFFA2A1B5))),
+                    Text(item.isAvailable
+                        ? '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}'
+                        : 'Complet',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                            color: item.isAvailable ? const Color(0xFF6B6A82) : kError)),
+                  ])),
+                  if (isSelected) Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), color: kPrimary, size: 22),
+                ]),
+              ),
+            );
+          }),
+          if (sel != null) ...[
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              GestureDetector(
+                onTap: _qty > 1 ? () => setState(() => _qty--) : null,
+                child: Container(width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: _qty > 1 ? kPrimary : const Color(0xFFECECF3),
+                      borderRadius: BorderRadius.circular(10)),
+                    alignment: Alignment.center,
+                    child: Text('−', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                        color: _qty > 1 ? Colors.white : const Color(0xFFA2A1B5)))),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text('$_qty', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              ),
+              GestureDetector(
+                onTap: _qty < sel.quantityRemaining ? () => setState(() => _qty++) : null,
+                child: Container(width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: _qty < sel.quantityRemaining ? kPrimary : const Color(0xFFECECF3),
+                      borderRadius: BorderRadius.circular(10)),
+                    alignment: Alignment.center,
+                    child: Text('+', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                        color: _qty < sel.quantityRemaining ? Colors.white : const Color(0xFFA2A1B5)))),
+              ),
+            ]),
+            const SizedBox(height: 16),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _selectedId == null
+                  ? null
+                  : () => Navigator.pop(context, (itemId: _selectedId!, qty: _qty)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary,
+                disabledBackgroundColor: const Color(0xFFECECF3),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: Text(
+                _selectedId == null ? 'Choisis un item' : 'Confirmer et accepter',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800,
+                    color: _selectedId == null ? const Color(0xFFA2A1B5) : Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

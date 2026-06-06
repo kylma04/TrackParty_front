@@ -1,13 +1,29 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show unawaited;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/chat_model.dart';
 import '../services/chat_service.dart';
 import '../services/invitation_service.dart';
-import '../services/chat_websocket_service.dart';
+import '../services/chat_websocket_service.dart' show chatWebSocketServiceProvider, ReactionEvent, ReadReceiptEvent;
+
+// ── Dernier "lu" du partenaire dans un DM (roomId → DateTime?) ───────────────
+
+final chatPartnerReadAtProvider =
+    StateProvider.family<DateTime?, String>((ref, roomId) => null);
+
+// ── Salle communautaire d'un promoteur ───────────────────────────────────────
+
+final communityRoomProvider = FutureProvider.family<ChatRoomModel, String>((ref, promoterId) {
+  return ref.read(chatServiceProvider).getOrCreateCommunityRoom(promoterId);
+});
+
+// ── Mise à jour du mode groupe ────────────────────────────────────────────────
+
+final groupModeUpdateProvider = Provider<Future<void> Function(String, String)>((ref) {
+  return (roomId, mode) => ref.read(chatServiceProvider).updateGroupMode(roomId, mode);
+});
 
 // ── Room par ID ───────────────────────────────────────────────────────────────
 
@@ -45,24 +61,44 @@ final chatThreadProvider = AsyncNotifierProvider.family<ChatThreadNotifier,
 
 class ChatThreadNotifier extends FamilyAsyncNotifier<List<ChatMessage>, String> {
   StreamSubscription<ChatMessage>? _wsSub;
+  StreamSubscription<ReactionEvent>? _reactionSub;
+  StreamSubscription<ReadReceiptEvent>? _readReceiptSub;
+
+  bool _hasMoreOlder = true;
+  bool _loadingOlder = false;
+  int  _loadedPages  = 1;
 
   String get roomId => arg;
+  bool get hasMoreOlder => _hasMoreOlder;
+  bool get loadingOlder => _loadingOlder;
 
   @override
   Future<List<ChatMessage>> build(String arg) async {
-    // Marque comme lu côté REST dès l'ouverture (le WS fait de même)
+    _hasMoreOlder = true;
+    _loadedPages  = 1;
+
     unawaited(ref.read(chatServiceProvider).markRoomAsRead(arg).catchError((_) {}));
 
     final messages = await ref.read(chatServiceProvider).getMessages(arg);
+    // L'API renvoie les messages les plus récents en premier (page 1 = newest)
+    // On inverse pour afficher du plus ancien au plus récent
     final sorted = messages.reversed.toList();
+    // Si la page retourne moins de 20 résultats, pas d'historique supplémentaire
+    if (messages.length < 20) _hasMoreOlder = false;
 
     final ws = ref.watch(chatWebSocketServiceProvider(arg));
     await ws.connect();
     _wsSub?.cancel();
+    _reactionSub?.cancel();
+    _readReceiptSub?.cancel();
     _wsSub = ws.messages.listen(_onWsMessage);
+    _reactionSub = ws.reactions.listen(_onWsReaction);
+    _readReceiptSub = ws.readReceipts.listen(_onReadReceipt);
 
     ref.onDispose(() {
       _wsSub?.cancel();
+      _reactionSub?.cancel();
+      _readReceiptSub?.cancel();
     });
 
     return sorted;
@@ -74,14 +110,52 @@ class ChatThreadNotifier extends FamilyAsyncNotifier<List<ChatMessage>, String> 
     state = AsyncData([...current, msg]);
   }
 
-  Future<void> sendTextMessage(String content) async {
+  void _onReadReceipt(ReadReceiptEvent event) {
+    final current = ref.read(chatPartnerReadAtProvider(roomId));
+    if (current == null || event.readAt.isAfter(current)) {
+      ref.read(chatPartnerReadAtProvider(roomId).notifier).state = event.readAt;
+    }
+  }
+
+  void _onWsReaction(ReactionEvent event) {
+    final current = state.valueOrNull ?? [];
+    state = AsyncData(current.map((m) {
+      if (m.id == event.messageId) return m.copyWith(reactions: event.reactions);
+      return m;
+    }).toList());
+  }
+
+  Future<void> loadOlderMessages() async {
+    if (!_hasMoreOlder || _loadingOlder) return;
+    _loadingOlder = true;
+    try {
+      final nextPage = _loadedPages + 1;
+      final older = await ref.read(chatServiceProvider).getMessages(arg, page: nextPage);
+      if (older.length < 20) _hasMoreOlder = false;
+      if (older.isEmpty) return;
+      _loadedPages = nextPage;
+      final current = state.valueOrNull ?? [];
+      // older: newest-first → reversed = oldest-first → préfixer à la liste actuelle
+      final olderSorted = older.reversed.toList();
+      // Éviter les doublons (les WS peuvent avoir déjà ajouté des messages)
+      final existingIds = current.map((m) => m.id).toSet();
+      final deduped = olderSorted.where((m) => !existingIds.contains(m.id)).toList();
+      state = AsyncData([...deduped, ...current]);
+    } catch (_) {
+    } finally {
+      _loadingOlder = false;
+    }
+  }
+
+  Future<void> sendTextMessage(String content, {bool attachEvent = true}) async {
     if (content.trim().isEmpty) return;
     final ws = ref.read(chatWebSocketServiceProvider(roomId));
     if (ws.isConnected) {
-      ws.sendText(content.trim());
+      ws.sendText(content.trim(), attachEvent: attachEvent);
     } else {
       try {
-        final msg = await ref.read(chatServiceProvider).sendMessage(roomId, content.trim());
+        final msg = await ref.read(chatServiceProvider).sendMessage(
+          roomId, content.trim(), attachEvent: attachEvent);
         _addMessage(msg);
       } catch (_) {}
     }
@@ -104,20 +178,18 @@ class ChatThreadNotifier extends FamilyAsyncNotifier<List<ChatMessage>, String> 
     }
   }
 
-  Future<void> sendImageMessage(XFile image) async {
+  Future<void> sendImageMessage(XFile image, {bool attachEvent = true}) async {
     try {
-      final msg = await ref.read(chatServiceProvider).sendImageMessage(roomId, image);
+      final msg = await ref.read(chatServiceProvider)
+          .sendImageMessage(roomId, image, attachEvent: attachEvent);
       _addMessage(msg);
     } catch (_) {}
   }
 
-  Future<void> sendVoiceMessage(String filePath, int durationSeconds) async {
+  Future<void> sendVoiceMessage(String filePath, int durationSeconds, {bool attachEvent = true}) async {
     try {
       final msg = await ref.read(chatServiceProvider).sendVoiceMessage(
-        roomId,
-        filePath,
-        durationSeconds,
-      );
+        roomId, filePath, durationSeconds, attachEvent: attachEvent);
       _addMessage(msg);
     } catch (_) {}
   }
@@ -126,6 +198,25 @@ class ChatThreadNotifier extends FamilyAsyncNotifier<List<ChatMessage>, String> 
     final current = state.valueOrNull ?? [];
     if (current.any((m) => m.id == msg.id)) return;
     state = AsyncData([...current, msg]);
+  }
+
+  Future<void> reactToMessage(String messageId, String emoji) async {
+    try {
+      final reactions = await ref.read(chatServiceProvider).reactToMessage(roomId, messageId, emoji);
+      final current = state.valueOrNull ?? [];
+      state = AsyncData(current.map((m) {
+        if (m.id == messageId) return m.copyWith(reactions: reactions);
+        return m;
+      }).toList());
+    } catch (_) {}
+  }
+
+  void updateInvitationStatus(String invitationId, String newStatus) {
+    final current = state.valueOrNull ?? [];
+    state = AsyncData(current.map((m) {
+      if (m.invitationId == invitationId) return m.copyWith(invitationStatus: newStatus);
+      return m;
+    }).toList());
   }
 }
 
@@ -147,14 +238,27 @@ class InvitationsNotifier extends AsyncNotifier<List<InvitationModel>> {
     );
   }
 
-  Future<void> respondToInvitation(String invitationId, String action) async {
-    final updated = await ref
-        .read(invitationServiceProvider)
-        .respondToInvitation(invitationId, action);
-
+  Future<void> respondToInvitation(
+    String invitationId,
+    String action, {
+    String? contributionItemId,
+    int quantity = 1,
+  }) async {
+    // Retrait optimiste : l'invitation disparaît immédiatement
     final current = state.valueOrNull ?? [];
-    state = AsyncData(
-      current.map((inv) => inv.id == invitationId ? updated : inv).toList(),
-    );
+    state = AsyncData(current.where((inv) => inv.id != invitationId).toList());
+
+    try {
+      await ref.read(invitationServiceProvider).respondToInvitation(
+        invitationId,
+        action,
+        contributionItemId: contributionItemId,
+        quantity: quantity,
+      );
+    } catch (_) {
+      // En cas d'erreur, recharger la liste
+      refresh();
+      rethrow;
+    }
   }
 }

@@ -118,4 +118,12 @@ class AuthService {
         final response = await _dio.post('auth/me/fcm-token/', data: {'fcm_token': token});
         print('📱 FCM: API response status: ${response.statusCode}');
       });
+
+  Future<void> followPromoter(String userId) => _call(() async {
+        await _dio.post('auth/promoters/$userId/follow/');
+      });
+
+  Future<void> unfollowPromoter(String userId) => _call(() async {
+        await _dio.delete('auth/promoters/$userId/follow/');
+      });
 }

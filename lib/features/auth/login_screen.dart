@@ -9,6 +9,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/config/env.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/biometric_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
@@ -31,6 +32,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscure = true;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoBiometric());
+  }
+
+  Future<void> _tryAutoBiometric() async {
+    if (!mounted) return;
+    final bio = ref.read(biometricServiceProvider);
+    if (!await bio.canAuthenticate() || !await bio.isEnabled()) return;
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (mounted) await _biometricLogin();
+  }
+
+  @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
@@ -39,10 +54,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(authNotifierProvider.notifier).login(
-          _emailCtrl.text.trim(),
-          _passCtrl.text,
-        );
+    final email = _emailCtrl.text.trim();
+    final pass  = _passCtrl.text;
+    await ref.read(authNotifierProvider.notifier).login(email, pass);
+    // Sauvegarder pour la prochaine connexion biométrique
+    final bio = ref.read(biometricServiceProvider);
+    if (await bio.canAuthenticate()) {
+      await bio.saveCredentials(email, pass);
+    }
+  }
+
+  Future<void> _biometricLogin() async {
+    final bio      = ref.read(biometricServiceProvider);
+    final provider = await bio.getProvider();
+    if (provider == null) return;
+
+    final ok = await bio.authenticate();
+    if (!ok || !mounted) return;
+
+    if (provider == 'google') {
+      await _googleLoginSilent();
+    } else {
+      final creds = await bio.getCredentials();
+      if (creds == null) return;
+      await ref.read(authNotifierProvider.notifier).login(creds.email, creds.password);
+    }
+  }
+
+  Future<void> _googleLoginSilent() async {
+    if (!Env.googleConfigured || !mounted) return;
+    try {
+      final googleSignIn = GoogleSignIn(serverClientId: Env.googleWebClientId);
+      final account = await googleSignIn.signInSilently();
+      if (account == null || !mounted) return;
+      final auth    = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) return;
+      await ref.read(authNotifierProvider.notifier).googleLogin(idToken);
+    } catch (_) {}
   }
 
   Future<void> _googleLogin() async {
@@ -67,6 +116,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
       await ref.read(authNotifierProvider.notifier).googleLogin(idToken);
+      // Sauvegarder pour le prochain auto-déclenchement biométrique
+      final bio = ref.read(biometricServiceProvider);
+      if (mounted && await bio.canAuthenticate()) await bio.saveGoogleLogin();
     } on Exception catch (e) {
       if (!mounted) return;
       final msg = e.toString().contains('canceled') || e.toString().contains('cancelled')

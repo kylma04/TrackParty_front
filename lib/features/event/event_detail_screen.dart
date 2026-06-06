@@ -8,13 +8,17 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/chat_model.dart';
 import '../../core/models/event_model.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/providers/event_provider.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/event_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/event_share_sheet.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_badge.dart';
 import '../../widgets/tp_button.dart';
@@ -60,17 +64,21 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
             .read(eventDetailProvider(widget.id).notifier)
             .participate(contributionItemId: itemId, quantity: qty),
         onCancelParticipation: () => ref.read(eventDetailProvider(widget.id).notifier).cancelParticipation(),
+        onJoinWaitlist: () => ref
+            .read(eventDetailProvider(widget.id).notifier)
+            .participate(),
       ),
     );
   }
 }
 
-class _EventDetailContent extends StatefulWidget {
+class _EventDetailContent extends ConsumerStatefulWidget {
   final EventModel event;
   final bool expanded;
   final VoidCallback onToggleExpand;
   final Future<void> Function(String? itemId, int quantity) onParticipate;
   final Future<void> Function() onCancelParticipation;
+  final Future<void> Function() onJoinWaitlist;
 
   const _EventDetailContent({
     required this.event,
@@ -78,14 +86,29 @@ class _EventDetailContent extends StatefulWidget {
     required this.onToggleExpand,
     required this.onParticipate,
     required this.onCancelParticipation,
+    required this.onJoinWaitlist,
   });
 
   @override
-  State<_EventDetailContent> createState() => _EventDetailContentState();
+  ConsumerState<_EventDetailContent> createState() => _EventDetailContentState();
 }
 
-class _EventDetailContentState extends State<_EventDetailContent> {
-  bool _following = false;
+class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
+  late bool _following;
+
+  @override
+  void initState() {
+    super.initState();
+    _following = widget.event.organizerIsFollowing;
+  }
+
+  @override
+  void didUpdateWidget(_EventDetailContent old) {
+    super.didUpdateWidget(old);
+    if (old.event.organizerIsFollowing != widget.event.organizerIsFollowing) {
+      _following = widget.event.organizerIsFollowing;
+    }
+  }
 
   EventModel get event => widget.event;
 
@@ -102,18 +125,22 @@ class _EventDetailContentState extends State<_EventDetailContent> {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    SizedBox(height: 380, child: _buildHero(context)),
+                    Column(children: [
+                      SizedBox(height: 380, child: _buildHero(context)),
+                      const SizedBox(height: 80),
+                    ]),
                     Positioned(
                       top: 364, left: Sp.md, right: Sp.md,
                       child: _buildOrganizerCard(context),
                     ),
                   ],
                 ),
-                const SizedBox(height: 64),
                 _buildInfoGrid(context),
+                _buildOrganizerTools(context),
                 _buildDescription(context),
                 if (event.contributionItems.isNotEmpty) _buildContributions(context),
                 _buildMinimap(context),
+                _buildParticipantActions(context),
                 const SizedBox(height: 100),
               ],
             ),
@@ -150,17 +177,63 @@ class _EventDetailContentState extends State<_EventDetailContent> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: Sp.sm),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _HeroBtn(icon: PhosphorIcons.caretLeft(), semanticLabel: 'Retour', onTap: () => context.pop()),
-                  Row(
-                    children: [
-                      _HeroBtn(icon: PhosphorIcons.shareNetwork(), semanticLabel: 'Partager', onTap: () {}),
-                    ],
-                  ),
-                ],
-              ),
+              child: Builder(builder: (context) {
+                final authState = ref.read(authNotifierProvider).valueOrNull;
+                final userId = authState is AuthAuthenticated ? authState.user.id : null;
+                final isOrganizer = userId != null && event.organizerId == userId;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _HeroBtn(icon: PhosphorIcons.caretLeft(), semanticLabel: 'Retour', onTap: () => context.pop()),
+                    Row(
+                      children: [
+                        if (isOrganizer) ...[
+                          _HeroBtn(
+                            icon: PhosphorIcons.pencilSimple(),
+                            semanticLabel: 'Modifier l\'événement',
+                            onTap: () => context.push('/event/${event.id}/edit', extra: event),
+                          ),
+                          const SizedBox(width: 8),
+                          _HeroBtn(
+                            icon: PhosphorIcons.copySimple(),
+                            semanticLabel: 'Dupliquer l\'événement',
+                            onTap: () => context.push('/event/${event.id}/clone', extra: event),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        _HeroBtn(
+                          icon: event.isSaved
+                              ? PhosphorIcons.heart(PhosphorIconsStyle.fill)
+                              : PhosphorIcons.heart(),
+                          semanticLabel: event.isSaved ? 'Retirer des favoris' : 'Sauvegarder',
+                          activeColor: const Color(0xFFEC4899),
+                          active: event.isSaved,
+                          onTap: () async {
+                            final svc = ref.read(eventServiceProvider);
+                            if (event.isSaved) {
+                              await svc.unsaveEvent(event.id);
+                            } else {
+                              await svc.saveEvent(event.id);
+                            }
+                            ref.invalidate(eventDetailProvider(event.id));
+                            ref.invalidate(savedEventsProvider);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _HeroBtn(
+                          icon: PhosphorIcons.shareNetwork(),
+                          semanticLabel: 'Partager',
+                          onTap: () => showEventShareSheet(
+                            context,
+                            eventId: event.id,
+                            eventTitle: event.title,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
           Positioned(
@@ -195,7 +268,18 @@ class _EventDetailContentState extends State<_EventDetailContent> {
     final avatarUrl = org?.avatarUrl ?? event.organizerAvatarUrl;
     final rating = org?.promoterProfile?.avgRating ?? event.avgRating;
 
-    return Container(
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final myId = authState is AuthAuthenticated ? authState.user.id : null;
+    final isMyEvent = myId != null && event.organizerId == myId;
+
+    return Semantics(
+      button: event.organizerId.isNotEmpty,
+      label: 'Voir le profil de $name',
+      child: GestureDetector(
+        onTap: event.organizerId.isNotEmpty
+            ? () => context.push('/promoter/${event.organizerId}')
+            : null,
+        child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.tpCard,
@@ -212,7 +296,7 @@ class _EventDetailContentState extends State<_EventDetailContent> {
               children: [
                 Row(
                   children: [
-                    Text(name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
+                    Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk))),
                     if (event.organizerIsPromoter) ...[
                       const SizedBox(width: Sp.sm),
                       TpBadge.promoter(),
@@ -237,29 +321,54 @@ class _EventDetailContentState extends State<_EventDetailContent> {
               ],
             ),
           ),
-          Semantics(
-            button: true,
-            label: _following ? 'Se désabonner' : 'Suivre ${event.organizerName}',
-            child: GestureDetector(
-              onTap: () => setState(() => _following = !_following),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _following ? kPrimary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: kPrimary, width: 1.5),
-                ),
-                child: Text(
-                  _following ? 'Abonné ✓' : 'Suivre',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _following ? Colors.white : kPrimary),
+          if (!isMyEvent && event.organizerId.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            Semantics(
+              button: true,
+              label: _following ? 'Se désabonner' : 'Suivre ${event.organizerName}',
+              child: GestureDetector(
+                onTap: () async {
+                  final messenger   = ScaffoldMessenger.of(context);
+                  final wasFollowing = _following;
+                  setState(() => _following = !_following);
+                  try {
+                    if (wasFollowing) {
+                      await ref.read(authServiceProvider).unfollowPromoter(event.organizerId);
+                    } else {
+                      await ref.read(authServiceProvider).followPromoter(event.organizerId);
+                    }
+                  } catch (_) {
+                    if (mounted) {
+                      setState(() => _following = wasFollowing);
+                      messenger.showSnackBar(SnackBar(
+                        content: Text(wasFollowing ? 'Impossible de se désabonner' : 'Impossible de suivre ce promoteur'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ));
+                    }
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _following ? kPrimary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kPrimary, width: 1.5),
+                  ),
+                  child: Text(
+                    _following ? 'Abonné ✓' : 'Suivre',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _following ? Colors.white : kPrimary),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildInfoGrid(BuildContext context) {
@@ -307,6 +416,55 @@ class _EventDetailContentState extends State<_EventDetailContent> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOrganizerTools(BuildContext context) {
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final userId = authState is AuthAuthenticated ? authState.user.id : null;
+    final isOrganizer = userId != null && event.organizerId == userId;
+    if (!isOrganizer) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: Semantics(
+        button: true,
+        label: 'Tableau de bord de l\'événement',
+        child: GestureDetector(
+          onTap: () => context.push(
+            '/event/${event.id}/dashboard',
+            extra: {'title': event.title},
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: trackpartyGradient,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [BoxShadow(color: Color(0x284F46E5), blurRadius: 12, offset: Offset(0, 4))],
+            ),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.20),
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(PhosphorIcons.chartBar(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Dashboard',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text('Entrées · Staff · Co-orgas →',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.75))),
+                ]),
+              ),
+              Icon(PhosphorIcons.caretRight(), color: Colors.white.withValues(alpha: 0.75), size: 18),
+            ]),
+          ),
+        ),
       ),
     );
   }
@@ -436,25 +594,121 @@ class _EventDetailContentState extends State<_EventDetailContent> {
     );
   }
 
+  Widget _buildParticipantActions(BuildContext context) {
+    final participating = event.isParticipating;
+    final canScan = event.canScan;
+    if (!participating && !canScan) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: Column(children: [
+        if (participating) ...[
+          Semantics(
+            button: true,
+            label: 'Mon billet',
+            child: GestureDetector(
+              onTap: () => context.push('/ticket/${event.id}'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF22A865).withValues(alpha: 0.35)),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF22A865).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                        color: const Color(0xFF22A865), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Mon billet', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
+                    Text('Voir mon QR code d\'entrée', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                  ])),
+                  Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 18),
+                ]),
+              ),
+            ),
+          ),
+        ],
+        if (canScan) ...[
+          if (participating) const SizedBox(height: 10),
+          Semantics(
+            button: true,
+            label: 'Scanner les entrées',
+            child: GestureDetector(
+              onTap: () => context.push('/event/${event.id}/scan'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: kPrimary.withValues(alpha: 0.35)),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Icon(PhosphorIcons.qrCode(), color: kPrimary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Scanner les entrées', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
+                    Text('Scanner le QR code d\'un billet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                  ])),
+                  Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 18),
+                ]),
+              ),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+
   Widget _buildBottomCta(BuildContext context) {
     final participating = event.isParticipating;
-    final full = event.isFull && !participating;
-    final past = event.isPast;
-    final cancelled = event.status == 'cancelled';
+    final waitlisted   = event.isWaitlisted;
+    final past         = event.isPast;
+    final cancelled    = event.status == 'cancelled';
+    final fullNoSlot   = event.isFull && !participating && !waitlisted;
+
+    final iconData = participating
+        ? PhosphorIcons.xCircle()
+        : waitlisted
+            ? PhosphorIcons.clockCountdown()
+            : fullNoSlot
+                ? PhosphorIcons.listPlus()
+                : PhosphorIcons.checkCircle();
 
     String label;
     if (cancelled) {
       label = 'Événement annulé';
     } else if (past) {
       label = 'Événement terminé';
-    } else if (full) {
-      label = 'Événement complet';
     } else if (participating) {
       label = 'Annuler ma participation';
+    } else if (waitlisted) {
+      final pos = event.waitlistPosition;
+      label = pos != null ? 'En attente — #$pos · Quitter' : 'En liste d\'attente · Quitter';
+    } else if (fullNoSlot) {
+      label = 'Rejoindre la liste d\'attente';
     } else {
-      final count = event.maxParticipants != null ? '${event.participantsCount} / ${event.maxParticipants}' : '${event.participantsCount}';
+      final count = event.maxParticipants != null
+          ? '${event.participantsCount} / ${event.maxParticipants}'
+          : '${event.participantsCount}';
       label = 'Je participe — $count';
     }
+
+    final isDisabled = cancelled || past;
 
     return Container(
       decoration: BoxDecoration(
@@ -504,12 +758,14 @@ class _EventDetailContentState extends State<_EventDetailContent> {
               Expanded(
                 child: TpButton(
                   label: label,
-                  icon: participating ? PhosphorIcons.xCircle() : PhosphorIcons.checkCircle(),
+                  icon: iconData,
                   fullWidth: true,
-                  state: (cancelled || past || full) ? TpButtonState.disabled : TpButtonState.idle,
-                  onPressed: (cancelled || past || full) ? null : () {
-                    if (participating) {
+                  state: isDisabled ? TpButtonState.disabled : TpButtonState.idle,
+                  onPressed: isDisabled ? null : () {
+                    if (participating || waitlisted) {
                       widget.onCancelParticipation();
+                    } else if (fullNoSlot) {
+                      widget.onJoinWaitlist();
                     } else if (event.contributionType == 'nature' && event.contributionItems.isNotEmpty) {
                       _showContribSheet(context);
                     } else {
@@ -582,11 +838,15 @@ class _HeroBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final String semanticLabel;
+  final bool active;
+  final Color? activeColor;
 
   const _HeroBtn({
     required this.icon,
     required this.onTap,
     required this.semanticLabel,
+    this.active = false,
+    this.activeColor,
   });
 
   @override
@@ -599,7 +859,9 @@ class _HeroBtn extends StatelessWidget {
         child: Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: active && activeColor != null
+                ? activeColor!.withValues(alpha: 0.85)
+                : Colors.black.withValues(alpha: 0.45),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: Colors.white, size: 20),
@@ -930,7 +1192,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
   List<UserSearchResult> _results = [];
   bool _searching    = false;
   String? _sending;   // userId being invited
-  Set<String> _done  = {};
+  final Set<String> _done  = {};
   Timer? _debounce;
 
   @override
@@ -959,22 +1221,20 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
     }
   }
 
-  Future<void> _invite(UserSearchResult user) async {
-    if (_sending != null || _done.contains(user.id)) return;
-    setState(() => _sending = user.id);
+  void _invite(UserSearchResult user) {
+    if (_done.contains(user.id)) return;
+    setState(() => _done.add(user.id));
+    unawaited(_sendInviteAsync(user));
+  }
+
+  Future<void> _sendInviteAsync(UserSearchResult user) async {
     try {
       await ref.read(invitationServiceProvider).sendInvitation(
         receiverId: user.id,
         eventId: widget.eventId,
       );
-      if (mounted) {
-        setState(() {
-          _sending = null;
-          _done.add(user.id);
-        });
-      }
     } catch (_) {
-      if (mounted) setState(() => _sending = null);
+      if (mounted) setState(() => _done.remove(user.id));
     }
   }
 
