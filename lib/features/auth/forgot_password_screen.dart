@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../theme/colors.dart';
 import '../../core/services/auth_service.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
@@ -163,7 +164,7 @@ class _EmailStep extends StatelessWidget {
         const SizedBox(height: Sp.xl),
         Container(
           width: 96, height: 96,
-          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(Radii.sheet)),
           alignment: Alignment.center,
           child: Icon(PhosphorIcons.lockKey(), color: Colors.white, size: 48),
         ),
@@ -177,7 +178,7 @@ class _EmailStep extends StatelessWidget {
         TpField(label: 'Email', prefixIcon: PhosphorIcons.envelope(), keyboardType: TextInputType.emailAddress, controller: ctrl),
         if (error != null) ...[
           const SizedBox(height: 8),
-          Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+          Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kError)),
         ],
         const SizedBox(height: Sp.lg),
         TpButton(label: 'Envoyer le code', fullWidth: true, onPressed: onSubmit),
@@ -212,7 +213,7 @@ class _CodeStep extends StatelessWidget {
         const SizedBox(height: Sp.xl),
         Container(
           width: 96, height: 96,
-          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(Radii.sheet)),
           alignment: Alignment.center,
           child: const Text('🔑', style: TextStyle(fontSize: 48)),
         ),
@@ -250,10 +251,10 @@ class _CodeStep extends StatelessWidget {
               hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
               filled: true,
               fillColor: context.tpCard,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Radii.lg), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+                borderRadius: BorderRadius.circular(Radii.lg),
+                borderSide: const BorderSide(color: kPrimary, width: 2),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 18),
             ),
@@ -262,7 +263,7 @@ class _CodeStep extends StatelessWidget {
 
         if (error != null) ...[
           const SizedBox(height: 8),
-          Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+          Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kError)),
         ],
         const SizedBox(height: Sp.lg),
 
@@ -294,7 +295,7 @@ class _PasswordStep extends StatelessWidget {
         const SizedBox(height: Sp.xl),
         Container(
           width: 96, height: 96,
-          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(Radii.sheet)),
           alignment: Alignment.center,
           child: Icon(PhosphorIcons.lockKeyOpen(), color: Colors.white, size: 48),
         ),
@@ -310,9 +311,13 @@ class _PasswordStep extends StatelessWidget {
           prefixIcon: PhosphorIcons.lock(),
           controller: passwordCtrl,
           obscureText: obscure,
-          suffixIcon: GestureDetector(
+          suffixIcon: Semantics(
+            button: true,
+            label: obscure ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+            child: GestureDetector(
             onTap: onToggleObscure,
             child: Icon(obscure ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(), size: 20),
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -324,7 +329,7 @@ class _PasswordStep extends StatelessWidget {
         ),
         if (error != null) ...[
           const SizedBox(height: 8),
-          Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+          Text(error!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kError)),
         ],
         const SizedBox(height: Sp.lg),
         TpButton(

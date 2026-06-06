@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/auth_provider.dart';
+import '../../theme/colors.dart';
 import '../../core/services/auth_service.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
@@ -140,10 +141,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   hintStyle: TextStyle(fontSize: 28, letterSpacing: 12, color: context.tpHair, fontWeight: FontWeight.w900),
                   filled: true,
                   fillColor: context.tpCard,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Radii.lg), borderSide: BorderSide.none),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 2),
+                    borderRadius: BorderRadius.circular(Radii.lg),
+                    borderSide: const BorderSide(color: kPrimary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 18),
                 ),
@@ -155,7 +156,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               const SizedBox(height: 10),
               Text(_error!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kError)),
             ],
 
             const SizedBox(height: Sp.lg),
@@ -172,7 +173,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
             if (_resentOk)
               Text('Code renvoyé ✓',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green.shade600))
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kSuccess))
             else
               TpButton(
                 label: _codeExpired ? 'Obtenir un nouveau code' : 'Renvoyer le code',

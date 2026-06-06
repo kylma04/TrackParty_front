@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -75,12 +76,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   ];
 
   static const _categories = [
-    ('musique', '🎵', 'Musique',  Color(0xFF7C3AED)),
-    ('soiree',  '🎉', 'Soirée',   Color(0xFFEC4899)),
-    ('cuisine', '🍽', 'Cuisine',  Color(0xFFF97316)),
-    ('sport',   '⚽', 'Sport',    Color(0xFF06B6D4)),
-    ('art',     '🎨', 'Art',      Color(0xFF84CC16)),
-    ('plage',   '🏖', 'Plage',    Color(0xFFF59E0B)),
+    ('musique', '🎵', 'Musique',  kSecondary),
+    ('soiree',  '🎉', 'Soirée',   kTertiary),
+    ('cuisine', '🍽', 'Cuisine',  kAccent),
+    ('sport',   '⚽', 'Sport',    kInfo),
+    ('art',     '🎨', 'Art',      kCategoryArt),
+    ('plage',   '🏖', 'Plage',    kWarning),
   ];
 
   @override
@@ -176,7 +177,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       isScrollControlled: true,
       backgroundColor: context.tpCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       builder: (ctx) {
         bool gpsLoading = false;
@@ -237,14 +238,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                       label: 'Choisir sur la carte',
                       onTap: () async {
                         // On NE ferme PAS le sheet — on pousse la carte par-dessus
-                        final result = await Navigator.push<LocationPickerResult>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => LocationPickerScreen(
-                              initialLat: _lat,
-                              initialLng: _lng,
-                            ),
-                          ),
+                        final result = await context.push<LocationPickerResult>(
+                          '/location-picker',
+                          extra: {'lat': _lat, 'lng': _lng},
                         );
                         if (result != null && mounted) {
                           setState(() {
@@ -265,7 +261,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: ctx.tpBg,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(Radii.tag),
                   ),
                   child: Row(children: [
                     Icon(PhosphorIcons.mapPin(), color: kPrimary, size: 14),
@@ -490,7 +486,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                 width: 44, height: 44,
                 decoration: BoxDecoration(
                   color: context.tpCard,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   boxShadow: Shadows.sm,
                 ),
                 child: Icon(PhosphorIcons.x(), color: context.tpInk, size: 18),
@@ -509,13 +505,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: (widget.isEditing ? kAccent : widget.isClone ? const Color(0xFF22A865) : kPrimary).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
+              color: (widget.isEditing ? kAccent : widget.isClone ? kSuccess : kPrimary).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(Radii.tag),
             ),
             child: Text(
               widget.isEditing ? 'Édition' : widget.isClone ? 'Clone' : 'Brouillon',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
-                  color: widget.isEditing ? kAccent : widget.isClone ? const Color(0xFF22A865) : kPrimary)),
+                  color: widget.isEditing ? kAccent : widget.isClone ? kSuccess : kPrimary)),
           ),
         ],
       ),
@@ -534,7 +530,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           height: 160,
           decoration: BoxDecoration(
             gradient: _coverUrl == null ? gradientSoft : null,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(Radii.card),
             border: Border.all(color: kPrimary.withValues(alpha: 0.33), width: 2),
           ),
           clipBehavior: Clip.antiAlias,
@@ -542,7 +538,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               ? Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(_coverUrl!, fit: BoxFit.cover),
+                    CachedNetworkImage(
+                      imageUrl: _coverUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
                     if (_coverLoading)
                       Container(color: Colors.black54,
                         alignment: Alignment.center,
@@ -553,7 +554,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(Radii.tag),
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(PhosphorIcons.camera(), color: Colors.white, size: 14),
@@ -672,7 +673,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: active ? color : context.tpCard,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(Radii.md),
                       border: active ? null : Border.all(color: context.tpHair, width: 1.5),
                       boxShadow: active
                           ? [BoxShadow(color: color.withValues(alpha: 0.33), blurRadius: 14, offset: const Offset(0, 6))]
@@ -702,7 +703,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   decoration: BoxDecoration(
                     gradient: isCustomActive ? trackpartyGradient : null,
                     color: isCustomActive ? null : context.tpCard,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(Radii.md),
                     border: isCustomActive
                         ? null
                         : Border.all(
@@ -879,7 +880,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(Radii.tag),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -930,7 +931,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               onTap: () => _setCapacity(_capacity - 1),
               child: Container(
                 width: 44, height: 44,
-                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.md)),
                 alignment: Alignment.center,
                 child: Text('−', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: context.tpInk)),
               ),
@@ -964,7 +965,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               onTap: () => _setCapacity(_capacity + 1),
               child: Container(
                 width: 44, height: 44,
-                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
                 alignment: Alignment.center,
                 child: const Text('+', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
               ),
@@ -1017,7 +1018,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(Radii.tag),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1206,7 +1207,7 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
       child: Container(
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
         padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
         child: SafeArea(
@@ -1239,14 +1240,16 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  GestureDetector(
+                  Semantics(
+                    button: true, label: 'Sélectionner un emoji',
+                    child: GestureDetector(
                     onTap: () => _emojiFocus.requestFocus(),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 76, height: 76,
                       decoration: BoxDecoration(
                         color: kPrimary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(Radii.card),
                         border: Border.all(
                           color: _emojiFocus.hasFocus
                               ? kPrimary
@@ -1264,6 +1267,7 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
                         ),
                       ),
                     ),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -1278,7 +1282,7 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
                         Container(
                           decoration: BoxDecoration(
                             color: context.tpBg,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(Radii.md),
                             border: Border.all(color: context.tpHair),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1328,7 +1332,7 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
               Container(
                 decoration: BoxDecoration(
                   color: context.tpBg,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   border: Border.all(color: context.tpHair),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1443,7 +1447,7 @@ class _ItemSheetState extends State<_ItemSheet> {
       child: Container(
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
         padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
         child: SafeArea(
@@ -1474,14 +1478,16 @@ class _ItemSheetState extends State<_ItemSheet> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Grand aperçu (appuie → focus sur le champ)
-                  GestureDetector(
+                  Semantics(
+                    button: true, label: 'Sélectionner un emoji',
+                    child: GestureDetector(
                     onTap: () => _emojiFocus.requestFocus(),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 76, height: 76,
                       decoration: BoxDecoration(
                         color: kPrimary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(Radii.card),
                         border: Border.all(
                           color: _emojiFocus.hasFocus
                               ? kPrimary
@@ -1498,6 +1504,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                           style: const TextStyle(fontSize: 40),
                         ),
                       ),
+                    ),
                     ),
                   ),
 
@@ -1517,7 +1524,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                         Container(
                           decoration: BoxDecoration(
                             color: context.tpBg,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(Radii.md),
                             border: Border.all(color: context.tpHair),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1571,7 +1578,7 @@ class _ItemSheetState extends State<_ItemSheet> {
               Container(
                 decoration: BoxDecoration(
                   color: context.tpBg,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   border: Border.all(color: context.tpHair),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1601,7 +1608,7 @@ class _ItemSheetState extends State<_ItemSheet> {
               Container(
                 decoration: BoxDecoration(
                   color: context.tpBg,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   border: Border.all(color: context.tpHair),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -1646,7 +1653,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                           padding: const EdgeInsets.symmetric(horizontal: 18),
                           decoration: BoxDecoration(
                             color: kError.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(Radii.button),
                           ),
                           child: const Center(
                             child: Text('Supprimer',
@@ -1682,7 +1689,10 @@ class _QtyBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
       onTap: enabled ? onTap : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
@@ -1690,7 +1700,7 @@ class _QtyBtn extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: enabled ? trackpartyGradient : null,
           color: enabled ? null : context.tpHair,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(Radii.tag),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -1700,6 +1710,7 @@ class _QtyBtn extends StatelessWidget {
             color: enabled ? Colors.white : context.tpInkMute,
           ),
         ),
+      ),
       ),
     );
   }
@@ -1774,7 +1785,7 @@ class _SelectCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: context.tpCard,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(Radii.lg),
             boxShadow: const [BoxShadow(color: Color(0x0A1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
           ),
           child: Column(
@@ -1824,7 +1835,7 @@ class _VisCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: active ? trackpartyGradient : null,
             color: active ? null : context.tpCard,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(Radii.lg),
             border: active ? null : Border.all(color: context.tpHair, width: 1.5),
             boxShadow: active
                 ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 16, offset: Offset(0, 6))]
@@ -1871,7 +1882,7 @@ class _ModeCard extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: active ? trackpartyGradient : null,
             color: active ? null : context.tpCard,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(Radii.lg),
             border: active ? null : Border.all(color: context.tpHair, width: 1.5),
             boxShadow: active
                 ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 16, offset: Offset(0, 6))]
@@ -1925,7 +1936,7 @@ class _ItemRow extends StatelessWidget {
                 children: [
                   Container(
                     width: 32, height: 32,
-                    decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.tag)),
                     alignment: Alignment.center,
                     child: Text(item.emoji, style: const TextStyle(fontSize: 16)),
                   ),
@@ -1943,7 +1954,7 @@ class _ItemRow extends StatelessWidget {
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.sm)),
                     child: Text('×${item.qty}',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInk)),
                   ),
@@ -1977,7 +1988,7 @@ class _CoOrgChip extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(6, 6, 10, 6),
       decoration: BoxDecoration(
         color: kPrimary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Radii.md),
         border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -2060,7 +2071,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('${user.displayName} ajouté comme co-organisateur ✓'),
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
       backgroundColor: kSuccess,
     ));
   }
@@ -2070,7 +2081,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
       ),
       padding: EdgeInsets.fromLTRB(
         Sp.md, 12, Sp.md,
@@ -2118,7 +2129,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
             Container(
               decoration: BoxDecoration(
                 color: context.tpBg,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 border: Border.all(color: context.tpHair),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -2204,7 +2215,10 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          GestureDetector(
+                          Semantics(
+                            button: true,
+                            label: added ? 'Déjà ajouté' : 'Ajouter ${user.displayName}',
+                            child: GestureDetector(
                             onTap: added ? null : () => _add(user),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
@@ -2212,7 +2226,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
                               decoration: BoxDecoration(
                                 gradient: added ? null : trackpartyGradient,
                                 color: added ? context.tpHair : null,
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(Radii.tag),
                               ),
                               child: Text(
                                 added ? '✓ Ajouté' : 'Ajouter',
@@ -2221,6 +2235,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
                                   color: added ? context.tpInkMute : Colors.white,
                                 ),
                               ),
+                            ),
                             ),
                           ),
                         ],
@@ -2258,7 +2273,7 @@ class _LocationActionBtn extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
           decoration: BoxDecoration(
             color: kPrimary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(Radii.button),
           ),
           child: loading
               ? const SizedBox.square(
@@ -2304,7 +2319,7 @@ class _LocationField extends StatelessWidget {
         filled: true,
         fillColor: context.tpBg,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Radii.md),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

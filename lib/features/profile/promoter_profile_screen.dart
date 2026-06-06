@@ -49,14 +49,17 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
             Text('Impossible de charger ce profil',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInkSub)),
             const SizedBox(height: 12),
-            GestureDetector(
+            Semantics(
+              button: true, label: 'Réessayer',
+              child: GestureDetector(
               onTap: () => ref.invalidate(promoterProfileProvider(widget.id)),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+                  gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
                 child: const Text('Réessayer',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
               ),
             ),
           ]),
@@ -157,7 +160,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(Radii.pill),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     ...List.generate(
@@ -216,7 +219,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
               decoration: BoxDecoration(
                 gradient: p.isFollowing ? null : trackpartyGradient,
                 color: p.isFollowing ? context.tpCard : null,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 border: p.isFollowing ? Border.all(color: context.tpHair) : null,
                 boxShadow: p.isFollowing ? null : Shadows.brand,
               ),
@@ -249,7 +252,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                 child: Container(
                   height: 48,
                   decoration: BoxDecoration(
-                    color: context.tpCard, borderRadius: BorderRadius.circular(14),
+                    color: context.tpCard, borderRadius: BorderRadius.circular(Radii.button),
                     border: Border.all(color: kPrimary, width: 2),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -271,7 +274,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
                 child: Container(
                   height: 48,
                   decoration: BoxDecoration(
-                    color: context.tpCard, borderRadius: BorderRadius.circular(14),
+                    color: context.tpCard, borderRadius: BorderRadius.circular(Radii.button),
                     border: Border.all(color: context.tpHair),
                   ),
                   child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -351,7 +354,7 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
             child: Container(
               height: 60,
               decoration: BoxDecoration(
-                gradient: gradientSoft, borderRadius: BorderRadius.circular(14),
+                gradient: gradientSoft, borderRadius: BorderRadius.circular(Radii.button),
                 border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
               ),
               alignment: Alignment.center,
@@ -422,7 +425,7 @@ class _GlassBtn extends StatelessWidget {
     child: Container(
       width: 44, height: 44,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(12)),
+        color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(Radii.md)),
       child: Icon(icon, color: Colors.white, size: 20),
     ),
   );
@@ -464,7 +467,7 @@ class _MiniEventRow extends StatelessWidget {
             Container(
               width: 64, height: 64,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
+                color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(Radii.button)),
               child: Center(child: Text(emoji, style: const TextStyle(fontSize: 28))),
             ),
             const SizedBox(width: 12),
@@ -481,7 +484,7 @@ class _MiniEventRow extends StatelessWidget {
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
+                  color: kPrimary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(Radii.md)),
               child: Icon(PhosphorIcons.caretRight(), color: kPrimary, size: 20),
             ),
           ]),

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 // Brand
-const kPrimary = Color(0xFF4F46E5);
+const kPrimary   = Color(0xFF4F46E5);
 const kSecondary = Color(0xFF7C3AED);
-const kTertiary = Color(0xFFEC4899);
-const kAccent = Color(0xFFF97316);
+const kViolet    = Color(0xFF8B5CF6); // violet clair — co-organisateurs, social
+const kTertiary  = Color(0xFFEC4899);
+const kAccent    = Color(0xFFF97316);
 
 // Semantic
 const kSuccess = Color(0xFF22A865);
@@ -36,6 +37,11 @@ const kCategoryFood = Color(0xFFF97316);
 const kCategorySport = Color(0xFF06B6D4);
 const kCategoryArt = Color(0xFF84CC16);
 const kCategoryBeach = Color(0xFFF59E0B);
+
+// Call UI (cinematic dark bg distinct from app bg; phone-button reds/greens)
+const kCallBg      = Color(0xFF0B0F1A);
+const kCallDecline = Color(0xFFCC2222);
+const kCallAccept  = Color(0xFF166534);
 
 // Contribution badges
 const kContribFreeText = Color(0xFF16A34A);

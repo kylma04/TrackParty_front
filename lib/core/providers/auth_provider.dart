@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
@@ -175,32 +176,32 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   // Called after every successful login/register — safe to call multiple times.
   Future<void> _registerFcmToken() async {
     try {
-      print('📱 FCM: Starting registration...');
+      debugPrint('📱 FCM: Starting registration...');
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
-      print('📱 FCM: Permission status: ${settings.authorizationStatus}');
+      debugPrint('📱 FCM: Permission status: ${settings.authorizationStatus}');
       
       final token = await messaging.getToken();
       if (token == null) {
-        print('📱 FCM: Token is null, cannot register');
+        debugPrint('📱 FCM: Token is null, cannot register');
         return;
       }
       
-      print('📱 FCM: Token obtained, sending to backend...');
+      debugPrint('📱 FCM: Token obtained, sending to backend...');
       await _service.registerFcmToken(token);
-      print('📱 FCM: Registration successful');
+      debugPrint('📱 FCM: Registration successful');
       
       // Keep token fresh when FCM rotates it
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-        print('📱 FCM: Token refreshed, updating backend...');
+        debugPrint('📱 FCM: Token refreshed, updating backend...');
         _service.registerFcmToken(newToken);
       });
     } catch (e) {
-      print('📱 FCM: Registration error: $e');
+      debugPrint('📱 FCM: Registration error: $e');
       // Non-critical — push notifications simply won't work
     }
   }

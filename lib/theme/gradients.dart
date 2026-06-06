@@ -23,7 +23,7 @@ const gradientSoft = LinearGradient(
 // Category gradients for map pins & cards
 const Map<String, LinearGradient> categoryGradients = {
   'musique': LinearGradient(
-    colors: [kCategoryMusic, Color(0xFF4F46E5)],
+    colors: [kCategoryMusic, kPrimary],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   ),

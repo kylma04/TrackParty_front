@@ -116,8 +116,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         height: 8,
                         decoration: BoxDecoration(
                           gradient: i == _page ? trackpartyGradient : null,
-                          color: i == _page ? null : const Color(0xFFD9D8E5),
-                          borderRadius: BorderRadius.circular(4),
+                          color: i == _page ? null : kHairLight,
+                          borderRadius: BorderRadius.circular(Radii.xs),
                         ),
                       )),
                     ),
@@ -273,20 +273,20 @@ class _MapIllustration extends StatelessWidget {
 
   // couleur → emoji (mêmes catégories que la carte de l'app)
   static const _pins = [
-    _PinData(x: 80,  y: 110, color: Color(0xFFEC4899), emoji: '🎉', big: true),
-    _PinData(x: 200, y: 90,  color: Color(0xFFF97316), emoji: '🍽', big: false),
-    _PinData(x: 130, y: 220, color: Color(0xFF06B6D4), emoji: '⚽', big: false),
-    _PinData(x: 240, y: 240, color: Color(0xFF84CC16), emoji: '🎨', big: false),
-    _PinData(x: 60,  y: 290, color: Color(0xFF7C3AED), emoji: '🎵', big: false),
+    _PinData(x: 80,  y: 110, color: kTertiary, emoji: '🎉', big: true),
+    _PinData(x: 200, y: 90,  color: kAccent, emoji: '🍽', big: false),
+    _PinData(x: 130, y: 220, color: kInfo, emoji: '⚽', big: false),
+    _PinData(x: 240, y: 240, color: kCategoryArt, emoji: '🎨', big: false),
+    _PinData(x: 60,  y: 290, color: kSecondary, emoji: '🎵', big: false),
   ];
 
   @override
   Widget build(BuildContext context) {
     // tone="dusk" : a=#1B1A2E · b=#4F46E5 · c=#EC4899
     return _PhotoBg(
-      a: const Color(0xFF1B1A2E),
-      b: const Color(0xFF4F46E5),
-      c: const Color(0xFFEC4899),
+      a: kInkLight,
+      b: kPrimary,
+      c: kTertiary,
       child: CustomPaint(
         painter: _MapPainter(pins: _pins),
         child: const SizedBox.expand(),
@@ -401,9 +401,9 @@ class _GiftIllustration extends StatelessWidget {
   Widget build(BuildContext context) {
     // tone="sunset" : a=#EC4899 · b=#F97316 · c=#F59E0B
     return _PhotoBg(
-      a: const Color(0xFFEC4899),
-      b: const Color(0xFFF97316),
-      c: const Color(0xFFF59E0B),
+      a: kTertiary,
+      b: kAccent,
+      c: kWarning,
       child: Stack(
         children: [
           // ── Sparkles ────────────────────────────────────────────────
@@ -430,10 +430,10 @@ class _GiftIllustration extends StatelessWidget {
                   emojiSize: 60,
                   width: 72,
                   height: 160,
-                  bgColor: const Color(0xFF1B1A2E),
+                  bgColor: kInkLight,
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
-                    bottom: Radius.circular(14),
+                    top: Radius.circular(Radii.sheet),
+                    bottom: Radius.circular(Radii.button),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -443,7 +443,7 @@ class _GiftIllustration extends StatelessWidget {
                   emojiSize: 56,
                   width: 110,
                   height: 110,
-                  bgColor: const Color(0xFFF59E0B),
+                  bgColor: kWarning,
                   borderRadius: BorderRadius.circular(55),
                   outerBorder: const Border.fromBorderSide(
                     BorderSide(color: Colors.white, width: 4),
@@ -456,8 +456,8 @@ class _GiftIllustration extends StatelessWidget {
                   emojiSize: 40,
                   width: 66,
                   height: 130,
-                  bgColor: const Color(0xFF1B1A2E),
-                  borderRadius: BorderRadius.circular(14),
+                  bgColor: kInkLight,
+                  borderRadius: BorderRadius.circular(Radii.button),
                 ),
               ],
             ),
@@ -517,11 +517,11 @@ class _CrownIllustration extends StatelessWidget {
   const _CrownIllustration();
 
   static const _avatars = [
-    ('AK', Color(0xFF4F46E5)),
-    ('BD', Color(0xFFEC4899)),
-    ('CE', Color(0xFFF97316)),
-    ('DF', Color(0xFF06B6D4)),
-    ('+5', Color(0xFF1B1A2E)),
+    ('AK', kPrimary),
+    ('BD', kTertiary),
+    ('CE', kAccent),
+    ('DF', kInfo),
+    ('+5', kInkLight),
   ];
 
   // Largeur totale des avatars superposés
@@ -535,9 +535,9 @@ class _CrownIllustration extends StatelessWidget {
   Widget build(BuildContext context) {
     // tone="party" : a=#7C3AED · b=#EC4899 · c=#F97316
     return _PhotoBg(
-      a: const Color(0xFF7C3AED),
-      b: const Color(0xFFEC4899),
-      c: const Color(0xFFF97316),
+      a: kSecondary,
+      b: kTertiary,
+      c: kAccent,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

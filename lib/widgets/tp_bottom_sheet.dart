@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme/colors.dart';
 import '../theme/spacing.dart';
+import '../theme/theme_ext.dart';
 
 class TpBottomSheet extends StatelessWidget {
   final Widget child;
@@ -30,10 +30,9 @@ class TpBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? kCardDark : kCardLight,
+        color: context.tpCard,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         boxShadow: const [
           BoxShadow(
@@ -55,7 +54,7 @@ class TpBottomSheet extends StatelessWidget {
                   width: 44,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: isDark ? kHairDark : const Color(0xFFD9D8E5),
+                    color: context.tpHair,
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),

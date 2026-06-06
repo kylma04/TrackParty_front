@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../core/models/event_model.dart';
@@ -122,7 +123,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           height: 48,
                           decoration: BoxDecoration(
                             color: context.tpCard,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(Radii.button),
                             border: Border.all(
                               color: _searchFocus.hasFocus
                                   ? kPrimary.withValues(alpha: 0.5) : context.tpHair,
@@ -150,13 +151,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                               ),
                             ),
                             if (_isSearching)
-                              GestureDetector(
-                                onTap: () {
-                                  _searchCtrl.clear();
-                                  _searchFocus.unfocus();
-                                  setState(() => _searchQuery = '');
-                                },
-                                child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
+                              Semantics(
+                                button: true,
+                                label: 'Effacer la recherche',
+                                child: GestureDetector(
+                                  onTap: () {
+                                    _searchCtrl.clear();
+                                    _searchFocus.unfocus();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                  child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
+                                ),
                               ),
                           ]),
                         ),
@@ -230,10 +235,14 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     children: [
                       Text('Près de toi',
                           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
-                      GestureDetector(
-                        onTap: () => context.push('/map'),
-                        child: const Text('Voir tout',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                      Semantics(
+                        button: true,
+                        label: 'Voir tous les événements sur la carte',
+                        child: GestureDetector(
+                          onTap: () => context.push('/map'),
+                          child: const Text('Voir tout',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                        ),
                       ),
                     ],
                   ),
@@ -256,6 +265,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: Sp.md),
                         itemCount: page.items.length,
+                        addAutomaticKeepAlives: false,
                         itemBuilder: (context, i) => Semantics(
                           button: true,
                           label: 'Voir ${page.items[i].title}',
@@ -279,10 +289,14 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     children: [
                       Text('🔥 Tendances',
                           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
-                      GestureDetector(
-                        onTap: () => context.push('/map'),
-                        child: const Text('Voir tout',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                      Semantics(
+                        button: true,
+                        label: 'Voir toutes les tendances sur la carte',
+                        child: GestureDetector(
+                          onTap: () => context.push('/map'),
+                          child: const Text('Voir tout',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                        ),
                       ),
                     ],
                   ),
@@ -368,18 +382,25 @@ class _EventCard extends StatelessWidget {
       margin: const EdgeInsets.only(right: Sp.sm),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: const [BoxShadow(color: Color(0x141B1A2E), blurRadius: 12, offset: Offset(0, 4))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.card)),
           child: SizedBox(
             height: 140,
             child: Stack(fit: StackFit.expand, children: [
               event.coverImageUrl != null
-                  ? Image.network(event.coverImageUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _GradientPlaceholder())
+                  ? ExcludeSemantics(
+                      child: CachedNetworkImage(
+                        imageUrl: event.coverImageUrl!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorWidget: (ctx, url, err) => _GradientPlaceholder(),
+                        placeholder: (ctx, url) => _GradientPlaceholder(),
+                      ),
+                    )
                   : _GradientPlaceholder(),
               Positioned(
                 top: 10, left: 10,
@@ -438,17 +459,21 @@ class _EventCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => context.push('/promoter/${event.organizerId}'),
-              child: Row(children: [
-                TpAvatar(name: event.organizerName, imageUrl: event.organizerAvatarUrl, size: 18),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(event.organizerName,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kPrimary),
-                      overflow: TextOverflow.ellipsis),
-                ),
-              ]),
+            Semantics(
+              button: true,
+              label: 'Voir le profil de ${event.organizerName}',
+              child: GestureDetector(
+                onTap: () => context.push('/promoter/${event.organizerId}'),
+                child: Row(children: [
+                  TpAvatar(name: event.organizerName, imageUrl: event.organizerAvatarUrl, size: 18),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(event.organizerName,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kPrimary),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ]),
+              ),
             ),
           ]),
         ),
@@ -471,18 +496,26 @@ class _TrendRow extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(Radii.lg),
         boxShadow: const [BoxShadow(color: Color(0x0A1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
       ),
       child: Row(children: [
         Stack(children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(Radii.button),
             child: SizedBox(
               width: 64, height: 64,
               child: event.coverImageUrl != null
-                  ? Image.network(event.coverImageUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _GradientPlaceholder())
+                  ? ExcludeSemantics(
+                      child: CachedNetworkImage(
+                        imageUrl: event.coverImageUrl!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorWidget: (ctx, url, err) => _GradientPlaceholder(),
+                        placeholder: (ctx, url) => _GradientPlaceholder(),
+                      ),
+                    )
                   : _GradientPlaceholder(),
             ),
           ),
@@ -505,14 +538,18 @@ class _TrendRow extends StatelessWidget {
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
             Row(children: [
-              GestureDetector(
-                onTap: () => context.push('/promoter/${event.organizerId}'),
-                child: Row(children: [
-                  TpAvatar(name: event.organizerName, imageUrl: event.organizerAvatarUrl, size: 16),
-                  const SizedBox(width: 4),
-                  Text(event.organizerName,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
-                ]),
+              Semantics(
+                button: true,
+                label: 'Voir le profil de ${event.organizerName}',
+                child: GestureDetector(
+                  onTap: () => context.push('/promoter/${event.organizerId}'),
+                  child: Row(children: [
+                    TpAvatar(name: event.organizerName, imageUrl: event.organizerAvatarUrl, size: 16),
+                    const SizedBox(width: 4),
+                    Text(event.organizerName,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
+                  ]),
+                ),
               ),
               Text(' · ${event.participantsCount} viennent',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
@@ -533,7 +570,7 @@ class _GradientPlaceholder extends StatelessWidget {
     return const DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-            colors: [Color(0xFF4F46E5), Color(0xFFEC4899)],
+            colors: [kPrimary, kTertiary],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: SizedBox.expand(),
@@ -551,7 +588,7 @@ class _OverlayPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(999)),
+          borderRadius: BorderRadius.circular(Radii.pill)),
       child: Text(label,
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
     );
@@ -576,7 +613,7 @@ class _HorizontalSkeleton extends StatelessWidget {
           width: 220,
           margin: const EdgeInsets.only(right: Sp.sm),
           decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(20)),
+              color: Colors.white, borderRadius: BorderRadius.circular(Radii.card)),
         ),
       ),
     );
@@ -600,7 +637,7 @@ class _ListSkeleton extends StatelessWidget {
             height: 80,
             margin: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.sm),
             decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                color: Colors.white, borderRadius: BorderRadius.circular(Radii.lg)),
           ),
         ),
       ),
@@ -645,7 +682,7 @@ class _BellButton extends ConsumerWidget {
             width: 44, height: 44,
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(Radii.button),
               border: Border.all(color: context.tpHair),
             ),
             child: Icon(PhosphorIcons.bell(), color: context.tpInk, size: 22),
@@ -657,7 +694,7 @@ class _BellButton extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
                   color: kAccent,
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(Radii.pill),
                   border: Border.all(color: context.tpBg, width: 1.5),
                 ),
                 child: Text(
@@ -681,14 +718,17 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: hasActiveFilters ? 'Filtres actifs — modifier les filtres' : 'Filtres',
+      child: GestureDetector(
       onTap: onTap,
       child: Stack(clipBehavior: Clip.none, children: [
         Container(
           width: 48, height: 48,
           decoration: BoxDecoration(
             color: hasActiveFilters ? kPrimary : context.tpCard,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(Radii.button),
             border: Border.all(color: hasActiveFilters ? kPrimary : context.tpHair),
           ),
           child: Icon(
@@ -710,6 +750,7 @@ class _FilterButton extends StatelessWidget {
             ),
           ),
       ]),
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/colors.dart';
 
 // ── PromoterData ──────────────────────────────────────────────────────────────
 
@@ -134,16 +135,16 @@ class PromoterEventItem {
 
   Color get categoryColor {
     const colors = {
-      'soirée':  Color(0xFFEC4899),
-      'musique': Color(0xFF7C3AED),
-      'plage':   Color(0xFFF59E0B),
-      'sport':   Color(0xFF22A865),
-      'culture': Color(0xFF06B6D4),
-      'food':    Color(0xFFF97316),
-      'tech':    Color(0xFF4F46E5),
+      'soirée':  kCategoryParty,
+      'musique': kCategoryMusic,
+      'plage':   kCategoryBeach,
+      'sport':   kSuccess,
+      'culture': kInfo,
+      'food':    kCategoryFood,
+      'tech':    kPrimary,
       'business':Color(0xFF64748B),
     };
-    return colors[category] ?? const Color(0xFF4F46E5);
+    return colors[category] ?? kPrimary;
   }
 }
 
@@ -234,18 +235,18 @@ class TrustCriterion {
 
   factory TrustCriterion.fromJson(Map<String, dynamic> j) {
     const colorMap = {
-      'orange': Color(0xFFF97316),
-      'purple': Color(0xFF7C3AED),
-      'pink':   Color(0xFFEC4899),
-      'cyan':   Color(0xFF06B6D4),
-      'green':  Color(0xFF22A865),
+      'orange': kAccent,
+      'purple': kSecondary,
+      'pink':   kTertiary,
+      'cyan':   kInfo,
+      'green':  kSuccess,
     };
     return TrustCriterion(
       key: j['key'] as String,
       label: j['label'] as String,
       weight: (j['weight'] as num).toInt(),
       fill: (j['fill'] as num).toInt(),
-      color: colorMap[j['color'] as String?] ?? const Color(0xFF4F46E5),
+      color: colorMap[j['color'] as String?] ?? kPrimary,
       emoji: j['emoji'] as String,
     );
   }

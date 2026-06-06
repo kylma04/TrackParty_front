@@ -1,9 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/services/call_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
+import '../../theme/spacing.dart';
 import 'active_call_screen.dart';
 
 class IncomingCallScreen extends StatefulWidget {
@@ -72,7 +74,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     final name   = s.remoteUserName ?? 'Appel entrant';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F1A),
+      backgroundColor: kCallBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -83,7 +85,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(Radii.card),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -127,13 +129,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                   _CallBtn(
                     icon: PhosphorIcons.phoneSlash(),
                     label: 'Refuser',
-                    color: const Color(0xFFCC2222),
+                    color: kCallDecline,
                     onTap: _reject,
                   ),
                   _CallBtn(
                     icon: isVideo ? PhosphorIcons.videoCamera() : PhosphorIcons.phone(),
                     label: _isAccepting ? '…' : 'Accepter',
-                    color: const Color(0xFF166534),
+                    color: kCallAccept,
                     onTap: _isAccepting ? null : _accept,
                   ),
                 ],
@@ -208,7 +210,7 @@ class _PulsingAvatarState extends State<_PulsingAvatar>
             gradient: trackpartyGradient,
           ),
           child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
-              ? ClipOval(child: Image.network(widget.avatarUrl!, fit: BoxFit.cover))
+              ? ClipOval(child: CachedNetworkImage(imageUrl: widget.avatarUrl!, width: 90, height: 90, fit: BoxFit.cover))
               : Center(
                   child: Text(_initials(),
                     style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
@@ -231,7 +233,10 @@ class _CallBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
       onTap: onTap,
       child: Opacity(
         opacity: onTap == null ? 0.5 : 1.0,
@@ -247,6 +252,7 @@ class _CallBtn extends StatelessWidget {
             Text(label, style: const TextStyle(color: Colors.white60, fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
+      ),
       ),
     );
   }

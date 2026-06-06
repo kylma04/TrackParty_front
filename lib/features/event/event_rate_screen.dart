@@ -119,7 +119,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                           width: 44, height: 44,
                           decoration: BoxDecoration(
                               color: context.tpCard,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(Radii.md),
                               boxShadow: Shadows.sm),
                           child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
                         ),
@@ -161,7 +161,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                       Container(
                         width: 180, height: 14,
                         decoration: BoxDecoration(
-                          color: context.tpHair, borderRadius: BorderRadius.circular(4)),
+                          color: context.tpHair, borderRadius: BorderRadius.circular(Radii.xs)),
                       )
                     else ...[
                       Text('$eventTitle${eventCity.isNotEmpty ? ' · $eventCity' : ''}',
@@ -223,14 +223,18 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                       spacing: 8, runSpacing: 8,
                       children: List.generate(_tagLabels.length, (i) {
                         final active = _tags.contains(i);
-                        return GestureDetector(
+                        return Semantics(
+                          button: true,
+                          label: _tagLabels[i],
+                          selected: active,
+                          child: GestureDetector(
                           onTap: () => setState(() => active ? _tags.remove(i) : _tags.add(i)),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 180),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
                               color: active ? kPrimary : context.tpCard,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(Radii.md),
                               border: active ? null : Border.all(color: context.tpHair),
                               boxShadow: active
                                   ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
@@ -239,6 +243,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                             child: Text(_tagLabels[i],
                               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
                                   color: active ? Colors.white : context.tpInk)),
+                          ),
                           ),
                         );
                       }),
@@ -275,11 +280,11 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                               hintText: 'Sunset incroyable, sets afrobeats au top…',
                               hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute),
                               filled: true, fillColor: context.tpCard,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Radii.button),
                                   borderSide: BorderSide(color: context.tpHair, width: 1.5)),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Radii.button),
                                   borderSide: BorderSide(color: context.tpHair, width: 1.5)),
-                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Radii.button),
                                   borderSide: const BorderSide(color: kPrimary, width: 1.5)),
                               counterText: '',
                             ),

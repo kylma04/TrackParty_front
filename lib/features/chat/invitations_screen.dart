@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,16 +65,20 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
       padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, 12),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => context.pop(),
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: context.tpCard,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: Shadows.sm,
+          Semantics(
+            button: true,
+            label: 'Retour',
+            child: GestureDetector(
+              onTap: () => context.pop(),
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  boxShadow: Shadows.sm,
+                ),
+                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
               ),
-              child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
             ),
           ),
           const SizedBox(width: 12),
@@ -95,6 +100,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
           bottom: MediaQuery.of(context).padding.bottom + 80,
         ),
         itemCount: invitations.length,
+        addAutomaticKeepAlives: false,
         itemBuilder: (_, i) => _InvitationCard(invitation: invitations[i]),
       ),
     );
@@ -123,13 +129,17 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
         Text('Impossible de charger les invitations',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
         const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () => ref.read(invitationsProvider.notifier).refresh(),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
-            child: const Text('Réessayer',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+        Semantics(
+          button: true,
+          label: 'Réessayer',
+          child: GestureDetector(
+            onTap: () => ref.read(invitationsProvider.notifier).refresh(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
+              child: const Text('Réessayer',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
           ),
         ),
       ]),
@@ -181,7 +191,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
           content: Text(action == 'accept' ? '🎉 Invitation acceptée !' : 'Invitation refusée'),
           backgroundColor: action == 'accept' ? kPrimary : null,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
         if (action == 'accept' && widget.invitation.event != null) {
           context.push('/event/${widget.invitation.event!.id}');
@@ -192,7 +202,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Une erreur est survenue'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     } finally {
@@ -210,7 +220,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
       child: Container(
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(Radii.card),
           boxShadow: Shadows.md,
         ),
         child: Column(
@@ -250,13 +260,16 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
 
             // Carte événement
             if (event != null)
-              GestureDetector(
+              Semantics(
+                button: true,
+                label: event.title,
+                child: GestureDetector(
                 onTap: () => context.push('/event/${event.id}'),
                 child: Container(
                   margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   decoration: BoxDecoration(
                     color: context.tpBg,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(Radii.lg),
                     border: Border.all(color: context.tpHair),
                   ),
                   child: Column(
@@ -264,15 +277,20 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                     children: [
                       if (event.coverImageUrl != null)
                         ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                          child: Image.network(
-                            event.coverImageUrl!,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.lg)),
+                          child: CachedNetworkImage(
+                            imageUrl: event.coverImageUrl!,
                             height: 120,
+                            width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
+                            errorWidget: (ctx, url, err) => Container(
                               height: 120,
                               color: kPrimary.withValues(alpha: 0.1),
                               child: const Center(child: Text('🎉', style: TextStyle(fontSize: 40))),
+                            ),
+                            placeholder: (ctx, url) => Container(
+                              height: 120,
+                              color: kPrimary.withValues(alpha: 0.06),
                             ),
                           ),
                         )
@@ -281,7 +299,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                           height: 80,
                           decoration: BoxDecoration(
                             gradient: trackpartyGradient,
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.lg)),
                           ),
                           child: const Center(child: Text('🎉', style: TextStyle(fontSize: 40))),
                         ),
@@ -311,6 +329,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                   ),
                 ),
               ),
+            ),
 
             // Boutons réponse
             if (inv.isPending)
@@ -319,44 +338,52 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        onTap: _loading ? null : () => _respond('refuse'),
-                        child: Container(
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: context.tpBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: context.tpHair),
-                          ),
-                          child: Center(
-                            child: Text('Refuser',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
-                                  color: context.tpInkSub)),
+                      child: Semantics(
+                        button: true,
+                        label: 'Refuser l\'invitation',
+                        child: GestureDetector(
+                          onTap: _loading ? null : () => _respond('refuse'),
+                          child: Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: context.tpBg,
+                              borderRadius: BorderRadius.circular(Radii.md),
+                              border: Border.all(color: context.tpHair),
+                            ),
+                            child: Center(
+                              child: Text('Refuser',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+                                    color: context.tpInkSub)),
+                            ),
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: GestureDetector(
-                        onTap: _loading ? null : _handleAccept,
-                        child: Container(
-                          height: 46,
-                          decoration: BoxDecoration(
-                            gradient: trackpartyGradient,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: Shadows.brand,
-                          ),
-                          child: Center(
-                            child: _loading
-                                ? const SizedBox(
-                                    width: 20, height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2),
-                                  )
-                                : const Text('Accepter 🎉',
-                                    style: TextStyle(fontSize: 14,
-                                        fontWeight: FontWeight.w800, color: Colors.white)),
+                      child: Semantics(
+                        button: true,
+                        label: 'Accepter l\'invitation',
+                        child: GestureDetector(
+                          onTap: _loading ? null : _handleAccept,
+                          child: Container(
+                            height: 46,
+                            decoration: BoxDecoration(
+                              gradient: trackpartyGradient,
+                              borderRadius: BorderRadius.circular(Radii.md),
+                              boxShadow: Shadows.brand,
+                            ),
+                            child: Center(
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 20, height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white, strokeWidth: 2),
+                                    )
+                                  : const Text('Accepter 🎉',
+                                      style: TextStyle(fontSize: 14,
+                                          fontWeight: FontWeight.w800, color: Colors.white)),
+                            ),
                           ),
                         ),
                       ),
@@ -373,7 +400,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                     color: inv.isAccepted
                         ? kPrimary.withValues(alpha: 0.1)
                         : context.tpHair,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(Radii.md),
                   ),
                   child: Center(
                     child: Text(
@@ -424,14 +451,14 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(width: 44, height: 5,
-              decoration: BoxDecoration(color: const Color(0xFFECECF3), borderRadius: BorderRadius.circular(3))),
+              decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(3))),
           const SizedBox(height: 16),
           Text('Que vas-tu apporter ?',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
@@ -443,7 +470,11 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
           const SizedBox(height: 16),
           ...widget.items.map((item) {
             final isSelected = _selectedId == item.id;
-            return GestureDetector(
+            return Semantics(
+              button: true,
+              label: item.name,
+              selected: _selectedId == item.id,
+              child: GestureDetector(
               onTap: item.isAvailable ? () => setState(() { _selectedId = item.id; _qty = 1; }) : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -451,11 +482,11 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: !item.isAvailable
-                      ? const Color(0xFFECECF3)
-                      : isSelected ? kPrimary.withValues(alpha: 0.08) : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
+                      ? context.tpHair
+                      : isSelected ? kPrimary.withValues(alpha: 0.08) : context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.button),
                   border: Border.all(
-                    color: isSelected ? kPrimary : const Color(0xFFECECF3),
+                    color: isSelected ? kPrimary : context.tpHair,
                     width: isSelected ? 2 : 1,
                   ),
                 ),
@@ -465,43 +496,52 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(item.name,
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800,
-                            color: item.isAvailable ? const Color(0xFF1B1A2E) : const Color(0xFFA2A1B5))),
+                            color: item.isAvailable ? context.tpInk : context.tpInkMute)),
                     Text(item.isAvailable
                         ? '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}'
                         : 'Complet',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                            color: item.isAvailable ? const Color(0xFF6B6A82) : kError)),
+                            color: item.isAvailable ? context.tpInkSub : kError)),
                   ])),
                   if (isSelected) Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), color: kPrimary, size: 22),
                 ]),
               ),
-            );
+            ),
+          );
           }),
           if (sel != null) ...[
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              GestureDetector(
-                onTap: _qty > 1 ? () => setState(() => _qty--) : null,
-                child: Container(width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      color: _qty > 1 ? kPrimary : const Color(0xFFECECF3),
-                      borderRadius: BorderRadius.circular(10)),
-                    alignment: Alignment.center,
-                    child: Text('−', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
-                        color: _qty > 1 ? Colors.white : const Color(0xFFA2A1B5)))),
+              Semantics(
+                button: true,
+                label: 'Diminuer la quantité',
+                child: GestureDetector(
+                  onTap: _qty > 1 ? () => setState(() => _qty--) : null,
+                  child: Container(width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: _qty > 1 ? kPrimary : context.tpHair,
+                        borderRadius: BorderRadius.circular(Radii.tag)),
+                      alignment: Alignment.center,
+                      child: Text('−', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                          color: _qty > 1 ? Colors.white : context.tpInkMute))),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text('$_qty', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
               ),
-              GestureDetector(
-                onTap: _qty < sel.quantityRemaining ? () => setState(() => _qty++) : null,
-                child: Container(width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      color: _qty < sel.quantityRemaining ? kPrimary : const Color(0xFFECECF3),
-                      borderRadius: BorderRadius.circular(10)),
-                    alignment: Alignment.center,
-                    child: Text('+', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
-                        color: _qty < sel.quantityRemaining ? Colors.white : const Color(0xFFA2A1B5)))),
+              Semantics(
+                button: true,
+                label: 'Augmenter la quantité',
+                child: GestureDetector(
+                  onTap: _qty < sel.quantityRemaining ? () => setState(() => _qty++) : null,
+                  child: Container(width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: _qty < sel.quantityRemaining ? kPrimary : context.tpHair,
+                        borderRadius: BorderRadius.circular(Radii.tag)),
+                      alignment: Alignment.center,
+                      child: Text('+', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                          color: _qty < sel.quantityRemaining ? Colors.white : context.tpInkMute))),
+                ),
               ),
             ]),
             const SizedBox(height: 16),
@@ -514,14 +554,14 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
                   : () => Navigator.pop(context, (itemId: _selectedId!, qty: _qty)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimary,
-                disabledBackgroundColor: const Color(0xFFECECF3),
+                disabledBackgroundColor: context.tpHair,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.button)),
               ),
               child: Text(
                 _selectedId == null ? 'Choisis un item' : 'Confirmer et accepter',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800,
-                    color: _selectedId == null ? const Color(0xFFA2A1B5) : Colors.white),
+                    color: _selectedId == null ? context.tpInkMute : Colors.white),
               ),
             ),
           ),

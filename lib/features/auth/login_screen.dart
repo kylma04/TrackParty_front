@@ -172,7 +172,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
       ),
     );
   }
@@ -184,7 +184,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         backgroundColor: kInfo,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
       ),
     );
   }
@@ -384,7 +384,7 @@ class _SocialBtn extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(Radii.button),
           border: Border.all(color: context.tpHair, width: 1.5),
         ),
         child: Row(

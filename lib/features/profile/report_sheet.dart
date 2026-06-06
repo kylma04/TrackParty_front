@@ -102,7 +102,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
       ),
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, MediaQuery.of(context).padding.bottom + 24),
@@ -116,7 +116,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
               Container(
                 width: 48, height: 48,
                 decoration: BoxDecoration(
-                    color: kError.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+                    color: kError.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(Radii.button)),
                 child: Icon(PhosphorIcons.warning(), color: kError, size: 24),
               ),
               const SizedBox(width: 12),
@@ -133,10 +133,10 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
             if (widget.targetType == 'event' && widget.targetName != null) ...[
               const SizedBox(height: 14),
               Container(
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8)]),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(Radii.lg),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -146,7 +146,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFFEC4899)],
+                            colors: [kPrimary, kSecondary, kTertiary],
                           ),
                         ),
                         child: Center(
@@ -193,7 +193,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.button)),
                 child: Row(children: [
                   const SizedBox(width: 4),
                   Icon(PhosphorIcons.flag(), color: context.tpInkSub, size: 18),
@@ -223,7 +223,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                     decoration: BoxDecoration(
                       gradient: active ? gradientSoft : null,
                       color: active ? null : context.tpCard,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(Radii.button),
                       border: Border.all(color: active ? kPrimary : context.tpHair, width: 1.5),
                     ),
                     child: Row(children: [
@@ -231,7 +231,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                         width: 36, height: 36,
                         decoration: BoxDecoration(
                           color: active ? Colors.white : context.tpBg,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(Radii.tag),
                         ),
                         alignment: Alignment.center,
                         child: Text(r.emoji, style: const TextStyle(fontSize: 18)),
@@ -261,12 +261,12 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.button)),
                 child: Row(children: [
                   Container(
                     width: 32, height: 32,
                     decoration: BoxDecoration(
-                        color: kError.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                        color: kError.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(Radii.tag)),
                     child: Icon(PhosphorIcons.prohibit(), color: kError, size: 18),
                   ),
                   const SizedBox(width: 12),
@@ -313,7 +313,7 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                     onTap: _loading ? null : () => Navigator.pop(context),
                     child: Container(
                       height: 52,
-                      decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(14)),
+                      decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.button)),
                       alignment: Alignment.center,
                       child: Text('Annuler',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
@@ -332,9 +332,9 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                       height: 52,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                            colors: [Color(0xFFF43F5E), Color(0xFFEC4899)],
+                            colors: [kError, kTertiary],
                             begin: Alignment.topLeft, end: Alignment.bottomRight),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(Radii.button),
                         boxShadow: [const BoxShadow(color: Color(0x59F43F5E), blurRadius: 20, offset: Offset(0, 8))],
                       ),
                       alignment: Alignment.center,

@@ -1,12 +1,15 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/services/call_service.dart';
+import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
+import '../../theme/spacing.dart';
 
 class ActiveCallScreen extends StatefulWidget {
   const ActiveCallScreen({super.key});
@@ -125,7 +128,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   // ── Vidéo ─────────────────────────────────────────────────────────────────
 
   Widget _buildVideoUI(CallState s) {
-    return GestureDetector(
+    return Semantics(
+      label: 'Afficher les contrôles',
+      child: GestureDetector(
       onTap: _showControls,
       child: Stack(
         fit: StackFit.expand,
@@ -142,7 +147,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
               top: MediaQuery.of(context).padding.top + 16,
               right: 16,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(Radii.md),
                 child: SizedBox(
                   width: 96, height: 128,
                   child: RTCVideoView(
@@ -164,6 +169,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -265,7 +271,7 @@ class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF0B0F1A),
+      color: kCallBg,
       child: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(PhosphorIcons.videoCameraSlash(), color: Colors.white24, size: 48),
@@ -294,7 +300,7 @@ class _RemoteAvatar extends StatelessWidget {
       width: 100, height: 100,
       decoration: BoxDecoration(shape: BoxShape.circle, gradient: trackpartyGradient),
       child: avatarUrl != null && avatarUrl!.isNotEmpty
-          ? ClipOval(child: Image.network(avatarUrl!, fit: BoxFit.cover))
+          ? ClipOval(child: CachedNetworkImage(imageUrl: avatarUrl!, width: 100, height: 100, fit: BoxFit.cover))
           : Center(
               child: Text(_initials(),
                 style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800)),
@@ -321,12 +327,16 @@ class _CtrlBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = isHangup
-        ? const Color(0xFFCC2222)
+        ? kCallDecline
         : active
             ? Colors.white.withValues(alpha: 0.18)
             : Colors.white.withValues(alpha: 0.08);
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      toggled: !isHangup ? active : null,
+      child: GestureDetector(
       onTap: onTap,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         AnimatedContainer(
@@ -340,6 +350,7 @@ class _CtrlBtn extends StatelessWidget {
         const SizedBox(height: 6),
         Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
       ]),
+      ),
     );
   }
 }

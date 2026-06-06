@@ -16,6 +16,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_confirm_sheet.dart';
 
 class EventCoOrganizersScreen extends ConsumerWidget {
   final String eventId;
@@ -40,15 +41,18 @@ class EventCoOrganizersScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
             child: Row(children: [
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Retour',
+                child: GestureDetector(
                 onTap: () => context.pop(),
                 child: Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
                       color: context.tpCard,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(Radii.md),
                       boxShadow: Shadows.sm),
                   child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -61,15 +65,18 @@ class EventCoOrganizersScreen extends ConsumerWidget {
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                 ]),
               ),
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Inviter un co-organisateur',
+                child: GestureDetector(
                 onTap: () => _showInviteSheet(context, ref),
                 child: Container(
-                  width: 40, height: 40,
+                  width: 44, height: 44,
                   decoration: BoxDecoration(
                       gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(Radii.tag),
                       boxShadow: Shadows.sm),
                   child: const Icon(Icons.add, color: Colors.white, size: 20),
+                ),
                 ),
               ),
             ]),
@@ -82,7 +89,7 @@ class EventCoOrganizersScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                   color: kPrimary.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   border: Border.all(color: kPrimary.withValues(alpha: 0.18))),
               child: Row(children: [
                 Icon(PhosphorIcons.info(PhosphorIconsStyle.fill), color: kPrimary, size: 16),
@@ -108,10 +115,13 @@ class EventCoOrganizersScreen extends ConsumerWidget {
                   Text('Impossible de charger',
                       style: TextStyle(fontSize: 14, color: context.tpInkSub)),
                   const SizedBox(height: 8),
-                  GestureDetector(
+                  Semantics(
+                    button: true, label: 'Réessayer',
+                    child: GestureDetector(
                     onTap: () => ref.invalidate(eventDetailProvider(eventId)),
                     child: Text('Réessayer',
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
+                    ),
                   ),
                 ]),
               ),
@@ -129,15 +139,18 @@ class EventCoOrganizersScreen extends ConsumerWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 13, color: context.tpInkSub)),
                       const SizedBox(height: 20),
-                      GestureDetector(
+                      Semantics(
+                        button: true, label: 'Inviter un co-organisateur',
+                        child: GestureDetector(
                         onTap: () => _showInviteSheet(context, ref),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           decoration: BoxDecoration(
                               gradient: trackpartyGradient,
-                              borderRadius: BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(Radii.md)),
                           child: const Text('Inviter',
                               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                        ),
                         ),
                       ),
                     ]),
@@ -148,6 +161,7 @@ class EventCoOrganizersScreen extends ConsumerWidget {
                   padding: EdgeInsets.fromLTRB(
                       Sp.md, 0, Sp.md, MediaQuery.of(context).padding.bottom + 20),
                   itemCount: coOrganizers.length,
+                  addAutomaticKeepAlives: false,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (_, i) => _CoOrgaTile(
                     user: coOrganizers[i],
@@ -164,28 +178,11 @@ class EventCoOrganizersScreen extends ConsumerWidget {
 
   Future<void> _remove(BuildContext context, WidgetRef ref, CoOrganizerUser user) async {
     final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.tpCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Retirer ${user.displayName} ?',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
-        content: Text('${user.displayName} ne pourra plus co-organiser cet événement.',
-            style: TextStyle(fontSize: 13, color: context.tpInkSub)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Annuler',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Retirer',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kError)),
-          ),
-        ],
-      ),
+    final confirmed = await TpConfirmSheet.show(
+      context,
+      title: 'Retirer ${user.displayName} ?',
+      body: '${user.displayName} ne pourra plus co-organiser cet événement.',
+      confirmLabel: 'Retirer',
     );
     if (confirmed != true) return;
 
@@ -196,7 +193,7 @@ class EventCoOrganizersScreen extends ConsumerWidget {
       messenger.showSnackBar(SnackBar(
         content: const Text('Impossible de retirer ce co-organisateur'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         backgroundColor: kError,
       ));
     }
@@ -225,7 +222,7 @@ class _CoOrgaTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(Radii.button),
           boxShadow: Shadows.sm),
       child: Row(children: [
         TpAvatar(name: user.displayName, imageUrl: user.avatarUrl, size: 42),
@@ -242,14 +239,18 @@ class _CoOrgaTile extends StatelessWidget {
             ]),
           ]),
         ),
-        GestureDetector(
-          onTap: onRemove,
-          child: Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-                color: kError.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10)),
-            child: Icon(PhosphorIcons.trash(), color: kError, size: 16),
+        Semantics(
+          button: true,
+          label: 'Retirer le co-organisateur',
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                  color: kError.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(Radii.tag)),
+              child: Icon(PhosphorIcons.trash(), color: kError, size: 16),
+            ),
           ),
         ),
       ]),
@@ -307,8 +308,8 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Invitation envoyée à ${user.displayName}'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: const Color(0xFF22A865),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+        backgroundColor: kSuccess,
       ));
     } catch (_) {
       if (!mounted) return;
@@ -316,7 +317,7 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Impossible d\'envoyer l\'invitation'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         backgroundColor: kError,
       ));
     }
@@ -328,7 +329,7 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       padding: EdgeInsets.fromLTRB(Sp.md, 20, Sp.md, bottomInset + 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -352,13 +353,13 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
             filled: true,
             fillColor: context.tpCard,
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 borderSide: BorderSide(color: context.tpHair)),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 borderSide: BorderSide(color: context.tpHair)),
             focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 borderSide: const BorderSide(color: kPrimary, width: 1.5)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
@@ -385,13 +386,16 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
               itemBuilder: (_, i) {
                 final u = _results[i];
                 final isInviting = _inviting == u.id;
-                return GestureDetector(
+                return Semantics(
+                  button: true,
+                  label: 'Inviter ${u.displayName} comme co-organisateur',
+                  child: GestureDetector(
                   onTap: isInviting ? null : () => _invite(u),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                         color: context.tpCard,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(Radii.md),
                         border: Border.all(color: context.tpHair)),
                     child: Row(children: [
                       TpAvatar(name: u.displayName, imageUrl: u.avatarUrl, size: 38),
@@ -409,12 +413,13 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
                                   gradient: trackpartyGradient,
-                                  borderRadius: BorderRadius.circular(8)),
+                                  borderRadius: BorderRadius.circular(Radii.sm)),
                               child: const Text('Inviter',
                                   style: TextStyle(
                                       fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
                             ),
                     ]),
+                  ),
                   ),
                 );
               },

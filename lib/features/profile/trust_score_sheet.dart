@@ -29,7 +29,7 @@ class TrustScoreSheet extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
       ),
       padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md,
           MediaQuery.of(context).padding.bottom + 24),
@@ -58,7 +58,7 @@ class TrustScoreSheet extends ConsumerWidget {
           width: 88, height: 88,
           decoration: BoxDecoration(
             gradient: badgeGradient,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(Radii.sheet),
             boxShadow: [BoxShadow(
               color: _badgeGlowColor(data.badgeLevel).withValues(alpha: 0.4),
               blurRadius: 28, offset: const Offset(0, 12))],
@@ -107,7 +107,7 @@ class TrustScoreSheet extends ConsumerWidget {
               Container(
                 width: 32, height: 32,
                 decoration: BoxDecoration(
-                  color: c.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                  color: c.color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(Radii.tag)),
                 alignment: Alignment.center,
                 child: Text(c.emoji, style: const TextStyle(fontSize: 16)),
               ),
@@ -135,7 +135,7 @@ class TrustScoreSheet extends ConsumerWidget {
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(gradient: gradientSoft, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(gradient: gradientSoft, borderRadius: BorderRadius.circular(Radii.button)),
           child: Row(children: [
             const Text('💡', style: TextStyle(fontSize: 20)),
             const SizedBox(width: 10),
@@ -153,7 +153,7 @@ class TrustScoreSheet extends ConsumerWidget {
     switch (level) {
       case 'gold':
         return const LinearGradient(
-          colors: [Color(0xFFF97316), Color(0xFFF59E0B)],
+          colors: [kAccent, kWarning],
           begin: Alignment.topLeft, end: Alignment.bottomRight);
       case 'silver':
         return const LinearGradient(
@@ -168,7 +168,7 @@ class TrustScoreSheet extends ConsumerWidget {
 
   Color _badgeGlowColor(String level) {
     switch (level) {
-      case 'gold':   return const Color(0xFFF97316);
+      case 'gold':   return kAccent;
       case 'silver': return const Color(0xFF64748B);
       default:       return const Color(0xFFCD7F32);
     }

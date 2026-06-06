@@ -57,7 +57,7 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
       margin: const EdgeInsets.fromLTRB(Sp.sm, 0, Sp.sm, Sp.sm),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(Radii.cardLg),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -179,7 +179,7 @@ class RoomMemberRow extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(Radii.xs),
                     ),
                     child: const Text('Admin',
                       style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
@@ -194,15 +194,19 @@ class RoomMemberRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         if (member.hasDm)
-          GestureDetector(
-            onTap: onMessage,
-            child: Container(
-              width: 38, height: 38,
-              decoration: BoxDecoration(
-                color: kPrimary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+          Semantics(
+            button: true,
+            label: 'Envoyer un message',
+            child: GestureDetector(
+              onTap: onMessage,
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(Radii.md),
+                ),
+                child: Icon(PhosphorIcons.chatCircle(), color: kPrimary, size: 18),
               ),
-              child: Icon(PhosphorIcons.chatCircle(), color: kPrimary, size: 18),
             ),
           )
         else if (sent)
@@ -210,7 +214,7 @@ class RoomMemberRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: kSuccess.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(Radii.tag),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), color: kSuccess, size: 14),
@@ -219,13 +223,16 @@ class RoomMemberRow extends StatelessWidget {
             ]),
           )
         else
-          GestureDetector(
+          Semantics(
+            button: true,
+            label: 'Demander en ami',
+            child: GestureDetector(
             onTap: sending ? null : onRequest,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: context.tpBg,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(Radii.tag),
                 border: Border.all(color: context.tpHair),
               ),
               child: sending
@@ -237,6 +244,7 @@ class RoomMemberRow extends StatelessWidget {
                       Text('Demander',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInk)),
                     ]),
+            ),
             ),
           ),
       ]),

@@ -84,8 +84,8 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
 
     final groups = <_Group>[];
     const groupColors = [
-      Color(0xFFF97316), Color(0xFFEC4899), Color(0xFF7C3AED),
-      Color(0xFF06B6D4), Color(0xFF84CC16), Color(0xFFF59E0B),
+      kAccent, kTertiary, kSecondary,
+      kInfo, kCategoryArt, kWarning,
     ];
 
     // Known contribution items from event
@@ -155,12 +155,15 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Erreur de chargement', style: TextStyle(color: context.tpInkSub, fontSize: 14)),
           const SizedBox(height: 12),
-          GestureDetector(
+          Semantics(
+            button: true, label: 'Réessayer',
+            child: GestureDetector(
             onTap: _load,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
               child: const Text('Réessayer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            ),
             ),
           ),
         ]),
@@ -192,7 +195,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
                 width: 44, height: 44,
                 decoration: BoxDecoration(
                   color: context.tpCard,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   boxShadow: Shadows.sm,
                 ),
                 child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
@@ -223,7 +226,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
                 width: 44, height: 44,
                 decoration: BoxDecoration(
                   gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   boxShadow: const [BoxShadow(color: Color(0x4D7C3AED), blurRadius: 10, offset: Offset(0, 4))],
                 ),
                 child: Icon(PhosphorIcons.arrowsClockwise(), color: Colors.white, size: 18),
@@ -344,7 +347,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: active ? context.tpCard : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(Radii.tag),
                   border: Border.all(
                     color: active ? context.tpHair : Colors.transparent,
                     width: 1.5,
@@ -365,7 +368,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(
                         color: active ? kPrimary.withValues(alpha: 0.08) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(Radii.pill),
                       ),
                       child: Text('$count',
                         style: TextStyle(
@@ -464,7 +467,7 @@ class _ContribGroup extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: const [BoxShadow(color: Color(0x0F1B1A2E), blurRadius: 12, offset: Offset(0, 4))],
       ),
       child: Column(
@@ -478,7 +481,7 @@ class _ContribGroup extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(Radii.pill),
                 ),
                 child: Text(
                   group.done ? '✓ Complet' : '${group.current}/${group.total}',
@@ -527,7 +530,7 @@ class _ParticipantList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: const [BoxShadow(color: Color(0x0F1B1A2E), blurRadius: 12, offset: Offset(0, 4))],
       ),
       child: Column(
@@ -585,7 +588,7 @@ class _PersonRow extends StatelessWidget {
                   color: confirmed
                       ? kSuccess.withValues(alpha: 0.10)
                       : kWarning.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(Radii.sm),
                 ),
                 child: Text(
                   confirmed ? '✓ OK' : 'En attente',
@@ -600,7 +603,7 @@ class _PersonRow extends StatelessWidget {
                 width: 28, height: 28,
                 decoration: BoxDecoration(
                   color: context.tpBg,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(Radii.sm),
                 ),
                 child: Icon(PhosphorIcons.chatCircle(), color: context.tpInkSub, size: 14),
               ),

@@ -97,7 +97,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       padding: EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, bottom + Sp.md),
       child: SingleChildScrollView(
@@ -120,10 +120,14 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
               Text('Filtres & Tri',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.tpInk)),
               const Spacer(),
-              GestureDetector(
-                onTap: _reset,
-                child: const Text('Réinitialiser',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+              Semantics(
+                button: true,
+                label: 'Réinitialiser les filtres',
+                child: GestureDetector(
+                  onTap: _reset,
+                  child: const Text('Réinitialiser',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                ),
               ),
             ]),
             const SizedBox(height: Sp.lg),
@@ -200,7 +204,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                     color: kPrimary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(Radii.sm)),
                 child: Text('${_radiusKm.round()} km',
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: kPrimary)),
               ),
@@ -239,7 +243,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kPrimary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.lg)),
                   elevation: 0,
                 ),
                 child: const Text('Appliquer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -272,14 +276,18 @@ class _SortOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = value == selected;
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      selected: isActive,
+      child: GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isActive ? kPrimary.withValues(alpha: 0.08) : context.tpBg,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(Radii.button),
           border: Border.all(
             color: isActive ? kPrimary : context.tpHair,
             width: isActive ? 1.5 : 1,
@@ -290,7 +298,7 @@ class _SortOption extends StatelessWidget {
             width: 36, height: 36,
             decoration: BoxDecoration(
                 color: (isActive ? kPrimary : context.tpInkSub).withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(Radii.tag)),
             child: Icon(icon, color: isActive ? kPrimary : context.tpInkSub, size: 18),
           ),
           const SizedBox(width: 12),
@@ -307,6 +315,7 @@ class _SortOption extends StatelessWidget {
           if (isActive)
             Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), color: kPrimary, size: 20),
         ]),
+      ),
       ),
     );
   }

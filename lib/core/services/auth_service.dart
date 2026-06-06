@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
@@ -114,9 +115,9 @@ class AuthService {
       });
 
   Future<void> registerFcmToken(String token) => _call(() async {
-        print('📱 FCM: Calling API to register token: $token');
+        debugPrint('📱 FCM: Calling API to register token: $token');
         final response = await _dio.post('auth/me/fcm-token/', data: {'fcm_token': token});
-        print('📱 FCM: API response status: ${response.statusCode}');
+        debugPrint('📱 FCM: API response status: ${response.statusCode}');
       });
 
   Future<void> followPromoter(String userId) => _call(() async {

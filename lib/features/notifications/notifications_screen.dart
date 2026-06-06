@@ -118,7 +118,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                       color: context.tpCard,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(Radii.tag),
                       boxShadow: Shadows.sm),
                   child: Row(
                     children: [
@@ -155,7 +155,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 decoration: BoxDecoration(
                   gradient: active ? trackpartyGradient : null,
                   color: active ? null : context.tpCard,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(Radii.tag),
                   border: active ? null : Border.all(color: context.tpHair),
                   boxShadow: active
                       ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
@@ -224,13 +224,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           Text('Impossible de charger les notifications',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
           const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () => ref.read(notificationsProvider.notifier).refresh(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
-              child: const Text('Réessayer',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+          Semantics(
+            button: true,
+            label: 'Réessayer',
+            child: GestureDetector(
+              onTap: () => ref.read(notificationsProvider.notifier).refresh(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
+                child: const Text('Réessayer',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
             ),
           ),
         ],
@@ -271,14 +275,17 @@ class _NotifRowState extends State<_NotifRow> {
   @override
   Widget build(BuildContext context) {
     final notif = widget.notif;
-    return GestureDetector(
+    return Semantics(
+      button: !notif.isRead,
+      label: notif.isRead ? null : 'Marquer comme lu',
+      child: GestureDetector(
       onTap: notif.isRead ? null : widget.onMarkRead,
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: notif.isRead ? Colors.transparent : kPrimary.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(Radii.lg),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,7 +299,7 @@ class _NotifRowState extends State<_NotifRow> {
                         width: 44, height: 44,
                         decoration: BoxDecoration(
                             gradient: trackpartyGradient,
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(Radii.button)),
                         child: Icon(PhosphorIcons.users(), color: Colors.white, size: 22))
                     : TpAvatar(name: notif.title, size: 44),
                 Positioned(
@@ -355,6 +362,7 @@ class _NotifRowState extends State<_NotifRow> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -410,7 +418,7 @@ class _InvitationActionsState extends ConsumerState<_InvitationActions> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               gradient: trackpartyGradient,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(Radii.tag),
             ),
             child: const Text('Accepter',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -427,7 +435,7 @@ class _InvitationActionsState extends ConsumerState<_InvitationActions> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(Radii.tag),
               border: Border.all(color: context.tpHair),
             ),
             child: Text('Refuser',

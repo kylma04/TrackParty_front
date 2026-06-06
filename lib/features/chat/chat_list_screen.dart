@@ -93,7 +93,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               child: Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(color: context.tpCard,
-                    borderRadius: BorderRadius.circular(12), boxShadow: Shadows.sm),
+                    borderRadius: BorderRadius.circular(Radii.md), boxShadow: Shadows.sm),
                 child: Icon(PhosphorIcons.envelope(), color: kAccent, size: 18),
               ),
             ),
@@ -106,7 +106,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               onTap: () => _showNewConversationSheet(context),
               child: Container(
                 width: 44, height: 44,
-                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
                 child: Icon(PhosphorIcons.pencilSimple(), color: Colors.white, size: 18),
               ),
             ),
@@ -144,7 +144,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   decoration: BoxDecoration(
                     gradient: active ? trackpartyGradient : null,
                     color: active ? null : context.tpCard,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(Radii.md),
                     border: active ? null : Border.all(color: context.tpHair),
                     boxShadow: active
                         ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 12, offset: Offset(0, 4))]
@@ -163,7 +163,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                           color: active
                               ? Colors.white.withValues(alpha: 0.25)
                               : kPrimary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(Radii.pill),
                         ),
                         child: Text('${counts[i]}',
                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
@@ -188,6 +188,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       child: ListView.builder(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80),
         itemCount: rooms.length,
+        addAutomaticKeepAlives: false,
         itemBuilder: (_, i) {
           final room = rooms[i];
           final dest = room.isCommunity && room.promoterId != null
@@ -228,12 +229,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           Text('Impossible de charger les messages',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
           const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () => ref.read(chatRoomsProvider.notifier).refresh(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
-              child: const Text('Réessayer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+          Semantics(
+            button: true,
+            label: 'Réessayer',
+            child: GestureDetector(
+              onTap: () => ref.read(chatRoomsProvider.notifier).refresh(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
+                child: const Text('Réessayer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
             ),
           ),
         ],
@@ -368,7 +373,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Invitation envoyée à ${user.displayName} ✉️'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     } catch (e) {
@@ -393,7 +398,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
         content: Text(msg),
         backgroundColor: kError,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
       ));
     }
   }
@@ -405,7 +410,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
       ),
       padding: EdgeInsets.fromLTRB(
         Sp.md, 12, Sp.md,
@@ -450,7 +455,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
             Container(
               decoration: BoxDecoration(
                 color: context.tpBg,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 border: Border.all(color: context.tpHair),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -597,13 +602,16 @@ class _ActionButton extends StatelessWidget {
     }
 
     if (status == 'accepted') {
-      return GestureDetector(
+      return Semantics(
+        button: true,
+        label: 'Envoyer un message',
+        child: GestureDetector(
         onTap: onMessage,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: kPrimary,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(Radii.tag),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -615,6 +623,7 @@ class _ActionButton extends StatelessWidget {
             ],
           ),
         ),
+        ),
       );
     }
 
@@ -623,7 +632,7 @@ class _ActionButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: context.tpHair,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(Radii.tag),
         ),
         child: Text('En attente',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInkMute)),
@@ -631,13 +640,16 @@ class _ActionButton extends StatelessWidget {
     }
 
     // Pas de connexion → bouton Inviter
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: 'Inviter',
+      child: GestureDetector(
       onTap: onInvite,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           gradient: trackpartyGradient,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(Radii.tag),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -648,6 +660,7 @@ class _ActionButton extends StatelessWidget {
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
           ],
         ),
+      ),
       ),
     );
   }
@@ -665,7 +678,7 @@ class _GroupAvatar extends StatelessWidget {
 
     if (url != null && url.isNotEmpty) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(Radii.lg),
         child: CachedNetworkImage(
           imageUrl: url,
           width: 52, height: 52,
@@ -687,7 +700,7 @@ class _GroupAvatar extends StatelessWidget {
       width: 52, height: 52,
       decoration: BoxDecoration(
         gradient: trackpartyGradient,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(Radii.lg),
       ),
       child: Icon(icon, color: Colors.white, size: 24),
     );
@@ -728,7 +741,7 @@ class _ChatRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.lg)),
             child: Row(
               children: [
                 // Avatar

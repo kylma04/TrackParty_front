@@ -33,15 +33,19 @@ class EventDashboardScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
             child: Row(children: [
-              GestureDetector(
-                onTap: () => context.pop(),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+              Semantics(
+                button: true,
+                label: 'Retour',
+                child: GestureDetector(
+                  onTap: () => context.pop(),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                        color: context.tpCard,
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        boxShadow: Shadows.sm),
+                    child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -54,15 +58,19 @@ class EventDashboardScreen extends ConsumerWidget {
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                 ]),
               ),
-              GestureDetector(
-                onTap: () => ref.invalidate(eventStatsProvider(eventId)),
-                child: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.arrowClockwise(), color: context.tpInkSub, size: 16),
+              Semantics(
+                button: true,
+                label: 'Actualiser',
+                child: GestureDetector(
+                  onTap: () => ref.invalidate(eventStatsProvider(eventId)),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                        color: context.tpCard,
+                        borderRadius: BorderRadius.circular(Radii.tag),
+                        boxShadow: Shadows.sm),
+                    child: Icon(PhosphorIcons.arrowClockwise(), color: context.tpInkSub, size: 16),
+                  ),
                 ),
               ),
             ]),
@@ -79,10 +87,14 @@ class EventDashboardScreen extends ConsumerWidget {
                   Text('Impossible de charger les statistiques',
                       style: TextStyle(fontSize: 14, color: context.tpInkSub)),
                   const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () => ref.invalidate(eventStatsProvider(eventId)),
-                    child: const Text('Réessayer',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
+                  Semantics(
+                    button: true,
+                    label: 'Réessayer',
+                    child: GestureDetector(
+                      onTap: () => ref.invalidate(eventStatsProvider(eventId)),
+                      child: const Text('Réessayer',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
+                    ),
                   ),
                 ]),
               ),
@@ -153,8 +165,8 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      'published'  => ('✅ Publié', const Color(0xFF22A865)),
-      'draft'      => ('📝 Brouillon', const Color(0xFFF97316)),
+      'published'  => ('✅ Publié', kSuccess),
+      'draft'      => ('📝 Brouillon', kAccent),
       'cancelled'  => ('❌ Annulé', kError),
       'past'       => ('🏁 Terminé', context.tpInkSub),
       _            => (status, context.tpInkSub),
@@ -164,7 +176,7 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
           color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(Radii.pill),
           border: Border.all(color: color.withValues(alpha: 0.25))),
       child: Text(label,
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
@@ -181,7 +193,7 @@ class _FillRateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pct = (stats.fillRate * 100).round();
-    final color = pct >= 90 ? kError : pct >= 60 ? const Color(0xFFF97316) : kPrimary;
+    final color = pct >= 90 ? kError : pct >= 60 ? kAccent : kPrimary;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -201,7 +213,7 @@ class _FillRateCard extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(Radii.xs),
           child: LinearProgressIndicator(
             value: stats.fillRate.clamp(0.0, 1.0),
             backgroundColor: context.tpHair,
@@ -236,21 +248,21 @@ class _CheckinRateCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
-              size: 18, color: const Color(0xFF22A865)),
+              size: 18, color: kSuccess),
           const SizedBox(width: 8),
           Text('Taux de présence',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
           const Spacer(),
           Text('$pct%',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF22A865))),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kSuccess)),
         ]),
         const SizedBox(height: 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(Radii.xs),
           child: LinearProgressIndicator(
             value: stats.checkinRate.clamp(0.0, 1.0),
             backgroundColor: context.tpHair,
-            valueColor: const AlwaysStoppedAnimation(Color(0xFF22A865)),
+            valueColor: const AlwaysStoppedAnimation(kSuccess),
             minHeight: 8,
           ),
         ),
@@ -274,18 +286,18 @@ class _KpiGrid extends StatelessWidget {
       _KpiItem(icon: PhosphorIcons.users(), label: 'Inscrits',
           value: '${stats.participantsCount}', color: kPrimary),
       _KpiItem(icon: PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), label: 'Présents',
-          value: '${stats.checkinsCount}', color: const Color(0xFF22A865)),
+          value: '${stats.checkinsCount}', color: kSuccess),
       _KpiItem(icon: PhosphorIcons.clock(), label: 'Attente',
-          value: '${stats.waitlistCount}', color: const Color(0xFFF97316)),
+          value: '${stats.waitlistCount}', color: kAccent),
       _KpiItem(icon: PhosphorIcons.identificationBadge(), label: 'Staff',
           value: '${stats.staffCount}', color: kAccent),
       _KpiItem(icon: PhosphorIcons.usersThree(), label: 'Co-orgas',
-          value: '${stats.coOrganizersCount}', color: const Color(0xFF8B5CF6)),
+          value: '${stats.coOrganizersCount}', color: kViolet),
       _KpiItem(
         icon: PhosphorIcons.star(PhosphorIconsStyle.fill),
         label: 'Note (${stats.reviewsCount} avis)',
         value: stats.avgRating > 0 ? stats.avgRating.toStringAsFixed(1) : '—',
-        color: const Color(0xFFF59E0B),
+        color: kWarning,
       ),
     ];
 
@@ -319,7 +331,7 @@ class _KpiCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(Radii.lg),
           boxShadow: Shadows.sm),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
@@ -355,7 +367,7 @@ class _QuickActions extends StatelessWidget {
     return Column(children: [
       _ActionRow(
         icon: PhosphorIcons.listChecks(),
-        iconColor: const Color(0xFF22A865),
+        iconColor: kSuccess,
         label: 'Voir les check-ins',
         subtitle: '${stats.checkinsCount} entrées validées',
         onTap: () => context.push('/event/$eventId/checkins', extra: {'title': eventTitle}),
@@ -371,7 +383,7 @@ class _QuickActions extends StatelessWidget {
       const SizedBox(height: 10),
       _ActionRow(
         icon: PhosphorIcons.usersThree(),
-        iconColor: const Color(0xFF8B5CF6),
+        iconColor: kViolet,
         label: 'Co-organisateurs',
         subtitle: '${stats.coOrganizersCount} co-orga${stats.coOrganizersCount > 1 ? 's' : ''}',
         onTap: () => context.push('/event/$eventId/co-organizers', extra: {'title': eventTitle}),
@@ -380,7 +392,7 @@ class _QuickActions extends StatelessWidget {
         const SizedBox(height: 10),
         _ActionRow(
           icon: PhosphorIcons.clock(),
-          iconColor: const Color(0xFFF97316),
+          iconColor: kAccent,
           label: 'Liste d\'attente',
           subtitle: '${stats.waitlistCount} personne${stats.waitlistCount > 1 ? 's' : ''} en attente',
           onTap: () => context.push('/event/$eventId/waitlist', extra: {'title': eventTitle}),
@@ -407,20 +419,23 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
             color: context.tpCard,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(Radii.button),
             boxShadow: Shadows.sm),
         child: Row(children: [
           Container(
             width: 40, height: 40,
             decoration: BoxDecoration(
                 color: iconColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(Radii.md)),
             child: Icon(icon, color: iconColor, size: 20),
           ),
           const SizedBox(width: 12),
@@ -434,6 +449,7 @@ class _ActionRow extends StatelessWidget {
           ),
           Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
         ]),
+      ),
       ),
     );
   }

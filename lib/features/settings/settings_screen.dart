@@ -10,6 +10,7 @@ import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_confirm_sheet.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -50,35 +51,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (mounted) setState(() => _biometricEnabled = val);
   }
 
-  void _confirmDeleteAccount(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.tpCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Supprimer mon compte ?',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.tpInk)),
-        content: Text(
-          'Cette action est irréversible. Toutes tes données (événements, billets, messages) seront définitivement supprimées.',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Annuler',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await ref.read(authNotifierProvider.notifier).logout();
-            },
-            child: const Text('Supprimer',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kError)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await TpConfirmSheet.show(
+      context,
+      title: 'Supprimer mon compte ?',
+      body: 'Cette action est irréversible. Toutes tes données (événements, billets, messages) seront définitivement supprimées.',
+      confirmLabel: 'Supprimer',
     );
+    if (confirmed) await ref.read(authNotifierProvider.notifier).logout();
   }
 
   @override
@@ -94,15 +74,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             pinned: true,
             backgroundColor: context.tpCard,
             surfaceTintColor: Colors.transparent,
-            leading: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: context.tpBg,
-                  borderRadius: BorderRadius.circular(10),
+            leading: Semantics(
+              button: true,
+              label: 'Retour',
+              child: GestureDetector(
+                onTap: () => context.pop(),
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: context.tpBg,
+                    borderRadius: BorderRadius.circular(Radii.tag),
+                  ),
+                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
                 ),
-                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
               ),
             ),
             title: Text('Paramètres',
@@ -121,7 +105,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsCard(children: [
                   _SettingRow(
                     icon: PhosphorIcons.sun(),
-                    iconColor: const Color(0xFFF59E0B),
+                    iconColor: kWarning,
                     label: 'Thème',
                     sub: switch (themeMode) {
                       ThemeMode.light  => 'Clair',
@@ -160,7 +144,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   _SettingRow(
                     icon: PhosphorIcons.chatTeardrop(),
-                    iconColor: const Color(0xFF22A865),
+                    iconColor: kSuccess,
                     label: 'Notifications SMS',
                     sub: 'Rappels importants uniquement',
                     isLast: true,
@@ -188,7 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   _SettingRow(
                     icon: PhosphorIcons.lock(),
-                    iconColor: const Color(0xFF8B5CF6),
+                    iconColor: kViolet,
                     label: 'Changer le mot de passe',
                     sub: '',
                     isLast: true,
@@ -233,7 +217,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   _SettingRow(
                     icon: PhosphorIcons.shieldCheck(),
-                    iconColor: const Color(0xFF22A865),
+                    iconColor: kSuccess,
                     label: 'Politique de confidentialité',
                     sub: '',
                     isLast: false,
@@ -252,13 +236,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // ── Zone dangereuse ────────────────────────────────────────────
                 _SectionHeader(label: 'ZONE DANGEREUSE'),
                 const SizedBox(height: 8),
-                GestureDetector(
+                Semantics(
+                  button: true,
+                  label: 'Supprimer mon compte',
+                  child: GestureDetector(
                   onTap: () => _confirmDeleteAccount(context),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: kError.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(Radii.lg),
                       border: Border.all(color: kError.withValues(alpha: 0.20)),
                     ),
                     child: Row(children: [
@@ -266,7 +253,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         width: 36, height: 36,
                         decoration: BoxDecoration(
                             color: kError.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10)),
+                            borderRadius: BorderRadius.circular(Radii.tag)),
                         child: Icon(PhosphorIcons.trash(), color: kError, size: 18),
                       ),
                       const SizedBox(width: 12),
@@ -281,6 +268,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       Icon(PhosphorIcons.caretRight(), color: kError.withValues(alpha: 0.5), size: 16),
                     ]),
+                  ),
                   ),
                 ),
               ]),
@@ -298,7 +286,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (_) => Container(
         decoration: BoxDecoration(
           color: context.tpBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
         ),
         padding: const EdgeInsets.fromLTRB(Sp.md, 20, Sp.md, 40),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -308,7 +296,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Row(children: [
             Container(
               width: 40, height: 40,
-              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
               child: Icon(PhosphorIcons.sun(), color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
@@ -318,10 +306,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 20),
           for (final rec in <(ThemeMode, String, IconData, Color)>[
             (ThemeMode.system, 'Auto (système)',   PhosphorIcons.deviceMobile(), context.tpInkSub),
-            (ThemeMode.light,  'Clair',            PhosphorIcons.sun(),          const Color(0xFFF59E0B)),
-            (ThemeMode.dark,   'Sombre',           PhosphorIcons.moon(),         const Color(0xFF6366F1)),
+            (ThemeMode.light,  'Clair',            PhosphorIcons.sun(),          kWarning),
+            (ThemeMode.dark,   'Sombre',           PhosphorIcons.moon(),         kPrimary),
           ]) ...[
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: rec.$2,
+              selected: current == rec.$1,
+              child: GestureDetector(
               onTap: () {
                 ref.read(themeModeProvider.notifier).set(rec.$1);
                 Navigator.pop(context);
@@ -331,7 +323,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: current == rec.$1 ? kPrimary.withValues(alpha: 0.08) : context.tpCard,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(Radii.button),
                   border: Border.all(
                     color: current == rec.$1 ? kPrimary.withValues(alpha: 0.3) : context.tpHair,
                     width: current == rec.$1 ? 1.5 : 1,
@@ -342,7 +334,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     width: 36, height: 36,
                     decoration: BoxDecoration(
                         color: rec.$4.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(Radii.tag)),
                     child: Icon(rec.$3, color: rec.$4, size: 18),
                   ),
                   const SizedBox(width: 12),
@@ -355,6 +347,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   if (current == rec.$1)
                     Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), color: kPrimary, size: 20),
                 ]),
+              ),
               ),
             ),
           ],
@@ -384,7 +377,7 @@ class _SettingsCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(Radii.lg),
           boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
         ),
         child: Column(children: children),
@@ -415,7 +408,11 @@ class _SettingRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) => Semantics(
+        button: !toggle,
+        label: label,
+        toggled: toggle ? (toggleValue ?? false) : null,
+        child: GestureDetector(
         onTap: toggle ? null : onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -426,7 +423,7 @@ class _SettingRow extends StatelessWidget {
               width: 36, height: 36,
               decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10)),
+                  borderRadius: BorderRadius.circular(Radii.tag)),
               child: Icon(icon, color: iconColor, size: 18),
             ),
             const SizedBox(width: 12),
@@ -436,7 +433,11 @@ class _SettingRow extends StatelessWidget {
                 Text(sub, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
             ])),
             if (toggle)
-              GestureDetector(
+              Semantics(
+                label: label,
+                toggled: toggleValue ?? false,
+                button: true,
+                child: GestureDetector(
                 onTap: () => onToggle?.call(!(toggleValue ?? false)),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -455,10 +456,12 @@ class _SettingRow extends StatelessWidget {
                     ),
                   ),
                 ),
-              )
+              ),
+            )
             else if (onTap != null)
               Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
           ]),
         ),
-      );
+      ),
+    );
 }

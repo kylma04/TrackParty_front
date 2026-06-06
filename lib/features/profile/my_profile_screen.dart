@@ -10,6 +10,7 @@ import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_confirm_sheet.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
@@ -144,7 +145,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(Radii.pill),
                       ),
                       child: Text('🎉 Membre depuis $memberYear',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -171,7 +172,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(Radii.lg),
           boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
         ),
         child: Row(
@@ -244,13 +245,15 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         Text('MES BILLETS',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
         const SizedBox(height: 10),
-        GestureDetector(
+        Semantics(
+          button: true, label: 'Mes billets',
+          child: GestureDetector(
           onTap: () => context.push('/my-tickets'),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.lg),
               boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
             ),
             child: Row(children: [
@@ -258,7 +261,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 width: 40, height: 40,
                 decoration: BoxDecoration(
                   gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                 ),
                 child: Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
                     color: Colors.white, size: 20),
@@ -275,6 +278,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
               Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
             ]),
           ),
+          ),
         ),
       ]),
     );
@@ -290,24 +294,26 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         Text('MES ENVIES',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
         const SizedBox(height: 10),
-        GestureDetector(
+        Semantics(
+          button: true, label: 'Événements sauvegardés',
+          child: GestureDetector(
           onTap: () => context.push('/saved-events'),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.lg),
               boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
             ),
             child: Row(children: [
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEC4899).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: kTertiary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                 ),
                 child: Icon(PhosphorIcons.heart(PhosphorIconsStyle.fill),
-                    color: const Color(0xFFEC4899), size: 20),
+                    color: kTertiary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -322,14 +328,15 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFEC4899),
-                      borderRadius: BorderRadius.circular(999)),
+                      color: kTertiary,
+                      borderRadius: BorderRadius.circular(Radii.pill)),
                   child: Text('$count',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white)),
                 )
               else
                 Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
             ]),
+          ),
           ),
         ),
       ]),
@@ -347,24 +354,26 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         Text('COLLABORATION',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInkSub, letterSpacing: 0.3)),
         const SizedBox(height: 10),
-        GestureDetector(
+        Semantics(
+          button: true, label: 'Invitations co-organisateur',
+          child: GestureDetector(
           onTap: () => context.push('/co-organizer-invitations'),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.lg),
               boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
             ),
             child: Row(children: [
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: kViolet.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                 ),
                 child: Icon(PhosphorIcons.usersThree(),
-                    color: const Color(0xFF8B5CF6), size: 20),
+                    color: kViolet, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -379,14 +388,15 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6),
-                      borderRadius: BorderRadius.circular(999)),
+                      color: kViolet,
+                      borderRadius: BorderRadius.circular(Radii.pill)),
                   child: Text('$count',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white)),
                 )
               else
                 Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
             ]),
+          ),
           ),
         ),
       ]),
@@ -406,7 +416,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(Radii.button),
               border: Border.all(color: context.tpHair),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -421,33 +431,14 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
     );
   }
 
-  void _confirmLogout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.tpCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Se déconnecter ?',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.tpInk)),
-        content: Text('Tu devras te reconnecter pour accéder à ton compte.',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Annuler',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await ref.read(authNotifierProvider.notifier).logout();
-            },
-            child: const Text('Déconnecter',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kError)),
-          ),
-        ],
-      ),
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await TpConfirmSheet.show(
+      context,
+      title: 'Se déconnecter ?',
+      body: 'Tu devras te reconnecter pour accéder à ton compte.',
+      confirmLabel: 'Déconnecter',
     );
+    if (confirmed) await ref.read(authNotifierProvider.notifier).logout();
   }
 }
 
@@ -465,7 +456,7 @@ class _ProfileGlassBtn extends StatelessWidget {
           width: 44, height: 44,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(Radii.md),
           ),
           child: Icon(icon, color: Colors.white, size: 20),
         ),
@@ -505,7 +496,7 @@ class _ActionTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
         decoration: BoxDecoration(
           color: active ? color : context.tpCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(Radii.lg),
           boxShadow: active
               ? [BoxShadow(color: color.withValues(alpha: 0.32), blurRadius: 14, offset: const Offset(0, 6))]
               : const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 6, offset: Offset(0, 2))],

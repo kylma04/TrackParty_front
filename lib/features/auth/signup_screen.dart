@@ -71,7 +71,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             setState(() { _emailError = emailErr; _nameError = nameErr; });
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(err.message), backgroundColor: Colors.red.shade700),
+              SnackBar(content: Text(err.message), backgroundColor: kError),
             );
           }
         }

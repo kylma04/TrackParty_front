@@ -20,13 +20,13 @@ class TpAvatar extends StatelessWidget {
   });
 
   static const _gradients = [
-    [Color(0xFF4F46E5), Color(0xFFEC4899)],
-    [Color(0xFFF97316), Color(0xFFEC4899)],
-    [Color(0xFF06B6D4), Color(0xFF7C3AED)],
-    [Color(0xFF84CC16), Color(0xFF06B6D4)],
-    [Color(0xFFF59E0B), Color(0xFFF97316)],
-    [Color(0xFF7C3AED), Color(0xFF06B6D4)],
-    [Color(0xFFEC4899), Color(0xFFF59E0B)],
+    [kPrimary, kTertiary],
+    [kAccent, kTertiary],
+    [kInfo, kSecondary],
+    [kCategoryArt, kInfo],
+    [kWarning, kAccent],
+    [kSecondary, kInfo],
+    [kTertiary, kWarning],
   ];
 
   String get _initials {

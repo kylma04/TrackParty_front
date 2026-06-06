@@ -15,6 +15,8 @@ import '../../features/chat/chat_thread_screen.dart';
 import '../../features/chat/community_chat_screen.dart';
 import '../../features/chat/new_chat_screen.dart';
 import '../../features/calls/incoming_call_screen.dart';
+import '../../features/calls/outgoing_call_screen.dart';
+import '../../features/event/location_picker_screen.dart';
 import '../../features/chat/invitations_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../features/profile/my_profile_screen.dart';
@@ -73,6 +75,27 @@ final _routes = [
   GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
   GoRoute(path: '/invitations',  builder: (_, _) => const InvitationsScreen()),
   GoRoute(path: '/call/incoming', builder: (_, _) => const IncomingCallScreen()),
+  GoRoute(
+    path: '/call/outgoing',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>? ?? {};
+      return OutgoingCallScreen(
+        callType: extra['callType'] as String? ?? 'audio',
+        remoteUserName: extra['remoteUserName'] as String? ?? '',
+        remoteUserAvatarUrl: extra['remoteUserAvatarUrl'] as String?,
+      );
+    },
+  ),
+  GoRoute(
+    path: '/location-picker',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>? ?? {};
+      return LocationPickerScreen(
+        initialLat: (extra['lat'] as double?) ?? 5.3484,
+        initialLng: (extra['lng'] as double?) ?? -4.0168,
+      );
+    },
+  ),
 
   // ── Events ────────────────────────────────────────────────────────────────
   GoRoute(path: '/event/new', builder: (_, _) => const EventCreateScreen()),

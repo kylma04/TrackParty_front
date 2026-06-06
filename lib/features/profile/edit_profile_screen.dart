@@ -164,12 +164,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ),
         child: Row(
           children: [
-            GestureDetector(
+            Semantics(
+              button: true, label: 'Retour',
+              child: GestureDetector(
               onTap: () => context.pop(),
               child: Container(
                 width: 44, height: 44,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
                 child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+              ),
               ),
             ),
             const SizedBox(width: 8),
@@ -182,14 +185,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   width: 20, height: 20,
                   child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))
             else
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Sauvegarder le profil',
+                child: GestureDetector(
                 onTap: _save,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                      gradient: trackpartyGradient, borderRadius: BorderRadius.circular(10)),
+                      gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.tag)),
                   child: const Text('Sauvegarder',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                ),
                 ),
               ),
           ],
@@ -250,7 +256,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
-              color: context.tpCard, borderRadius: BorderRadius.circular(16)),
+              color: context.tpCard, borderRadius: BorderRadius.circular(Radii.lg)),
           child: Column(children: fields),
         ),
       ],

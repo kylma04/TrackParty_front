@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -132,7 +133,7 @@ class _EventPreviewSheet extends StatelessWidget {
       height: h,
       decoration: BoxDecoration(
         color: context.tpBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       child: Column(children: [
         // Handle + header
@@ -147,7 +148,7 @@ class _EventPreviewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                     color: kAccent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(Radii.sm)),
                 child: Text('APERÇU',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
                         color: kAccent, letterSpacing: 0.5)),
@@ -157,9 +158,12 @@ class _EventPreviewSheet extends StatelessWidget {
                 child: Text('Comme vu par les invités',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkSub)),
               ),
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Fermer',
+                child: GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Icon(PhosphorIcons.x(), color: context.tpInk, size: 20),
+                ),
               ),
             ]),
             const SizedBox(height: 14),
@@ -177,8 +181,14 @@ class _EventPreviewSheet extends StatelessWidget {
                 height: 240,
                 child: Stack(fit: StackFit.expand, children: [
                   coverUrl != null
-                      ? Image.network(coverUrl!, fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const TpPhoto())
+                      ? CachedNetworkImage(
+                          imageUrl: coverUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorWidget: (ctx, url, err) => const TpPhoto(),
+                          placeholder: (ctx, url) => const TpPhoto(),
+                        )
                       : const TpPhoto(),
                   DecoratedBox(
                     decoration: BoxDecoration(
@@ -220,7 +230,7 @@ class _EventPreviewSheet extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: context.tpCard,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8)],
                   ),
                   child: Row(children: [
@@ -237,7 +247,7 @@ class _EventPreviewSheet extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                          gradient: trackpartyGradient, borderRadius: BorderRadius.circular(8)),
+                          gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.sm)),
                       child: const Text('Suivre',
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
                     ),
@@ -260,7 +270,7 @@ class _EventPreviewSheet extends StatelessWidget {
                   const SizedBox(height: 10),
                   _InfoRow(
                     icon: PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
-                    iconColor: const Color(0xFFEC4899),
+                    iconColor: kTertiary,
                     title: addressLabel.isNotEmpty ? addressLabel : 'Lieu à définir',
                     sub: [quartier, city].where((s) => s.isNotEmpty).join(', '),
                   ),
@@ -297,7 +307,7 @@ class _EventPreviewSheet extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
                     gradient: trackpartyGradient,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: [BoxShadow(
                         color: kPrimary.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
                   ),
@@ -327,7 +337,7 @@ class _InfoRow extends StatelessWidget {
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(14)),
+              color: iconColor.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(Radii.button)),
           child: Icon(icon, color: iconColor, size: 22),
         ),
         const SizedBox(width: 12),

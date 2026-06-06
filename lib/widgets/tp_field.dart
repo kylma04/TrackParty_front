@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
+import '../theme/theme_ext.dart';
 
 class TpField extends StatefulWidget {
   final String label;
@@ -54,17 +55,14 @@ class _TpFieldState extends State<TpField> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           widget.label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
+          style: context.textTheme.labelMedium!.copyWith(
             fontWeight: FontWeight.w900,
-            color: isDark ? kInkSubDark : kInkSubLight,
+            color: context.tpInkSub,
             letterSpacing: 0.3,
           ),
         ),
@@ -81,33 +79,31 @@ class _TpFieldState extends State<TpField> {
           maxLength: widget.maxLength,
           validator: widget.validator,
           onChanged: widget.onChanged,
-          style: TextStyle(
-            fontSize: 15,
+          style: context.textTheme.titleSmall!.copyWith(
             fontWeight: FontWeight.w700,
-            color: isDark ? kInkDark : kInkLight,
+            color: context.tpInk,
           ),
           decoration: InputDecoration(
             errorText: widget.errorText,
             hintText: widget.hint,
-            hintStyle: TextStyle(
-              fontSize: 15,
+            hintStyle: context.textTheme.titleSmall!.copyWith(
               fontWeight: FontWeight.w600,
-              color: isDark ? kInkMuteDark : kInkMuteLight,
+              color: context.tpInkMute,
             ),
             prefixIcon: widget.prefixIcon != null
-                ? Icon(widget.prefixIcon, color: _focused ? kPrimary : (isDark ? kInkMuteDark : kInkMuteLight), size: 20)
+                ? Icon(widget.prefixIcon, color: _focused ? kPrimary : context.tpInkMute, size: 20)
                 : null,
             suffixIcon: widget.suffixIcon,
             filled: true,
-            fillColor: isDark ? kCardDark : kCardLight,
+            fillColor: context.tpCard,
             contentPadding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(Radii.button),
-              borderSide: BorderSide(color: isDark ? kHairDark : kHairLight, width: 1.5),
+              borderSide: BorderSide(color: context.tpHair, width: 1.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(Radii.button),
-              borderSide: BorderSide(color: isDark ? kHairDark : kHairLight, width: 1.5),
+              borderSide: BorderSide(color: context.tpHair, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(Radii.button),
@@ -121,8 +117,7 @@ class _TpFieldState extends State<TpField> {
               borderRadius: BorderRadius.circular(Radii.button),
               borderSide: const BorderSide(color: kError, width: 1.5),
             ),
-            errorStyle: const TextStyle(
-              fontSize: 11,
+            errorStyle: context.textTheme.labelMedium!.copyWith(
               fontWeight: FontWeight.w700,
               color: kError,
             ),

@@ -81,14 +81,17 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
                   Text('Impossible de charger les avis',
                     style: TextStyle(fontSize: 14, color: context.tpInkSub)),
                   const SizedBox(height: 12),
-                  GestureDetector(
+                  Semantics(
+                    button: true, label: 'Réessayer',
+                    child: GestureDetector(
                     onTap: () => ref.invalidate(promoterReviewsProvider(widget.promoterId)),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       decoration: BoxDecoration(
-                        gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+                        gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
                       child: const Text('Réessayer',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ),
                     ),
                   ),
                 ]),
@@ -145,7 +148,7 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
             child: Container(
               width: 44, height: 44,
               decoration: BoxDecoration(color: context.tpCard,
-                  borderRadius: BorderRadius.circular(12), boxShadow: Shadows.sm),
+                  borderRadius: BorderRadius.circular(Radii.md), boxShadow: Shadows.sm),
               child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18)),
           )),
         const SizedBox(width: 10),
@@ -172,7 +175,7 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
       child: Container(
         padding: const EdgeInsets.all(Sp.md),
         decoration: BoxDecoration(
-          color: context.tpCard, borderRadius: BorderRadius.circular(20), boxShadow: Shadows.md),
+          color: context.tpCard, borderRadius: BorderRadius.circular(Radii.card), boxShadow: Shadows.md),
         child: Row(children: [
           Column(children: [
             Text(avg > 0 ? avg.toStringAsFixed(1) : '–',
@@ -252,7 +255,7 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
                   decoration: BoxDecoration(
                     gradient: active ? trackpartyGradient : null,
                     color: active ? null : context.tpCard,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(Radii.md),
                     border: active ? null : Border.all(color: context.tpHair),
                     boxShadow: active
                         ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10)] : null,
@@ -284,7 +287,7 @@ class _ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: context.tpCard, borderRadius: BorderRadius.circular(20), boxShadow: Shadows.md),
+        color: context.tpCard, borderRadius: BorderRadius.circular(Radii.card), boxShadow: Shadows.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -310,7 +313,7 @@ class _ReviewCard extends StatelessWidget {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(gradient: gradientSoft, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(gradient: gradientSoft, borderRadius: BorderRadius.circular(Radii.sm)),
               child: Text('📍 ${review.eventTitle}',
                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kPrimary)),
             ),
@@ -329,7 +332,7 @@ class _ReviewCard extends StatelessWidget {
               children: review.tagLabels.map((t) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: context.tpBg, borderRadius: BorderRadius.circular(999)),
+                  color: context.tpBg, borderRadius: BorderRadius.circular(Radii.pill)),
                 child: Text(t, style: TextStyle(
                     fontSize: 10, fontWeight: FontWeight.w700, color: context.tpInk)),
               )).toList()),
@@ -342,7 +345,9 @@ class _ReviewCard extends StatelessWidget {
           // Reply button (owner, no reply yet)
           if (isOwner && (review.organizerReply == null || review.organizerReply!.isEmpty)) ...[
             const SizedBox(height: 10),
-            GestureDetector(
+            Semantics(
+              button: true, label: 'Répondre à l\'avis',
+              child: GestureDetector(
               onTap: onReply,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -352,6 +357,7 @@ class _ReviewCard extends StatelessWidget {
                   Text('Répondre',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
                 ],
+              ),
               ),
             ),
           ],
@@ -383,7 +389,7 @@ class _OrganizerReply extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: kPrimary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(Radii.button),
         border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
       ),
       child: Column(
@@ -450,7 +456,7 @@ class _ReplySheetState extends State<_ReplySheet> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erreur : $e'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     }
@@ -464,7 +470,7 @@ class _ReplySheetState extends State<_ReplySheet> {
       padding: EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, Sp.md + bottom),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -488,7 +494,7 @@ class _ReplySheetState extends State<_ReplySheet> {
           Container(
             decoration: BoxDecoration(
               color: context.tpBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.lg),
               border: Border.all(color: context.tpHair),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -510,7 +516,9 @@ class _ReplySheetState extends State<_ReplySheet> {
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            child: GestureDetector(
+            child: Semantics(
+              button: true, label: 'Publier la réponse',
+              child: GestureDetector(
               onTap: _loading || widget.ctrl.text.trim().isEmpty ? null : _submit,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -518,7 +526,7 @@ class _ReplySheetState extends State<_ReplySheet> {
                 decoration: BoxDecoration(
                   gradient: widget.ctrl.text.trim().isEmpty ? null : trackpartyGradient,
                   color: widget.ctrl.text.trim().isEmpty ? context.tpHair : null,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(Radii.button),
                   boxShadow: widget.ctrl.text.trim().isNotEmpty ? Shadows.brand : null,
                 ),
                 child: Center(
@@ -533,6 +541,7 @@ class _ReplySheetState extends State<_ReplySheet> {
                                 ? context.tpInkMute : Colors.white,
                           )),
                 ),
+              ),
               ),
             ),
           ),

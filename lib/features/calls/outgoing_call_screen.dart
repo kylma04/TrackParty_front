@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -73,7 +74,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
       canPop: false,
       onPopInvokedWithResult: (_, _) => _hangup(),
       child: Scaffold(
-        backgroundColor: const Color(0xFF0B0F1A),
+        backgroundColor: kCallBg,
         body: SafeArea(
           child: Column(
             children: [
@@ -117,15 +118,18 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
 
               const Spacer(flex: 3),
 
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Raccrocher',
+                child: GestureDetector(
                 onTap: _hangup,
                 child: Container(
                   width: 68, height: 68,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFCC2222),
+                    color: kCallDecline,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(PhosphorIcons.phoneSlash(), color: Colors.white, size: 28),
+                ),
                 ),
               ),
 
@@ -230,7 +234,7 @@ class _PulsingOutgoingAvatarState extends State<_PulsingOutgoingAvatar>
           width: 90, height: 90,
           decoration: BoxDecoration(shape: BoxShape.circle, gradient: trackpartyGradient),
           child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
-              ? ClipOval(child: Image.network(widget.avatarUrl!, fit: BoxFit.cover))
+              ? ClipOval(child: CachedNetworkImage(imageUrl: widget.avatarUrl!, width: 90, height: 90, fit: BoxFit.cover))
               : Center(
                   child: Text(_initials(),
                     style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),

@@ -33,15 +33,19 @@ class EventCheckinsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
             child: Row(children: [
-              GestureDetector(
-                onTap: () => context.pop(),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+              Semantics(
+                button: true,
+                label: 'Retour',
+                child: GestureDetector(
+                  onTap: () => context.pop(),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                        color: context.tpCard,
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        boxShadow: Shadows.sm),
+                    child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -54,15 +58,19 @@ class EventCheckinsScreen extends ConsumerWidget {
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                 ]),
               ),
-              GestureDetector(
-                onTap: () => ref.invalidate(eventCheckinsProvider(eventId)),
-                child: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.arrowClockwise(), color: context.tpInkSub, size: 16),
+              Semantics(
+                button: true,
+                label: 'Actualiser',
+                child: GestureDetector(
+                  onTap: () => ref.invalidate(eventCheckinsProvider(eventId)),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                        color: context.tpCard,
+                        borderRadius: BorderRadius.circular(Radii.tag),
+                        boxShadow: Shadows.sm),
+                    child: Icon(PhosphorIcons.arrowClockwise(), color: context.tpInkSub, size: 16),
+                  ),
                 ),
               ),
             ]),
@@ -84,10 +92,14 @@ class EventCheckinsScreen extends ConsumerWidget {
                           Text('Impossible de charger les entrées',
                               style: TextStyle(fontSize: 14, color: context.tpInkSub)),
                           const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: () => ref.invalidate(eventCheckinsProvider(eventId)),
-                            child: Text('Réessayer',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
+                          Semantics(
+                            button: true,
+                            label: 'Réessayer',
+                            child: GestureDetector(
+                              onTap: () => ref.invalidate(eventCheckinsProvider(eventId)),
+                              child: Text('Réessayer',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
+                            ),
                           ),
                         ]),
                       ),
@@ -122,16 +134,16 @@ class EventCheckinsScreen extends ConsumerWidget {
                       margin: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, 12),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                          color: const Color(0xFF22A865).withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFF22A865).withValues(alpha: 0.25))),
+                          color: kSuccess.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(Radii.button),
+                          border: Border.all(color: kSuccess.withValues(alpha: 0.25))),
                       child: Row(children: [
                         Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
-                            color: const Color(0xFF22A865), size: 18),
+                            color: kSuccess, size: 18),
                         const SizedBox(width: 10),
                         Text('${checkins.length} entrée${checkins.length > 1 ? 's' : ''} validée${checkins.length > 1 ? 's' : ''}',
                             style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF22A865))),
+                                fontSize: 14, fontWeight: FontWeight.w800, color: kSuccess)),
                       ]),
                     ),
                     Expanded(
@@ -139,6 +151,7 @@ class EventCheckinsScreen extends ConsumerWidget {
                         padding: EdgeInsets.fromLTRB(
                             Sp.md, 0, Sp.md, MediaQuery.of(context).padding.bottom + 20),
                         itemCount: checkins.length,
+                        addAutomaticKeepAlives: false,
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (_, i) => _CheckinTile(ticket: checkins[i]),
                       ),
@@ -168,7 +181,7 @@ class _CheckinTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(Radii.button),
           boxShadow: Shadows.sm),
       child: Row(children: [
         TpAvatar(name: ticket.holderName, size: 40),
@@ -184,11 +197,11 @@ class _CheckinTile extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-              color: const Color(0xFF22A865).withValues(alpha: 0.12),
+              color: kSuccess.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6)),
           child: const Text('✓',
               style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF22A865))),
+                  fontSize: 12, fontWeight: FontWeight.w900, color: kSuccess)),
         ),
       ]),
     );

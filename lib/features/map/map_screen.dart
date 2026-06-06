@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,12 +63,12 @@ class _Cat {
 
 // Keys match backend category slugs (no accents)
 const _cats = {
-  'soiree':  _Cat(Color(0xFFEC4899), '🎉', 'Soirée'),
-  'cuisine': _Cat(Color(0xFFF97316), '🍽', 'Cuisine'),
-  'sport':   _Cat(Color(0xFF06B6D4), '⚽', 'Sport'),
-  'musique': _Cat(Color(0xFF7C3AED), '🎵', 'Musique'),
-  'art':     _Cat(Color(0xFF84CC16), '🎨', 'Art'),
-  'plage':   _Cat(Color(0xFFF59E0B), '🏖', 'Plage'),
+  'soiree':  _Cat(kTertiary, '🎉', 'Soirée'),
+  'cuisine': _Cat(kAccent, '🍽', 'Cuisine'),
+  'sport':   _Cat(kInfo, '⚽', 'Sport'),
+  'musique': _Cat(kSecondary, '🎵', 'Musique'),
+  'art':     _Cat(kCategoryArt, '🎨', 'Art'),
+  'plage':   _Cat(kWarning, '🏖', 'Plage'),
   'autre':   _Cat(Color(0xFF6B7280), '✨', 'Autre'),
 };
 
@@ -419,7 +420,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final avatarR = circleD / 2 - border;
     canvas.drawCircle(Offset(cx, cy), avatarR,
       Paint()..shader = const LinearGradient(
-        colors: [Color(0xFF4F46E5), Color(0xFFEC4899)],
+        colors: [kPrimary, kTertiary],
         begin: Alignment.topLeft, end: Alignment.bottomRight,
       ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: avatarR)));
 
@@ -636,7 +637,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: context.tpCard,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(Radii.lg),
                   boxShadow: Shadows.md,
                 ),
                 child: Row(
@@ -647,8 +648,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       child: GestureDetector(
                         onTap: () => context.go('/map'),
                         child: Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.tag)),
                           child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
                         ),
                       ),
@@ -679,7 +680,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: kPrimary.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(Radii.tag),
                         ),
                         child: Text(
                           _routeDuration != null ? '$distStr · $_routeDuration' : distStr,
@@ -704,7 +705,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   width: 50, height: 50,
                   decoration: BoxDecoration(
                     gradient: trackpartyGradient,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: Shadows.brand,
                   ),
                   child: Icon(PhosphorIcons.arrowsOut(), color: Colors.white, size: 22),
@@ -765,7 +766,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                         decoration: BoxDecoration(
                           gradient: trackpartyGradient,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(Radii.button),
                           boxShadow: Shadows.brand,
                         ),
                         child: Row(
@@ -846,6 +847,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return ListView.separated(
       padding: EdgeInsets.fromLTRB(Sp.md, topPad + 4, Sp.md, 100),
       itemCount: filtered.length,
+      addAutomaticKeepAlives: false,
       separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) {
         final e = filtered[i];
@@ -873,7 +875,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               height: 50,
               decoration: BoxDecoration(
                 color: context.tpCard,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(Radii.lg),
                 border: Border.all(
                   color: _searchFocus.hasFocus
                       ? kPrimary.withValues(alpha: 0.5)
@@ -905,20 +907,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                   ),
                   if (_searchQuery.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _searchCtrl.clear();
-                        _searchFocus.unfocus();
-                        setState(() => _searchQuery = '');
-                      },
-                      child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
+                    Semantics(
+                      button: true,
+                      label: 'Effacer la recherche',
+                      child: GestureDetector(
+                        onTap: () {
+                          _searchCtrl.clear();
+                          _searchFocus.unfocus();
+                          setState(() => _searchQuery = '');
+                        },
+                        child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
+                      ),
                     )
                   else
                     Container(
                       width: 32, height: 32,
                       decoration: BoxDecoration(
                         gradient: trackpartyGradient,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(Radii.tag),
                       ),
                       child: Icon(PhosphorIcons.slidersHorizontal(), color: Colors.white, size: 16),
                     ),
@@ -936,7 +942,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: context.tpCard,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(Radii.md),
                     border: Border.all(color: context.tpHair),
                   ),
                   child: Row(
@@ -1005,7 +1011,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         decoration: BoxDecoration(
                           gradient: active ? trackpartyGradient : null,
                           color: active ? null : context.tpCard,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(Radii.md),
                           border: active ? null : Border.all(color: context.tpHair),
                           boxShadow: active
                               ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
@@ -1048,7 +1054,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 width: 50, height: 50,
                 decoration: BoxDecoration(
                   gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(Radii.lg),
                   boxShadow: Shadows.brand,
                 ),
                 child: Icon(PhosphorIcons.navigationArrow(), color: Colors.white, size: 24),
@@ -1060,7 +1066,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             width: 50,
             decoration: BoxDecoration(
               color: context.tpCard,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.lg),
               boxShadow: Shadows.md,
             ),
             child: Column(
@@ -1089,7 +1095,7 @@ class _LoadingChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: Shadows.md,
       ),
       child: Row(
@@ -1117,7 +1123,7 @@ class _ErrorBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: kError.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Radii.md),
       ),
       child: Row(
         children: [
@@ -1127,10 +1133,14 @@ class _ErrorBanner extends StatelessWidget {
             child: Text('Impossible de charger les événements',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kError)),
           ),
-          GestureDetector(
-            onTap: onRetry,
-            child: Text('Réessayer',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+          Semantics(
+            button: true,
+            label: 'Réessayer',
+            child: GestureDetector(
+              onTap: onRetry,
+              child: Text('Réessayer',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+            ),
           ),
         ],
       ),
@@ -1230,7 +1240,7 @@ class _PinCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(Radii.sheet),
         boxShadow: const [BoxShadow(color: Color(0x2E1B1A2E), blurRadius: 30, offset: Offset(0, -8))],
       ),
       padding: const EdgeInsets.all(14),
@@ -1241,10 +1251,10 @@ class _PinCard extends StatelessWidget {
               Container(
                 width: 76, height: 76,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(Radii.button),
                   image: event.coverImageUrl != null
                       ? DecorationImage(
-                          image: NetworkImage(event.coverImageUrl!),
+                          image: CachedNetworkImageProvider(event.coverImageUrl!),
                           fit: BoxFit.cover,
                         )
                       : null,
@@ -1311,7 +1321,7 @@ class _PinCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(Radii.md),
                       boxShadow: Shadows.brand,
                     ),
                     child: const Text('Voir →',
@@ -1342,7 +1352,10 @@ class _MapListRow extends StatelessWidget {
     final max = event.maxParticipants ?? 0;
     final pct = max > 0 ? event.participantsCount / max : 0.0;
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: event.title,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(10),
@@ -1358,10 +1371,10 @@ class _MapListRow extends StatelessWidget {
                 Container(
                   width: 76, height: 76,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(Radii.button),
                     image: event.coverImageUrl != null
                         ? DecorationImage(
-                            image: NetworkImage(event.coverImageUrl!),
+                            image: CachedNetworkImageProvider(event.coverImageUrl!),
                             fit: BoxFit.cover,
                           )
                         : null,
@@ -1416,7 +1429,7 @@ class _MapListRow extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
                             gradient: trackpartyGradient,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(Radii.xs),
                           ),
                           child: const Text('★',
                             style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900,
@@ -1455,6 +1468,7 @@ class _MapListRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

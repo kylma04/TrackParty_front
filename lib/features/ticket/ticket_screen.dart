@@ -57,15 +57,18 @@ class _TicketBody extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 8),
           child: Row(children: [
-            GestureDetector(
+            Semantics(
+              button: true, label: 'Retour',
+              child: GestureDetector(
               onTap: () => context.pop(),
               child: Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
                     color: context.tpCard,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(Radii.md),
                     boxShadow: Shadows.sm),
                 child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+              ),
               ),
             ),
             const SizedBox(width: 12),
@@ -84,20 +87,23 @@ class _TicketBody extends StatelessWidget {
         if (!expired)
           Padding(
             padding: EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, MediaQuery.of(context).padding.bottom + 16),
-            child: GestureDetector(
+            child: Semantics(
+              button: true,
+              label: 'Copier le token du billet',
+              child: GestureDetector(
               onTap: () {
                 Clipboard.setData(ClipboardData(text: ticket.token));
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: const Text('Token copié'),
                   behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
                 ));
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
                     color: context.tpCard,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(Radii.button),
                     border: Border.all(color: context.tpHair)),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(PhosphorIcons.copy(), color: context.tpInkSub, size: 16),
@@ -105,6 +111,7 @@ class _TicketBody extends StatelessWidget {
                   Text('Copier le token',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                 ]),
+              ),
               ),
             ),
           ),
@@ -125,7 +132,7 @@ class _TicketCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(Radii.cardLg),
         boxShadow: Shadows.lg,
       ),
       clipBehavior: Clip.antiAlias,
@@ -185,16 +192,16 @@ class _TicketCard extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: Shadows.md),
                 child: QrImageView(
                   data: ticket.token,
                   version: QrVersions.auto,
                   size: 200,
                   eyeStyle: const QrEyeStyle(
-                      eyeShape: QrEyeShape.square, color: Color(0xFF1B1A2E)),
+                      eyeShape: QrEyeShape.square, color: kInkLight),
                   dataModuleStyle: const QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.square, color: Color(0xFF1B1A2E)),
+                      dataModuleShape: QrDataModuleShape.square, color: kInkLight),
                 ),
               ),
               if (expired)
@@ -202,7 +209,7 @@ class _TicketCard extends StatelessWidget {
                   width: 224, height: 224,
                   decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(Radii.lg)),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(PhosphorIcons.xCircle(PhosphorIconsStyle.fill),
                         color: kError, size: 40),
@@ -217,8 +224,8 @@ class _TicketCard extends StatelessWidget {
                 Container(
                   width: 224, height: 224,
                   decoration: BoxDecoration(
-                      color: const Color(0xFF22A865).withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(16)),
+                      color: kSuccess.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(Radii.lg)),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
                         color: Colors.white, size: 40),
@@ -241,7 +248,7 @@ class _TicketCard extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: ticket.checkedIn
-                      ? const Color(0xFF22A865)
+                      ? kSuccess
                       : expired ? kError : context.tpInkSub),
             ),
           ]),

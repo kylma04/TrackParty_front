@@ -111,7 +111,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
                           horizontal: Sp.lg, vertical: 12),
                       decoration: BoxDecoration(
                         color: kSuccess.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(Radii.button),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
@@ -145,13 +145,16 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
             if (!_sent)
               Padding(
                 padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.lg),
-                child: GestureDetector(
+                child: Semantics(
+                  button: true,
+                  label: 'Envoyer la demande de contact',
+                  child: GestureDetector(
                   onTap: _sending ? null : _sendRequest,
                   child: Container(
                     height: 54,
                     decoration: BoxDecoration(
                       gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(Radii.lg),
                       boxShadow: Shadows.brand,
                     ),
                     child: Center(
@@ -181,6 +184,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
                             ]),
                     ),
                   ),
+                  ),
                 ),
               ),
           ],
@@ -194,17 +198,20 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
       padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 0),
       child: Row(
         children: [
-          GestureDetector(
+          Semantics(
+            button: true, label: 'Retour',
+            child: GestureDetector(
             onTap: () => context.pop(),
             child: Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
                 color: context.tpCard,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(Radii.md),
               ),
               child: Icon(PhosphorIcons.caretLeft(),
                   color: context.tpInk, size: 18),
+            ),
             ),
           ),
           const SizedBox(width: 12),

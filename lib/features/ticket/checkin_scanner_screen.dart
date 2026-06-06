@@ -87,14 +87,17 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 0),
             child: Row(children: [
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Retour',
+                child: GestureDetector(
                 onTap: () => context.pop(),
                 child: Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
                       color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(Radii.md)),
                   child: const Icon(Icons.close, color: Colors.white, size: 20),
+                ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -108,13 +111,16 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
                 ]),
               ),
               // Flash toggle
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Activer/désactiver la lampe torche',
+                child: GestureDetector(
                 onTap: () => _scanner.toggleTorch(),
                 child: Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
-                      color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+                      color: Colors.black54, borderRadius: BorderRadius.circular(Radii.md)),
                   child: const Icon(Icons.flash_on, color: Colors.white, size: 20),
+                ),
                 ),
               ),
             ]),
@@ -183,8 +189,8 @@ class _ScanResult {
       );
 
   Color get bgColor => switch (status) {
-        _ScanStatus.success      => const Color(0xFF22A865),
-        _ScanStatus.alreadyChecked => const Color(0xFFF97316),
+        _ScanStatus.success      => kSuccess,
+        _ScanStatus.alreadyChecked => kAccent,
         _ScanStatus.invalid      => kError,
         _ScanStatus.error        => kError,
       };
@@ -230,7 +236,7 @@ class _ResultOverlay extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(20)),
+                    borderRadius: BorderRadius.circular(Radii.card)),
                 child: const Text('Reprend dans 3s…',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white70)),
               ),
@@ -264,7 +270,7 @@ class _ScanOverlay extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                   color: Colors.black,
-                  borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(Radii.lg)),
             ),
           ),
         ]),

@@ -18,9 +18,9 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    print('🔥 Firebase initialized successfully');
+    debugPrint('🔥 Firebase initialized successfully');
   } catch (e) {
-    print('⚠️ Firebase initialization failed: $e');
+    debugPrint('⚠️ Firebase initialization failed: $e');
   }
 
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

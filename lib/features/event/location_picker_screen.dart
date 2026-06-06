@@ -104,7 +104,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   height: _moving ? 3 : 5,
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(99),
+                    borderRadius: BorderRadius.circular(Radii.pill),
                   ),
                 ),
               ],
@@ -126,7 +126,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         width: 44, height: 44,
                         decoration: BoxDecoration(
                           color: context.tpCard,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(Radii.md),
                           boxShadow: Shadows.sm,
                         ),
                         child: Icon(PhosphorIcons.x(), color: context.tpInk, size: 18),
@@ -139,7 +139,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                       decoration: BoxDecoration(
                         color: context.tpCard,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(Radii.md),
                         boxShadow: Shadows.sm,
                       ),
                       child: Text(
@@ -167,7 +167,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: context.tpCard,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(Radii.md),
                         boxShadow: Shadows.sm,
                       ),
                       child: Row(
@@ -198,7 +198,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                               width: 52, height: 52,
                               decoration: BoxDecoration(
                                 gradient: trackpartyGradient,
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(Radii.button),
                                 boxShadow: const [
                                   BoxShadow(color: Color(0x4D7C3AED), blurRadius: 12, offset: Offset(0, 4)),
                                 ],

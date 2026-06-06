@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
+import '../theme/spacing.dart';
+import '../theme/theme_ext.dart';
 
 class OtpCountdown extends StatefulWidget {
   final Duration duration;
@@ -66,7 +68,7 @@ class _OtpCountdownState extends State<OtpCountdown> {
       children: [
         // Progress bar
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(Radii.xs),
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 1.0, end: _progress),
             duration: const Duration(milliseconds: 800),
@@ -74,7 +76,7 @@ class _OtpCountdownState extends State<OtpCountdown> {
             builder: (_, value, _) => LinearProgressIndicator(
               value: value,
               minHeight: 4,
-              backgroundColor: const Color(0xFFECECF3),
+              backgroundColor: context.tpHair,
               valueColor: AlwaysStoppedAnimation<Color>(_color),
             ),
           ),
@@ -87,7 +89,7 @@ class _OtpCountdownState extends State<OtpCountdown> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: kError.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(Radii.tag),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.timer_off_rounded, size: 15, color: kError),
@@ -102,7 +104,7 @@ class _OtpCountdownState extends State<OtpCountdown> {
             const SizedBox(width: 5),
             Text(
               'Expire dans ',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF6B6A82)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.tpInkSub),
             ),
             Text(
               _label,

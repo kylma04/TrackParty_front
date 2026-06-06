@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import '../theme/gradients.dart';
 import '../theme/shadows.dart';
+import '../theme/theme_ext.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class TpTabBar extends StatelessWidget {
@@ -26,15 +27,10 @@ class TpTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? kCardDark : Colors.white;
-    final hair = isDark ? kHairDark : kHairLight;
-    final inactiveColor = isDark ? kInkMuteDark : kInkMuteLight;
-
     return Container(
       decoration: BoxDecoration(
-        color: bg,
-        border: Border(top: BorderSide(color: hair, width: 1)),
+        color: context.tpCard,
+        border: Border(top: BorderSide(color: context.tpHair, width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -64,7 +60,7 @@ class TpTabBar extends StatelessWidget {
                           children: [
                             Icon(
                               active ? item.activeIcon : item.icon,
-                              color: active ? kPrimary : inactiveColor,
+                              color: active ? kPrimary : context.tpInkMute,
                               size: 24,
                             ),
                             const SizedBox(height: 2),
@@ -73,7 +69,7 @@ class TpTabBar extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-                                color: active ? kPrimary : inactiveColor,
+                                color: active ? kPrimary : context.tpInkMute,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -111,7 +107,7 @@ class TpTabBar extends StatelessWidget {
                         decoration: BoxDecoration(
                           gradient: trackpartyGradient,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: bg, width: 3),
+                          border: Border.all(color: context.tpCard, width: 3),
                           boxShadow: Shadows.brand,
                         ),
                         child: Icon(PhosphorIcons.plus(), color: Colors.white, size: 28),

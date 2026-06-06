@@ -25,15 +25,18 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 16),
             child: Row(children: [
-              GestureDetector(
+              Semantics(
+                button: true, label: 'Retour',
+                child: GestureDetector(
                 onTap: () => context.pop(),
                 child: Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
                       color: context.tpCard,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(Radii.md),
                       boxShadow: Shadows.sm),
                   child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -58,10 +61,13 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
                           Text('Impossible de charger les invitations',
                               style: TextStyle(fontSize: 14, color: context.tpInkSub)),
                           const SizedBox(height: 8),
-                          GestureDetector(
+                          Semantics(
+                            button: true, label: 'Réessayer',
+                            child: GestureDetector(
                             onTap: () => ref.invalidate(coOrganizerInvitationsProvider),
                             child: const Text('Réessayer',
                                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
+                            ),
                           ),
                         ]),
                       ),
@@ -94,6 +100,7 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
                     padding: EdgeInsets.fromLTRB(
                         Sp.md, 0, Sp.md, MediaQuery.of(context).padding.bottom + 20),
                     itemCount: invitations.length,
+                    addAutomaticKeepAlives: false,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (_, i) => _InvitationCard(
                       invitation: invitations[i],
@@ -117,6 +124,7 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
     required bool accept,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
+    final cardColor = context.tpCard;
     try {
       await ref
           .read(coOrganizerInvitationsProvider.notifier)
@@ -126,14 +134,14 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
             ? 'Tu co-organises maintenant « ${invitation.eventTitle} » !'
             : 'Invitation refusée'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: accept ? const Color(0xFF22A865) : context.tpCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+        backgroundColor: accept ? kSuccess : cardColor,
       ));
     } catch (_) {
       messenger.showSnackBar(SnackBar(
         content: const Text('Une erreur est survenue'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         backgroundColor: kError,
       ));
     }
@@ -170,7 +178,7 @@ class _InvitationCard extends StatelessWidget {
             width: 40, height: 40,
             decoration: BoxDecoration(
                 color: kPrimary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(Radii.md)),
             child: Icon(PhosphorIcons.usersThree(), color: kPrimary, size: 20),
           ),
           const SizedBox(width: 12),
@@ -190,7 +198,7 @@ class _InvitationCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
               color: kPrimary.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(8)),
+              borderRadius: BorderRadius.circular(Radii.sm)),
           child: Text(
             '${invitation.invitedByName} t\'invite à co-organiser cet événement.',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kPrimary),
@@ -200,33 +208,41 @@ class _InvitationCard extends StatelessWidget {
         // Actions
         Row(children: [
           Expanded(
-            child: GestureDetector(
-              onTap: onDecline,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                    color: context.tpBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: context.tpHair)),
-                child: Center(
-                  child: Text('Refuser',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
+            child: Semantics(
+              button: true,
+              label: 'Refuser l\'invitation',
+              child: GestureDetector(
+                onTap: onDecline,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(Radii.md),
+                      border: Border.all(color: context.tpHair)),
+                  child: Center(
+                    child: Text('Refuser',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: GestureDetector(
-              onTap: onAccept,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                    color: kPrimary,
-                    borderRadius: BorderRadius.circular(12)),
-                child: const Center(
-                  child: Text('Accepter',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+            child: Semantics(
+              button: true,
+              label: 'Accepter l\'invitation',
+              child: GestureDetector(
+                onTap: onAccept,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                      color: kPrimary,
+                      borderRadius: BorderRadius.circular(Radii.md)),
+                  child: const Center(
+                    child: Text('Accepter',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
                 ),
               ),
             ),

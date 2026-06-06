@@ -135,9 +135,8 @@ class _TpButtonState extends State<TpButton> {
                     ],
                     Text(
                       widget.label,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleMedium!.copyWith(
                         fontSize: _fontSize,
-                        fontWeight: FontWeight.w800,
                         color: textColor,
                       ),
                     ),

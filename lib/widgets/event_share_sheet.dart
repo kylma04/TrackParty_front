@@ -78,7 +78,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text('Lien copié !'),
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
       duration: const Duration(seconds: 2),
     ));
   }
@@ -122,7 +122,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Impossible d\'envoyer le message'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         backgroundColor: kError,
       ));
     }
@@ -135,7 +135,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       padding: EdgeInsets.fromLTRB(Sp.md, 20, Sp.md, bottomInset + 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -148,7 +148,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
         Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
             child: Icon(PhosphorIcons.shareNetwork(), color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
@@ -177,14 +177,14 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
             _ActionBtn(
               icon: PhosphorIcons.shareNetwork(),
               label: 'Partager\nvia…',
-              color: const Color(0xFF22A865),
+              color: kSuccess,
               onTap: _shareNative,
             ),
             const SizedBox(width: 12),
             _ActionBtn(
               icon: PhosphorIcons.chatCircleDots(),
               label: 'Envoyer\ndans l\'appli',
-              color: const Color(0xFF8B5CF6),
+              color: kViolet,
               onTap: () => setState(() => _tab = 'contacts'),
             ),
           ]),
@@ -195,7 +195,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
                 color: context.tpCard,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 border: Border.all(color: context.tpHair)),
             child: Row(children: [
               Icon(PhosphorIcons.link(), color: context.tpInkMute, size: 16),
@@ -210,9 +210,17 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
         ] else ...[
           // ── Recherche contacts ───────────────────────────────────────────────
           Row(children: [
-            GestureDetector(
-              onTap: () => setState(() { _tab = 'home'; _searchCtrl.clear(); _results = []; }),
-              child: Icon(PhosphorIcons.arrowLeft(), color: context.tpInk, size: 20),
+            Semantics(
+              button: true,
+              label: 'Retour',
+              child: GestureDetector(
+                onTap: () => setState(() { _tab = 'home'; _searchCtrl.clear(); _results = []; }),
+                child: Container(
+                  width: 44, height: 44,
+                  alignment: Alignment.center,
+                  child: Icon(PhosphorIcons.arrowLeft(), color: context.tpInk, size: 20),
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -228,13 +236,13 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
                   filled: true,
                   fillColor: context.tpCard,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(Radii.button),
                       borderSide: BorderSide(color: context.tpHair)),
                   enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(Radii.button),
                       borderSide: BorderSide(color: context.tpHair)),
                   focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(Radii.button),
                       borderSide: const BorderSide(color: kPrimary, width: 1.5)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 ),
@@ -263,13 +271,16 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
                 itemBuilder: (_, i) {
                   final u = _results[i];
                   final isSending = _sending == u.id;
-                  return GestureDetector(
+                  return Semantics(
+                    button: true,
+                    label: 'Envoyer l\'invitation à ${u.displayName}',
+                    child: GestureDetector(
                     onTap: isSending ? null : () => _sendToContact(u),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                           color: context.tpCard,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(Radii.md),
                           border: Border.all(color: context.tpHair)),
                       child: Row(children: [
                         TpAvatar(name: u.displayName, imageUrl: u.avatarUrl, size: 38),
@@ -287,11 +298,12 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
                                     color: kPrimary.withValues(alpha: 0.10),
-                                    borderRadius: BorderRadius.circular(8)),
+                                    borderRadius: BorderRadius.circular(Radii.sm)),
                                 child: Text('Envoyer',
                                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
                               ),
                       ]),
+                    ),
                     ),
                   );
                 },
@@ -321,14 +333,17 @@ class _ActionBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(children: [
+      child: Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Column(children: [
           Container(
             width: 52, height: 52,
             decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(Radii.lg),
                 border: Border.all(color: color.withValues(alpha: 0.25))),
             child: Icon(icon, color: color, size: 24),
           ),
@@ -337,6 +352,7 @@ class _ActionBtn extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
         ]),
+        ),
       ),
     );
   }

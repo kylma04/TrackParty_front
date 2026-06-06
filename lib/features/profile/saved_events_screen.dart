@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,12 +25,16 @@ class SavedEventsScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: context.tpCard,
         surfaceTintColor: Colors.transparent,
-        leading: GestureDetector(
-          onTap: () => context.pop(),
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+        leading: Semantics(
+          button: true,
+          label: 'Retour',
+          child: GestureDetector(
+            onTap: () => context.pop(),
+            child: Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.tag)),
+              child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+            ),
           ),
         ),
         title: Text('Mes favoris',
@@ -66,6 +71,7 @@ class SavedEventsScreen extends ConsumerWidget {
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, 100),
               itemCount: events.length,
+              addAutomaticKeepAlives: false,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (_, i) => _SavedEventCard(event: events[i]),
             ),
@@ -85,23 +91,32 @@ class _SavedEventCard extends ConsumerWidget {
     final date = DateFormat('EEE d MMM', 'fr_FR').format(event.startAt);
     final time = DateFormat('HH:mm').format(event.startAt);
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: event.title,
+      child: GestureDetector(
       onTap: () => context.push('/event/${event.id}'),
       child: Container(
         decoration: BoxDecoration(
           color: context.tpCard,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(Radii.lg),
           boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
         ),
         child: Row(children: [
           // Cover
           ClipRRect(
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(Radii.lg)),
             child: SizedBox(
               width: 90, height: 90,
               child: event.coverImageUrl != null
-                  ? Image.network(event.coverImageUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const TpPhoto())
+                  ? CachedNetworkImage(
+                      imageUrl: event.coverImageUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorWidget: (ctx, url, err) => const TpPhoto(),
+                      placeholder: (ctx, url) => const TpPhoto(),
+                    )
                   : const TpPhoto(),
             ),
           ),
@@ -123,7 +138,7 @@ class _SavedEventCard extends ConsumerWidget {
                 ]),
                 const SizedBox(height: 3),
                 Row(children: [
-                  Icon(PhosphorIcons.mapPin(), color: const Color(0xFFEC4899), size: 13),
+                  Icon(PhosphorIcons.mapPin(), color: kTertiary, size: 13),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(event.addressLabel.isNotEmpty ? event.addressLabel : event.city,
@@ -135,18 +150,23 @@ class _SavedEventCard extends ConsumerWidget {
             ),
           ),
           // Unsave button
-          GestureDetector(
-            onTap: () async {
-              await ref.read(eventServiceProvider).unsaveEvent(event.id);
-              ref.invalidate(savedEventsProvider);
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Icon(PhosphorIcons.heart(PhosphorIconsStyle.fill),
-                  color: const Color(0xFFEC4899), size: 22),
+          Semantics(
+            button: true,
+            label: 'Retirer des favoris',
+            child: GestureDetector(
+              onTap: () async {
+                await ref.read(eventServiceProvider).unsaveEvent(event.id);
+                ref.invalidate(savedEventsProvider);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Icon(PhosphorIcons.heart(PhosphorIconsStyle.fill),
+                    color: kTertiary, size: 22),
+              ),
             ),
           ),
         ]),
+      ),
       ),
     );
   }

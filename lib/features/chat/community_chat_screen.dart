@@ -97,19 +97,14 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Impossible de mettre à jour la photo'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     }
   }
 
   Future<void> _renameCommunity(ChatRoomModel room) async {
-    // Le dialog gère son propre controller via StatefulWidget pour éviter
-    // les problèmes de dispose pendant le démontage de l'arbre widget.
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (_) => _RenameDialog(initialName: room.displayName),
-    );
+    final newName = await _showRenameSheet(context, room.displayName);
     if (newName == null || !mounted) return;
     try {
       await ref.read(chatServiceProvider).updateCommunityName(room.id, newName);
@@ -119,7 +114,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Impossible de renommer la communauté'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     }
@@ -258,14 +253,17 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                         width: 44, height: 44,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(Radii.md),
                         ),
                         child: Icon(PhosphorIcons.caretLeft(), color: Colors.white, size: 18),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  GestureDetector(
+                  Semantics(
+                    button: true,
+                    label: 'Changer l\'avatar de la communauté',
+                    child: GestureDetector(
                     onTap: room?.isAdmin == true ? () => _changeAvatar(room!) : null,
                     child: Stack(
                       children: [
@@ -280,7 +278,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                             child: Container(
                               width: 16, height: 16,
                               decoration: BoxDecoration(
-                                gradient: trackpartyGradient,
+                                color: kPrimary,
                                 shape: BoxShape.circle,
                                 border: Border.all(color: Colors.white, width: 1.5),
                               ),
@@ -289,6 +287,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                             ),
                           ),
                       ],
+                    ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -310,17 +309,25 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(Radii.xs),
                             ),
                             child: const Text('★',
                               style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w900)),
                           ),
                           if (room?.isAdmin == true) ...[
                             const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: () => _renameCommunity(room!),
-                              child: Icon(PhosphorIcons.pencilSimple(),
-                                  color: Colors.white.withValues(alpha: 0.8), size: 14),
+                            Semantics(
+                              button: true,
+                              label: 'Renommer la communauté',
+                              child: GestureDetector(
+                                onTap: () => _renameCommunity(room!),
+                                child: Container(
+                                  width: 28, height: 28,
+                                  alignment: Alignment.center,
+                                  child: Icon(PhosphorIcons.pencilSimple(),
+                                      color: Colors.white.withValues(alpha: 0.8), size: 14),
+                                ),
+                              ),
                             ),
                           ],
                         ]),
@@ -342,7 +349,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                         width: 44, height: 44,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(Radii.md),
                         ),
                         child: Icon(PhosphorIcons.usersThree(), color: Colors.white, size: 20),
                       ),
@@ -366,9 +373,9 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF6E8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x55F59E0B)),
+          color: kWarning.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: kWarning.withValues(alpha: 0.33)),
         ),
         child: Row(
           children: [
@@ -379,7 +386,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                 'Lecture seule · Seul $name peut poster.',
                 style: const TextStyle(
                   fontSize: 11, fontWeight: FontWeight.w700,
-                  color: Color(0xFF8A6515), height: 1.35),
+                  color: kWarning, height: 1.35),
               ),
             ),
           ],
@@ -445,7 +452,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(999)),
+          decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(Radii.pill)),
           child: Text(label,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
         ),
@@ -506,16 +513,20 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
           ),
           const SizedBox(width: 8),
           if (hasText)
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: 'Envoyer le message',
+              child: GestureDetector(
               onTap: () => _sendPost(roomId),
               child: Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
                   gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(Radii.button),
                   boxShadow: Shadows.brand,
                 ),
                 child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
+              ),
               ),
             )
           else
@@ -523,7 +534,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
               width: 44, height: 44,
               decoration: BoxDecoration(
                 color: context.tpBg,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 border: Border.all(color: context.tpHair),
               ),
               child: Icon(PhosphorIcons.image(), color: context.tpInkMute, size: 20),
@@ -550,13 +561,15 @@ class _CommunityPost extends ConsumerWidget {
     final time = DateFormat('HH:mm', 'fr_FR').format(message.createdAt.toLocal());
     final data = message.eventInviteData;
 
-    return GestureDetector(
+    return Semantics(
+      label: 'Message de ${message.sender.displayName}',
+      child: GestureDetector(
       onLongPress: () => _showReactionPicker(context, ref, message.id, roomId),
       child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: Shadows.md,
         border: Border.all(color: kPrimary.withValues(alpha: 0.08)),
       ),
@@ -582,7 +595,7 @@ class _CommunityPost extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(4)),
+                        decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(Radii.xs)),
                         child: const Text('★',
                           style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w900)),
                       ),
@@ -591,7 +604,7 @@ class _CommunityPost extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: kPrimary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(Radii.xs),
                         ),
                         child: const Text('Admin',
                           style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: kPrimary)),
@@ -614,7 +627,10 @@ class _CommunityPost extends ConsumerWidget {
           // Carte événement si attachée
           if (data != null) ...[
             const SizedBox(height: 10),
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: 'Voir l\'événement ${data.title}',
+              child: GestureDetector(
               onTap: () => context.push('/event/${data.id}'),
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -624,7 +640,7 @@ class _CommunityPost extends ConsumerWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(Radii.button),
                   border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
                 ),
                 child: Row(
@@ -649,12 +665,14 @@ class _CommunityPost extends ConsumerWidget {
                   ],
                 ),
               ),
+              ),
             ),
           ],
           const SizedBox(height: 10),
           _ReactionRow(message: message, roomId: roomId),
         ],
       ),
+    ),
     ),
     );
   }
@@ -694,13 +712,15 @@ class _CommunityComment extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
+                Semantics(
+                  label: 'Message de ${message.sender.displayName}',
+                  child: GestureDetector(
                   onLongPress: () => _showReactionPicker(context, ref, message.id, roomId),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: context.tpCard,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(Radii.lg),
                       boxShadow: Shadows.sm,
                     ),
                     child: Column(
@@ -723,27 +743,31 @@ class _CommunityComment extends ConsumerWidget {
                     ),
                   ),
                 ),
+                ),
                 if (hasReactions)
                   Padding(
                     padding: const EdgeInsets.only(top: 4, left: 4),
                     child: Wrap(
                       spacing: 4,
-                      children: message.reactions.map((r) => GestureDetector(
-                        onTap: () => ref.read(chatThreadProvider(roomId).notifier)
-                            .reactToMessage(message.id, r.emoji),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: kPrimary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+                      children: message.reactions.map((r) => Semantics(
+                        button: true, label: 'Réaction ${r.emoji} · ${r.count}',
+                        child: GestureDetector(
+                          onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+                              .reactToMessage(message.id, r.emoji),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: kPrimary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(Radii.card),
+                              border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Text(r.emoji, style: const TextStyle(fontSize: 13)),
+                              const SizedBox(width: 3),
+                              Text('${r.count}',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
+                            ]),
                           ),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text(r.emoji, style: const TextStyle(fontSize: 13)),
-                            const SizedBox(width: 3),
-                            Text('${r.count}',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
-                          ]),
                         ),
                       )).toList(),
                     ),
@@ -780,29 +804,37 @@ class _ReactionRow extends ConsumerWidget {
     return Row(
       children: [
         for (final r in message.reactions)
-          GestureDetector(
-            onTap: () => ref.read(chatThreadProvider(roomId).notifier)
-                .reactToMessage(message.id, r.emoji),
-            child: Container(
-              margin: const EdgeInsets.only(right: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: context.tpBg,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: context.tpHair),
+          Semantics(
+            button: true,
+            label: 'Réagir avec ${r.emoji}',
+            child: GestureDetector(
+              onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+                  .reactToMessage(message.id, r.emoji),
+              child: Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: context.tpBg,
+                  borderRadius: BorderRadius.circular(Radii.pill),
+                  border: Border.all(color: context.tpHair),
+                ),
+                child: Text('${r.emoji} ${r.count}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInk)),
               ),
-              child: Text('${r.emoji} ${r.count}',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInk)),
             ),
           ),
         const Spacer(),
         for (final emoji in _emojis)
-          GestureDetector(
-            onTap: () => ref.read(chatThreadProvider(roomId).notifier)
-                .reactToMessage(message.id, emoji),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(emoji, style: const TextStyle(fontSize: 18)),
+          Semantics(
+            button: true,
+            label: 'Réagir avec $emoji',
+            child: GestureDetector(
+              onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+                  .reactToMessage(message.id, emoji),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(emoji, style: const TextStyle(fontSize: 18)),
+              ),
             ),
           ),
       ],
@@ -827,7 +859,7 @@ class _CommunityReactionPicker extends ConsumerWidget {
       padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom + 12),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.card)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -842,20 +874,23 @@ class _CommunityReactionPicker extends ConsumerWidget {
           const SizedBox(height: 14),
           Wrap(
             spacing: 8, runSpacing: 8,
-            children: _emojis.map((emoji) => GestureDetector(
-              onTap: () {
-                ref.read(chatThreadProvider(roomId).notifier).reactToMessage(messageId, emoji);
-                Navigator.of(context).pop();
-              },
-              child: Container(
-                width: 52, height: 52,
-                decoration: BoxDecoration(
-                  color: context.tpBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: context.tpHair),
+            children: _emojis.map((emoji) => Semantics(
+              button: true, label: 'Réagir avec $emoji',
+              child: GestureDetector(
+                onTap: () {
+                  ref.read(chatThreadProvider(roomId).notifier).reactToMessage(messageId, emoji);
+                  Navigator.of(context).pop();
+                },
+                child: Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: context.tpBg,
+                    borderRadius: BorderRadius.circular(Radii.lg),
+                    border: Border.all(color: context.tpHair),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(emoji, style: const TextStyle(fontSize: 26)),
                 ),
-                alignment: Alignment.center,
-                child: Text(emoji, style: const TextStyle(fontSize: 26)),
               ),
             )).toList(),
           ),
@@ -865,67 +900,82 @@ class _CommunityReactionPicker extends ConsumerWidget {
   }
 }
 
-// ── Dialog renommage communauté ───────────────────────────────────────────────
+// ── Bottom sheet renommage communauté ────────────────────────────────────────
 
-class _RenameDialog extends StatefulWidget {
-  final String initialName;
-  const _RenameDialog({required this.initialName});
-
-  @override
-  State<_RenameDialog> createState() => _RenameDialogState();
-}
-
-class _RenameDialogState extends State<_RenameDialog> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.initialName);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Renommer la communauté',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        maxLength: 80,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        decoration: InputDecoration(
-          hintText: 'Nom de la communauté',
-          filled: true,
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+Future<String?> _showRenameSheet(BuildContext context, String initialName) {
+  final ctrl = TextEditingController(text: initialName);
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final bottom = MediaQuery.of(ctx).viewInsets.bottom +
+          MediaQuery.of(ctx).padding.bottom + 20;
+      return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
+        padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44, height: 5,
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).dividerColor,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text('Renommer la communauté',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: 80,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'Nom de la communauté',
+                filled: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Radii.md),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Radii.tag)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                  child: const Text('Enregistrer',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ]),
+          ],
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kPrimary,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-          onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
-          child: const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w800)),
-        ),
-      ],
-    );
-  }
+      );
+    },
+  );
 }
 
 // ── Indicateur de frappe ──────────────────────────────────────────────────────

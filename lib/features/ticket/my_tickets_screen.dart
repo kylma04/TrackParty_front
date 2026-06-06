@@ -28,15 +28,19 @@ class MyTicketsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
             child: Row(children: [
-              GestureDetector(
-                onTap: () => context.pop(),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+              Semantics(
+                button: true,
+                label: 'Retour',
+                child: GestureDetector(
+                  onTap: () => context.pop(),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                        color: context.tpCard,
+                        borderRadius: BorderRadius.circular(Radii.md),
+                        boxShadow: Shadows.sm),
+                    child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -61,15 +65,19 @@ class MyTicketsScreen extends ConsumerWidget {
                           Text('Impossible de charger tes billets',
                               style: TextStyle(fontSize: 14, color: context.tpInkSub)),
                           const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: () => ref.invalidate(myTicketsProvider),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              decoration: BoxDecoration(
-                                  gradient: trackpartyGradient,
-                                  borderRadius: BorderRadius.circular(12)),
-                              child: const Text('Réessayer',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                          Semantics(
+                            button: true,
+                            label: 'Réessayer',
+                            child: GestureDetector(
+                              onTap: () => ref.invalidate(myTicketsProvider),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                decoration: BoxDecoration(
+                                    gradient: trackpartyGradient,
+                                    borderRadius: BorderRadius.circular(Radii.md)),
+                                child: const Text('Réessayer',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                              ),
                             ),
                           ),
                         ]),
@@ -149,7 +157,7 @@ class _SectionLabel extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
           decoration: BoxDecoration(
-              color: context.tpHair, borderRadius: BorderRadius.circular(999)),
+              color: context.tpHair, borderRadius: BorderRadius.circular(Radii.pill)),
           child: Text('$count',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
         ),
@@ -168,12 +176,15 @@ class _TicketTile extends StatelessWidget {
     final expired  = !ticket.isValid;
     final checked  = ticket.checkedIn;
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: ticket.eventTitle,
+      child: GestureDetector(
       onTap: () => context.push('/ticket/${ticket.eventId}'),
       child: Container(
         decoration: BoxDecoration(
             color: context.tpCard,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(Radii.card),
             boxShadow: Shadows.md),
         clipBehavior: Clip.antiAlias,
         child: Row(children: [
@@ -210,6 +221,7 @@ class _TicketTile extends StatelessWidget {
           ),
         ]),
       ),
+      ),
     );
   }
 }
@@ -227,13 +239,13 @@ class _StatusChip extends StatelessWidget {
       bg = kError.withValues(alpha: 0.12);
       label = 'Expiré';
     } else if (checked) {
-      bg = const Color(0xFF22A865).withValues(alpha: 0.12);
+      bg = kSuccess.withValues(alpha: 0.12);
       label = 'Utilisé ✓';
     } else {
       bg = kPrimary.withValues(alpha: 0.10);
       label = 'Valide';
     }
-    final Color fg = expired ? kError : checked ? const Color(0xFF22A865) : kPrimary;
+    final Color fg = expired ? kError : checked ? kSuccess : kPrimary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

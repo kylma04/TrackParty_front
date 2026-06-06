@@ -24,7 +24,7 @@ class TpBadge extends StatelessWidget {
 
   factory TpBadge.category(String category) {
     final styles = _categoryStyles[category.toLowerCase()] ??
-        (bg: const Color(0xFFF3F4F6), text: kInkSubLight, emoji: '🎉');
+        (bg: const Color(0xFFFFF3E0), text: kWarning, emoji: '🎉');
     return TpBadge(
       label: category,
       textColor: styles.text,
@@ -71,12 +71,12 @@ class TpBadge extends StatelessWidget {
   }
 
   static const _categoryStyles = <String, ({Color bg, Color text, String emoji})>{
-    'musique': (bg: Color(0xFFF3E8FF), text: Color(0xFF7C3AED), emoji: '🎵'),
-    'soirée': (bg: Color(0xFFFCE7F3), text: Color(0xFFDB2777), emoji: '🎉'),
+    'musique': (bg: Color(0xFFF3E8FF), text: kSecondary, emoji: '🎵'),
+    'soirée': (bg: kContribPaidBg, text: kContribPaidText, emoji: '🎉'),
     'cuisine': (bg: Color(0xFFFFF7ED), text: Color(0xFFEA580C), emoji: '🍽'),
     'sport': (bg: Color(0xFFECFEFF), text: Color(0xFF0891B2), emoji: '⚽'),
-    'art': (bg: Color(0xFFF0FDF4), text: Color(0xFF16A34A), emoji: '🎨'),
-    'plage': (bg: Color(0xFFFFFBEB), text: Color(0xFFD97706), emoji: '🏖'),
+    'art': (bg: Color(0xFFF0FDF4), text: kContribFreeText, emoji: '🎨'),
+    'plage': (bg: Color(0xFFFFFBEB), text: kContribNatureText, emoji: '🏖'),
   };
 
   @override

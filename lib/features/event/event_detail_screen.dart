@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -114,6 +115,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
 
   @override
   Widget build(BuildContext context) {
+    final heroH = (MediaQuery.of(context).size.height * 0.42).clamp(260.0, 420.0);
     return Scaffold(
       backgroundColor: context.tpBg,
       body: Stack(
@@ -126,11 +128,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   clipBehavior: Clip.none,
                   children: [
                     Column(children: [
-                      SizedBox(height: 380, child: _buildHero(context)),
+                      SizedBox(height: heroH, child: _buildHero(context)),
                       const SizedBox(height: 80),
                     ]),
                     Positioned(
-                      top: 364, left: Sp.md, right: Sp.md,
+                      top: heroH - 16, left: Sp.md, right: Sp.md,
                       child: _buildOrganizerCard(context),
                     ),
                   ],
@@ -161,8 +163,14 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
         fit: StackFit.expand,
         children: [
           event.coverImageUrl != null
-              ? Image.network(event.coverImageUrl!, fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const TpPhoto())
+              ? CachedNetworkImage(
+                  imageUrl: event.coverImageUrl!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorWidget: (ctx, url, err) => const TpPhoto(),
+                  placeholder: (ctx, url) => const TpPhoto(),
+                )
               : const TpPhoto(),
           DecoratedBox(
             decoration: BoxDecoration(
@@ -206,7 +214,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               ? PhosphorIcons.heart(PhosphorIconsStyle.fill)
                               : PhosphorIcons.heart(),
                           semanticLabel: event.isSaved ? 'Retirer des favoris' : 'Sauvegarder',
-                          activeColor: const Color(0xFFEC4899),
+                          activeColor: kTertiary,
                           active: event.isSaved,
                           onTap: () async {
                             final svc = ref.read(eventServiceProvider);
@@ -283,7 +291,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: Shadows.md,
       ),
       child: Row(
@@ -343,7 +351,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       messenger.showSnackBar(SnackBar(
                         content: Text(wasFollowing ? 'Impossible de se désabonner' : 'Impossible de suivre ce promoteur'),
                         behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
                       ));
                     }
                   }
@@ -353,7 +361,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: _following ? kPrimary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(Radii.tag),
                     border: Border.all(color: kPrimary, width: 1.5),
                   ),
                   child: Text(
@@ -441,7 +449,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               gradient: trackpartyGradient,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(Radii.lg),
               boxShadow: const [BoxShadow(color: Color(0x284F46E5), blurRadius: 12, offset: Offset(0, 4))],
             ),
             child: Row(children: [
@@ -449,7 +457,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 width: 40, height: 40,
                 decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.20),
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(Radii.md)),
                 child: Icon(PhosphorIcons.chartBar(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
@@ -550,7 +558,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   '/map?eventLat=${event.latitude ?? ''}&eventLng=${event.longitude ?? ''}&eventTitle=${Uri.encodeComponent(event.title)}&eventId=${event.id}',
 ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(Radii.card),
                 child: SizedBox(
                   height: 140,
                   child: Stack(
@@ -613,17 +621,17 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: context.tpCard,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF22A865).withValues(alpha: 0.35)),
+                  borderRadius: BorderRadius.circular(Radii.lg),
+                  border: Border.all(color: kSuccess.withValues(alpha: 0.35)),
                 ),
                 child: Row(children: [
                   Container(
                     width: 40, height: 40,
                     decoration: BoxDecoration(
-                        color: const Color(0xFF22A865).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12)),
+                        color: kSuccess.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(Radii.md)),
                     child: Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
-                        color: const Color(0xFF22A865), size: 20),
+                        color: kSuccess, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -648,7 +656,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: context.tpCard,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(Radii.lg),
                   border: Border.all(color: kPrimary.withValues(alpha: 0.35)),
                 ),
                 child: Row(children: [
@@ -656,7 +664,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     width: 40, height: 40,
                     decoration: BoxDecoration(
                         color: kPrimary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(Radii.md)),
                     child: Icon(PhosphorIcons.qrCode(), color: kPrimary, size: 20),
                   ),
                   const SizedBox(width: 12),
@@ -730,7 +738,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     width: 52, height: 52,
                     decoration: BoxDecoration(
                       color: context.tpBg,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(Radii.lg),
                       border: Border.all(color: context.tpHair),
                     ),
                     child: Icon(PhosphorIcons.chatCircle(), color: kPrimary, size: 22),
@@ -747,7 +755,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     width: 52, height: 52,
                     decoration: BoxDecoration(
                       color: context.tpBg,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(Radii.lg),
                       border: Border.all(color: context.tpHair),
                     ),
                     child: Icon(PhosphorIcons.userPlus(), color: kAccent, size: 22),
@@ -862,7 +870,7 @@ class _HeroBtn extends StatelessWidget {
             color: active && activeColor != null
                 ? activeColor!.withValues(alpha: 0.85)
                 : Colors.black.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(Radii.md),
           ),
           child: Icon(icon, color: Colors.white, size: 20),
         ),
@@ -892,14 +900,14 @@ class _InfoCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(Radii.button),
         border: Border.all(color: context.tpHair),
       ),
       child: Row(
         children: [
           Container(
             width: 32, height: 32,
-            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(Radii.tag)),
             child: Icon(icon, color: iconColor, size: 17),
           ),
           const SizedBox(width: 8),
@@ -932,7 +940,7 @@ class _ContribRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: Sp.sm),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: context.tpCard, borderRadius: BorderRadius.circular(14), border: Border.all(color: context.tpHair)),
+        decoration: BoxDecoration(color: context.tpCard, borderRadius: BorderRadius.circular(Radii.button), border: Border.all(color: context.tpHair)),
         child: Row(
           children: [
             Text(item.emoji, style: const TextStyle(fontSize: 24)),
@@ -953,7 +961,7 @@ class _ContribRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(Radii.xs),
                     child: LinearProgressIndicator(
                       value: ratio,
                       backgroundColor: context.tpHair,
@@ -1047,7 +1055,7 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
                           : isSelected
                               ? kPrimary.withValues(alpha: 0.08)
                               : context.tpCard,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(Radii.button),
                       border: Border.all(
                         color: isSelected ? kPrimary : context.tpHair,
                         width: isSelected ? 2 : 1,
@@ -1097,7 +1105,7 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: kPrimary.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(Radii.button),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1116,7 +1124,7 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
                                       width: 36, height: 36,
                                       decoration: BoxDecoration(
                                         color: _qty > 1 ? kPrimary : context.tpHair,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(Radii.tag),
                                       ),
                                       alignment: Alignment.center,
                                       child: Text('−',
@@ -1141,7 +1149,7 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
                                       width: 36, height: 36,
                                       decoration: BoxDecoration(
                                         color: _qty < maxQty ? kPrimary : context.tpHair,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(Radii.tag),
                                       ),
                                       alignment: Alignment.center,
                                       child: Text('+',
@@ -1243,7 +1251,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       padding: EdgeInsets.fromLTRB(
         Sp.md, 12, Sp.md,
@@ -1270,7 +1278,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
             Container(
               decoration: BoxDecoration(
                 color: context.tpBg,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 border: Border.all(color: context.tpHair),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1341,7 +1349,10 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
                               ],
                             ),
                           ),
-                          GestureDetector(
+                          Semantics(
+                            button: true,
+                            label: invited ? 'Déjà invité' : 'Inviter ${user.displayName}',
+                            child: GestureDetector(
                             onTap: invited || sending ? null : () => _invite(user),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
@@ -1349,7 +1360,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
                               decoration: BoxDecoration(
                                 gradient: invited ? null : trackpartyGradient,
                                 color: invited ? context.tpHair : null,
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(Radii.tag),
                               ),
                               child: sending
                                   ? const SizedBox(
@@ -1362,6 +1373,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
                                         color: invited ? context.tpInkMute : Colors.white,
                                       ),
                                     ),
+                            ),
                             ),
                           ),
                         ],

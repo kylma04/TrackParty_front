@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import '../../core/models/event_model.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/services/event_service.dart';
 import '../../theme/colors.dart';
@@ -43,7 +42,7 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
           content: Text(accept ? 'Participant accepté !' : 'Participant rejeté.'),
           backgroundColor: accept ? kSuccess : kError,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     } catch (e) {
@@ -52,7 +51,7 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
           content: Text('Erreur : $e'),
           backgroundColor: kError,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     } finally {
@@ -69,12 +68,15 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
       appBar: AppBar(
         backgroundColor: context.tpCard,
         surfaceTintColor: Colors.transparent,
-        leading: GestureDetector(
+        leading: Semantics(
+          button: true, label: 'Retour',
+          child: GestureDetector(
           onTap: () => context.pop(),
           child: Container(
             margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.tag)),
             child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+          ),
           ),
         ),
         title: Column(
@@ -122,6 +124,7 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, 100),
               itemCount: participants.length,
+              addAutomaticKeepAlives: false,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final p = participants[i];
@@ -132,7 +135,7 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: context.tpCard,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(Radii.lg),
                     boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 6)],
                   ),
                   child: Row(children: [
@@ -141,7 +144,7 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
                       width: 28, height: 28,
                       decoration: BoxDecoration(
                           color: kPrimary.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(Radii.sm)),
                       alignment: Alignment.center,
                       child: Text('${i + 1}',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: kPrimary)),
@@ -165,26 +168,32 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
                     else
                       Row(children: [
                         // Reject
-                        GestureDetector(
+                        Semantics(
+                          button: true, label: 'Refuser la demande',
+                          child: GestureDetector(
                           onTap: () => _action(p.id, accept: false),
                           child: Container(
-                            width: 36, height: 36,
+                            width: 44, height: 44,
                             decoration: BoxDecoration(
                                 color: kError.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(10)),
+                                borderRadius: BorderRadius.circular(Radii.tag)),
                             child: Icon(PhosphorIcons.x(), color: kError, size: 18),
+                          ),
                           ),
                         ),
                         const SizedBox(width: 6),
                         // Accept
-                        GestureDetector(
+                        Semantics(
+                          button: true, label: 'Accepter la demande',
+                          child: GestureDetector(
                           onTap: () => _action(p.id, accept: true),
                           child: Container(
-                            width: 36, height: 36,
+                            width: 44, height: 44,
                             decoration: BoxDecoration(
                                 color: kSuccess.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(10)),
+                                borderRadius: BorderRadius.circular(Radii.tag)),
                             child: Icon(PhosphorIcons.check(), color: kSuccess, size: 18),
+                          ),
                           ),
                         ),
                       ]),

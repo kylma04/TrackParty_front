@@ -18,7 +18,6 @@ import '../../core/providers/chat_provider.dart';
 import '../../core/services/call_service.dart';
 import '../../core/services/chat_websocket_service.dart';
 import '../../core/services/invitation_service.dart';
-import '../calls/outgoing_call_screen.dart';
 import 'room_members_sheet.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -166,7 +165,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: const Text('Permission micro refusée — autorise le micro dans les réglages.'),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
           ));
         }
         return false;
@@ -186,7 +185,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erreur micro : $e'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
       return false;
@@ -337,23 +336,18 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         remoteUserAvatarUrl: other?.avatarUrl,
       );
       if (ctx.mounted) {
-        Navigator.push(
-          ctx,
-          MaterialPageRoute(
-            builder: (_) => OutgoingCallScreen(
-              callType: callType,
-              remoteUserName: name,
-              remoteUserAvatarUrl: other?.avatarUrl,
-            ),
-          ),
-        );
+        ctx.push('/call/outgoing', extra: {
+          'callType': callType,
+          'remoteUserName': name,
+          'remoteUserAvatarUrl': other?.avatarUrl,
+        });
       }
     } catch (e) {
       if (ctx.mounted) {
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
           content: Text('Impossible de lancer l\'appel : $e'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     }
@@ -406,12 +400,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         ),
         child: Row(
           children: [
-            GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+            Semantics(
+              button: true, label: 'Retour',
+              child: GestureDetector(
+                onTap: () => context.pop(),
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
+                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -441,39 +438,47 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             if (room?.isPrivate == true) ...[
               _CallIconBtn(
                 icon: PhosphorIcons.phone(),
+                label: 'Appel audio',
                 onTap: () => _startCall(context, room!, 'audio'),
               ),
               const SizedBox(width: 4),
               _CallIconBtn(
                 icon: PhosphorIcons.videoCamera(),
+                label: 'Appel vidéo',
                 onTap: () => _startCall(context, room!, 'video'),
               ),
               const SizedBox(width: 4),
             ],
             if (room?.isEvent == true) ...[
-              GestureDetector(
-                onTap: () => _showMembersSheet(context, room!),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                  child: Icon(PhosphorIcons.usersThree(), color: context.tpInk, size: 20),
+              Semantics(
+                button: true, label: 'Voir les membres',
+                child: GestureDetector(
+                  onTap: () => _showMembersSheet(context, room!),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
+                    child: Icon(PhosphorIcons.usersThree(), color: context.tpInk, size: 20),
+                  ),
                 ),
               ),
               if (room?.isAdmin == true) ...[
                 const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => _showGroupModeSheet(room!),
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                    child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
+                Semantics(
+                  button: true, label: 'Paramètres du groupe',
+                  child: GestureDetector(
+                    onTap: () => _showGroupModeSheet(room!),
+                    child: Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
+                      child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
+                    ),
                   ),
                 ),
               ],
             ] else
               Container(
                 width: 44, height: 44,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
                 child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
               ),
           ],
@@ -560,7 +565,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(999)),
+          decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(Radii.pill)),
           child: Text(label,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
         ),
@@ -593,18 +598,21 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         children: [
           // Image picker
           if (!hasText)
-            GestureDetector(
-              onTap: _pickImage,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    color: context.tpBg,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: context.tpHair),
+            Semantics(
+              button: true, label: 'Joindre une image',
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(Radii.button),
+                      border: Border.all(color: context.tpHair),
+                    ),
+                    child: Icon(PhosphorIcons.image(), color: context.tpInkSub, size: 20),
                   ),
-                  child: Icon(PhosphorIcons.image(), color: context.tpInkSub, size: 20),
                 ),
               ),
             ),
@@ -639,23 +647,28 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
           // Envoyer ou micro
           hasText
-              ? GestureDetector(
-                  onTap: _sendText,
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: Shadows.brand,
+              ? Semantics(
+                  button: true, label: 'Envoyer le message',
+                  child: GestureDetector(
+                    onTap: _sendText,
+                    child: Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        gradient: trackpartyGradient,
+                        borderRadius: BorderRadius.circular(Radii.button),
+                        boxShadow: Shadows.brand,
+                      ),
+                      child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
                     ),
-                    child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
                   ),
                 )
-              : GestureDetector(
-                  onTap:                  _onMicTap,
-                  onLongPressStart:       _onHoldStart,
-                  onLongPressMoveUpdate:  _onHoldMove,
-                  onLongPressEnd:         _onHoldEnd,
+              : Semantics(
+                  button: true, label: 'Enregistrer un message vocal',
+                  child: GestureDetector(
+                    onTap:                  _onMicTap,
+                    onLongPressStart:       _onHoldStart,
+                    onLongPressMoveUpdate:  _onHoldMove,
+                    onLongPressEnd:         _onHoldEnd,
                   // onLongPressCancel fire aussi après un tap simple → ne cancel que si
                   // on est vraiment en mode hold (pas en mode locked déclenché par tap)
                   onLongPressCancel: () {
@@ -665,11 +678,12 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                     width: 44, height: 44,
                     decoration: BoxDecoration(
                       color: context.tpBg,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(Radii.button),
                       border: Border.all(color: context.tpHair),
                     ),
                     child: Icon(PhosphorIcons.microphone(), color: context.tpInkSub, size: 20),
                   ),
+                ),
                 ),
           ],
         ),
@@ -698,7 +712,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: nearLock ? kPrimary : context.tpCard,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(Radii.card),
           boxShadow: Shadows.sm,
           border: Border.all(color: nearLock ? kPrimary : context.tpHair),
         ),
@@ -787,24 +801,17 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       ),
       child: Row(
         children: [
-          // Supprimer
-          Semantics(
-            button: true, label: 'Annuler l\'enregistrement',
-            child: GestureDetector(
-              onTap: _cancelVoice,
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: kError.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(PhosphorIcons.trash(), color: kError, size: 20),
-              ),
+          _VoiceActionBtn(
+            label: 'Annuler l\'enregistrement',
+            icon: PhosphorIcons.trash(),
+            iconColor: kError,
+            onTap: _cancelVoice,
+            decoration: BoxDecoration(
+              color: kError.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(Radii.md),
             ),
           ),
           const SizedBox(width: 8),
-
-          // Durée + animation
           _RecordingDots(),
           const SizedBox(width: 6),
           Text(
@@ -820,48 +827,66 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               child: Text('En pause',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkMute)),
             ),
-
           const Spacer(),
-
-          // Pause / Reprendre
-          Semantics(
-            button: true,
+          _VoiceActionBtn(
             label: _recordPaused ? 'Reprendre l\'enregistrement' : 'Mettre en pause',
-            child: GestureDetector(
-              onTap: _togglePause,
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: context.tpBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: context.tpHair),
-                ),
-                child: Icon(
-                  _recordPaused ? PhosphorIcons.play() : PhosphorIcons.pause(),
-                  color: context.tpInk, size: 20,
-                ),
-              ),
+            icon: _recordPaused ? PhosphorIcons.play() : PhosphorIcons.pause(),
+            iconColor: context.tpInk,
+            onTap: _togglePause,
+            decoration: BoxDecoration(
+              color: context.tpBg,
+              borderRadius: BorderRadius.circular(Radii.md),
+              border: Border.all(color: context.tpHair),
             ),
           ),
           const SizedBox(width: 8),
-
-          // Envoyer
-          Semantics(
-            button: true, label: 'Envoyer la note vocale',
-            child: GestureDetector(
-              onTap: _sendVoice,
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: Shadows.brand,
-                ),
-                child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
-              ),
+          _VoiceActionBtn(
+            label: 'Envoyer la note vocale',
+            icon: PhosphorIcons.paperPlaneTilt(),
+            iconColor: Colors.white,
+            onTap: _sendVoice,
+            decoration: BoxDecoration(
+              gradient: trackpartyGradient,
+              borderRadius: BorderRadius.circular(Radii.button),
+              boxShadow: Shadows.brand,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Bouton action vocale (barre verrouillée) ──────────────────────────────────
+
+class _VoiceActionBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback onTap;
+  final BoxDecoration decoration;
+
+  const _VoiceActionBtn({
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+    required this.decoration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: decoration,
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
       ),
     );
   }
@@ -873,20 +898,25 @@ enum _VoiceMode { idle, holding, locked, paused }
 
 class _CallIconBtn extends StatelessWidget {
   final IconData icon;
+  final String label;
   final VoidCallback onTap;
-  const _CallIconBtn({required this.icon, required this.onTap});
+  const _CallIconBtn({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 40, height: 40,
+        width: 44, height: 44,
         decoration: BoxDecoration(
           color: kPrimary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Radii.md),
         ),
         child: Icon(icon, color: kPrimary, size: 18),
+      ),
       ),
     );
   }
@@ -1029,9 +1059,12 @@ class _MessageBubble extends ConsumerWidget {
                     child: Text(message.sender.displayName,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                   ),
-                GestureDetector(
+                Semantics(
+                  label: 'Message de ${message.sender.displayName}',
+                  child: GestureDetector(
                   onLongPress: canReact ? () => _showReactionPicker(context, ref, message.id, roomId) : null,
                   child: content,
+                  ),
                 ),
                 if (hasReactions && canReact)
                   _InlineReactionRow(message: message, roomId: roomId, isMe: isMe),
@@ -1046,9 +1079,9 @@ class _MessageBubble extends ConsumerWidget {
                     if (showRead) ...[
                       const SizedBox(width: 2),
                       Text('Vu',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF3B82F6))),
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kInfo)),
                       const SizedBox(width: 2),
-                      const Icon(Icons.done_all_rounded, size: 12, color: Color(0xFF3B82F6)),
+                      const Icon(Icons.done_all_rounded, size: 12, color: kInfo),
                     ],
                   ],
                 ),
@@ -1085,8 +1118,8 @@ class _TextContent extends StatelessWidget {
         gradient: isMe ? trackpartyGradient : null,
         color: isMe ? null : context.tpCard,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
+          topLeft: const Radius.circular(Radii.card),
+          topRight: const Radius.circular(Radii.card),
           bottomLeft: Radius.circular(isMe ? 20 : 6),
           bottomRight: Radius.circular(isMe ? 6 : 20),
         ),
@@ -1118,8 +1151,8 @@ class _ImageContent extends StatelessWidget {
     }
     return ClipRRect(
       borderRadius: BorderRadius.only(
-        topLeft: const Radius.circular(20),
-        topRight: const Radius.circular(20),
+        topLeft: const Radius.circular(Radii.card),
+        topRight: const Radius.circular(Radii.card),
         bottomLeft: Radius.circular(isMe ? 20 : 6),
         bottomRight: Radius.circular(isMe ? 6 : 20),
       ),
@@ -1223,8 +1256,8 @@ class _VoiceContentState extends State<_VoiceContent> {
         gradient: widget.isMe ? trackpartyGradient : null,
         color: bg,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
+          topLeft: const Radius.circular(Radii.card),
+          topRight: const Radius.circular(Radii.card),
           bottomLeft: Radius.circular(widget.isMe ? 20 : 6),
           bottomRight: Radius.circular(widget.isMe ? 6 : 20),
         ),
@@ -1232,10 +1265,13 @@ class _VoiceContentState extends State<_VoiceContent> {
       ),
       child: Row(
         children: [
-          GestureDetector(
+          Semantics(
+            button: true,
+            label: _playing ? 'Pause' : 'Lecture',
+            child: GestureDetector(
             onTap: _toggle,
             child: Container(
-              width: 36, height: 36,
+              width: 44, height: 44,
               decoration: BoxDecoration(
                 color: widget.isMe ? Colors.white24 : kPrimary.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
@@ -1245,6 +1281,7 @@ class _VoiceContentState extends State<_VoiceContent> {
                 color: widget.isMe ? Colors.white : kPrimary,
                 size: 16,
               ),
+            ),
             ),
           ),
           const SizedBox(width: 10),
@@ -1290,8 +1327,8 @@ class _EventInviteContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
+          topLeft: const Radius.circular(Radii.card),
+          topRight: const Radius.circular(Radii.card),
           bottomLeft: Radius.circular(isMe ? 20 : 6),
           bottomRight: Radius.circular(isMe ? 6 : 20),
         ),
@@ -1307,7 +1344,7 @@ class _EventInviteContent extends StatelessWidget {
               gradient: LinearGradient(
                 colors: [kPrimary.withValues(alpha: 0.12), kAccent.withValues(alpha: 0.08)],
               ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.card)),
             ),
             child: Row(
               children: [
@@ -1320,13 +1357,16 @@ class _EventInviteContent extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: GestureDetector(
+            child: Semantics(
+              button: true,
+              label: 'Voir l\'événement',
+              child: GestureDetector(
               onTap: eventId != null ? () => context.push('/event/$eventId') : null,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(Radii.md),
                   boxShadow: Shadows.brand,
                 ),
                 child: Center(
@@ -1340,6 +1380,7 @@ class _EventInviteContent extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
               ),
             ),
           ),
@@ -1383,7 +1424,7 @@ class _InvitationDmBubble extends ConsumerWidget {
       width: MediaQuery.of(context).size.width * 0.78,
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
+        borderRadius: const BorderRadius.all(Radius.circular(Radii.card)),
         boxShadow: Shadows.sm,
         border: Border.all(color: context.tpHair),
       ),
@@ -1403,7 +1444,7 @@ class _InvitationDmBubble extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(Radii.card),
                   ),
                   child: Text(catLabel,
                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
@@ -1413,7 +1454,7 @@ class _InvitationDmBubble extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(Radii.card),
                   ),
                   child: Text(
                     'Invitation · ${message.sender.displayName}',
@@ -1449,7 +1490,7 @@ class _InvitationDmBubble extends ConsumerWidget {
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub)),
                 if (contrib != null) ...[
                   const SizedBox(width: 8),
-                  const Text('·', style: TextStyle(color: Colors.grey)),
+                  Text('·', style: TextStyle(color: context.tpInkMute)),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(contrib,
@@ -1501,7 +1542,7 @@ class _InvitationDmBubble extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erreur : $e'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
       }
     }
@@ -1517,14 +1558,17 @@ class _InviteActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           gradient: isPrimary ? trackpartyGradient : null,
           color: isPrimary ? null : context.tpBg,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Radii.md),
           boxShadow: isPrimary ? Shadows.brand : null,
           border: isPrimary ? null : Border.all(color: context.tpHair),
         ),
@@ -1536,6 +1580,7 @@ class _InviteActionBtn extends StatelessWidget {
               color: isPrimary ? Colors.white : context.tpInk,
             )),
         ),
+      ),
       ),
     );
   }
@@ -1551,14 +1596,14 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAccepted = status == 'accepted';
     final label = isAccepted ? '✓ Acceptée' : (status == 'refused' ? '✗ Refusée' : 'En attente…');
-    final color = isAccepted ? const Color(0xFF22C55E) : (status == 'refused' ? kError : context.tpInkMute);
+    final color = isAccepted ? kSuccess : (status == 'refused' ? kError : context.tpInkMute);
 
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(Radii.card),
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Text(label,
@@ -1589,7 +1634,7 @@ class _AnnouncementBubble extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(Radii.card),
         boxShadow: Shadows.sm,
         border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
       ),
@@ -1648,7 +1693,7 @@ class _AnnouncementBubble extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Radii.button),
                 child: CachedNetworkImage(
                   imageUrl: message.imageUrl!,
                   width: double.infinity,
@@ -1673,7 +1718,10 @@ class _AnnouncementBubble extends ConsumerWidget {
             ),
           // Event mini-card
           if (data != null)
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: 'Voir l\'événement ${data.title}',
+              child: GestureDetector(
               onTap: () => context.push('/event/${data.id}'),
               child: Container(
                 margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
@@ -1684,7 +1732,7 @@ class _AnnouncementBubble extends ConsumerWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(Radii.button),
                   border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
                 ),
                 child: Row(
@@ -1709,6 +1757,7 @@ class _AnnouncementBubble extends ConsumerWidget {
                     Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 14),
                   ],
                 ),
+              ),
               ),
             ),
           // Réactions
@@ -1748,12 +1797,16 @@ class _ReactionRow extends ConsumerWidget {
           const Spacer(),
           // Boutons pour réagir
           for (final emoji in _emojis)
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: 'Réagir avec $emoji',
+              child: GestureDetector(
               onTap: () => ref.read(chatThreadProvider(roomId).notifier)
                   .reactToMessage(message.id, emoji),
               child: Padding(
                 padding: const EdgeInsets.only(left: 4),
                 child: Text(emoji, style: const TextStyle(fontSize: 18)),
+              ),
               ),
             ),
         ],
@@ -1771,24 +1824,27 @@ class _ReactionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: kPrimary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 4),
-            Text('$count',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
-          ],
+    return Semantics(
+      button: true, label: 'Réaction $emoji · $count',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(right: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: kPrimary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(Radii.card),
+            border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text('$count',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+            ],
+          ),
         ),
       ),
     );
@@ -1812,7 +1868,7 @@ class _ReactionPickerSheet extends ConsumerWidget {
       padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom + 12),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.card)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1827,20 +1883,23 @@ class _ReactionPickerSheet extends ConsumerWidget {
           const SizedBox(height: 14),
           Wrap(
             spacing: 8, runSpacing: 8,
-            children: _emojis.map((emoji) => GestureDetector(
-              onTap: () {
-                ref.read(chatThreadProvider(roomId).notifier).reactToMessage(messageId, emoji);
-                Navigator.of(context).pop();
-              },
-              child: Container(
-                width: 52, height: 52,
-                decoration: BoxDecoration(
-                  color: context.tpBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: context.tpHair),
+            children: _emojis.map((emoji) => Semantics(
+              button: true, label: 'Réagir avec $emoji',
+              child: GestureDetector(
+                onTap: () {
+                  ref.read(chatThreadProvider(roomId).notifier).reactToMessage(messageId, emoji);
+                  Navigator.of(context).pop();
+                },
+                child: Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: context.tpBg,
+                    borderRadius: BorderRadius.circular(Radii.lg),
+                    border: Border.all(color: context.tpHair),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(emoji, style: const TextStyle(fontSize: 26)),
                 ),
-                alignment: Alignment.center,
-                child: Text(emoji, style: const TextStyle(fontSize: 26)),
               ),
             )).toList(),
           ),
@@ -1869,24 +1928,27 @@ class _InlineReactionRow extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
       child: Wrap(
         spacing: 4,
-        children: message.reactions.map((r) => GestureDetector(
-          onTap: () => ref.read(chatThreadProvider(roomId).notifier)
-              .reactToMessage(message.id, r.emoji),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(r.emoji, style: const TextStyle(fontSize: 13)),
-                const SizedBox(width: 3),
-                Text('${r.count}',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
-              ],
+        children: message.reactions.map((r) => Semantics(
+          button: true, label: 'Réaction ${r.emoji} · ${r.count}',
+          child: GestureDetector(
+            onTap: () => ref.read(chatThreadProvider(roomId).notifier)
+                .reactToMessage(message.id, r.emoji),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: kPrimary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(Radii.card),
+                border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(r.emoji, style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 3),
+                  Text('${r.count}',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kPrimary)),
+                ],
+              ),
             ),
           ),
         )).toList(),
@@ -1937,7 +1999,11 @@ class EventModeBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: attachEvent ? 'Désactiver le mode annonce' : 'Activer le mode annonce',
+      toggled: attachEvent,
+      child: GestureDetector(
       onTap: onToggle,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -1959,7 +2025,7 @@ class EventModeBanner extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: attachEvent ? trackpartyGradient : null,
               color: attachEvent ? null : context.tpHair,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(Radii.sm),
             ),
             child: Icon(
               attachEvent
@@ -2000,6 +2066,7 @@ class EventModeBanner extends StatelessWidget {
           ),
         ]),
       ),
+      ),
     );
   }
 }
@@ -2016,7 +2083,7 @@ class _GroupModeSheet extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(Radii.cardLg),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2053,14 +2120,17 @@ class _GroupModeSheet extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 16),
-          GestureDetector(
+          Semantics(
+            button: true,
+            label: isBroadcast ? 'Ouvrir aux participants' : 'Passer en mode diffusion',
+            child: GestureDetector(
             onTap: () {
               Navigator.pop(context);
               onToggle();
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 14),
-              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.lg)),
               child: Row(children: [
                 Icon(
                   isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
@@ -2088,6 +2158,7 @@ class _GroupModeSheet extends StatelessWidget {
                 ),
                 Icon(PhosphorIcons.caretRight(), color: context.tpInkSub, size: 16),
               ]),
+            ),
             ),
           ),
           const SizedBox(height: Sp.sm),
