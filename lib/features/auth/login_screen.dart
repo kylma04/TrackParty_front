@@ -16,6 +16,7 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_field.dart';
 import '../../widgets/tp_logo.dart';
+import '../../widgets/tp_toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -165,29 +166,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: kError,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-      ),
-    );
-  }
+  void _showError(String message) => TpToast.error(context, message);
 
-  void _showInfo(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: kInfo,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-      ),
-    );
-  }
+  void _showInfo(String message) => TpToast.info(context, message);
 
   @override
   Widget build(BuildContext context) {

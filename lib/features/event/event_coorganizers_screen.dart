@@ -17,6 +17,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_confirm_sheet.dart';
+import '../../widgets/tp_toast.dart';
 
 class EventCoOrganizersScreen extends ConsumerWidget {
   final String eventId;
@@ -177,7 +178,6 @@ class EventCoOrganizersScreen extends ConsumerWidget {
   }
 
   Future<void> _remove(BuildContext context, WidgetRef ref, CoOrganizerUser user) async {
-    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await TpConfirmSheet.show(
       context,
       title: 'Retirer ${user.displayName} ?',
@@ -190,12 +190,7 @@ class EventCoOrganizersScreen extends ConsumerWidget {
       await ref.read(coOrganizerServiceProvider).remove(eventId, user.id);
       await ref.read(eventDetailProvider(eventId).notifier).refresh();
     } catch (_) {
-      messenger.showSnackBar(SnackBar(
-        content: const Text('Impossible de retirer ce co-organisateur'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kError,
-      ));
+      if (context.mounted) TpToast.error(context, 'Impossible de retirer ce co-organisateur');
     }
   }
 
@@ -305,21 +300,11 @@ class _InviteCoOrgaSheetState extends ConsumerState<_InviteCoOrgaSheet> {
       await ref.read(coOrganizerServiceProvider).invite(widget.eventId, user.id);
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Invitation envoyée à ${user.displayName}'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kSuccess,
-      ));
+      TpToast.success(context, 'Invitation envoyée à ${user.displayName}');
     } catch (_) {
       if (!mounted) return;
       setState(() => _inviting = null);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Impossible d\'envoyer l\'invitation'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kError,
-      ));
+      TpToast.error(context, 'Impossible d\'envoyer l\'invitation');
     }
   }
 

@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/services/call_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
+import '../../theme/haptics.dart';
 import 'active_call_screen.dart';
 
 class OutgoingCallScreen extends StatefulWidget {
@@ -28,14 +30,26 @@ class OutgoingCallScreen extends StatefulWidget {
 class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
   bool _popped = false;
 
+  // Aperçu caméra locale pendant la sonnerie (appel vidéo)
+  final _localRenderer = RTCVideoRenderer();
+  bool _rendererReady  = false;
+
   @override
   void initState() {
     super.initState();
+    if (widget.callType == 'video') _initLocalPreview();
     CallService().stateNotifier.addListener(_onStateChanged);
+  }
+
+  Future<void> _initLocalPreview() async {
+    await _localRenderer.initialize();
+    _localRenderer.srcObject = CallService().state.localStream;
+    if (mounted) setState(() => _rendererReady = true);
   }
 
   @override
   void dispose() {
+    _localRenderer.dispose();
     CallService().stateNotifier.removeListener(_onStateChanged);
     super.dispose();
   }
@@ -43,6 +57,10 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
   void _onStateChanged() {
     if (!mounted || _popped) return;
     final s = CallService().state;
+    // Mettre à jour le renderer si le stream est disponible après coup
+    if (widget.callType == 'video' && _rendererReady) {
+      _localRenderer.srcObject = s.localStream;
+    }
     if (s.status == CallStatus.active) {
       _popped = true;
       Navigator.pushReplacement(
@@ -60,8 +78,8 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
     Navigator.pop(context);
   }
 
-  /// Raccroche sans bloquer l'UI — pop immédiat.
   void _hangup() {
+    Haptics.heavy();
     _pop();
     CallService().hangup().catchError((_) {});
   }
@@ -75,71 +93,114 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
       onPopInvokedWithResult: (_, _) => _hangup(),
       child: Scaffold(
         backgroundColor: kCallBg,
-        body: SafeArea(
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Fond : aperçu caméra locale pour les appels vidéo
+            if (isVideo && _rendererReady) ...[
+              RTCVideoView(
+                _localRenderer,
+                mirror: true,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              ),
+              // Scrim sombre pour garder le texte lisible
+              Container(color: kCallBg.withValues(alpha: 0.62)),
+            ],
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            // UI principale
+            SafeArea(
+              child: Column(
                 children: [
-                  Icon(
-                    isVideo ? PhosphorIcons.videoCamera() : PhosphorIcons.phone(),
-                    color: Colors.white38, size: 14,
+                  const Spacer(flex: 2),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isVideo ? PhosphorIcons.videoCamera() : PhosphorIcons.phone(),
+                        color: Colors.white38, size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isVideo ? 'Appel vidéo' : 'Appel audio',
+                        style: const TextStyle(color: Colors.white38, fontSize: 13),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
+
+                  const SizedBox(height: 40),
+
+                  _PulsingOutgoingAvatar(
+                    name: widget.remoteUserName,
+                    avatarUrl: widget.remoteUserAvatarUrl,
+                  ),
+
+                  const SizedBox(height: 28),
+
                   Text(
-                    isVideo ? 'Appel vidéo' : 'Appel audio',
-                    style: const TextStyle(color: Colors.white38, fontSize: 13),
+                    widget.remoteUserName,
+                    style: const TextStyle(
+                      color: Colors.white, fontSize: 30,
+                      fontWeight: FontWeight.w800, letterSpacing: -0.8,
+                    ),
                   ),
+
+                  const SizedBox(height: 12),
+
+                  _RingingText(),
+
+                  // Indicateur "Votre caméra est active" pour appel vidéo
+                  if (isVideo) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(PhosphorIcons.videoCamera(),
+                              color: Colors.white54, size: 12),
+                          const SizedBox(width: 6),
+                          const Text('Votre caméra est active',
+                            style: TextStyle(
+                                color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const Spacer(flex: 3),
+
+                  Semantics(
+                    button: true, label: 'Raccrocher',
+                    child: GestureDetector(
+                      onTap: _hangup,
+                      child: Container(
+                        width: 68, height: 68,
+                        decoration: const BoxDecoration(
+                          color: kCallDecline,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(PhosphorIcons.phoneSlash(),
+                            color: Colors.white, size: 28),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  const Text('Raccrocher',
+                    style: TextStyle(
+                        color: Colors.white38, fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+
+                  const SizedBox(height: 56),
                 ],
               ),
-
-              const SizedBox(height: 40),
-
-              _PulsingOutgoingAvatar(
-                name: widget.remoteUserName,
-                avatarUrl: widget.remoteUserAvatarUrl,
-              ),
-
-              const SizedBox(height: 28),
-
-              Text(
-                widget.remoteUserName,
-                style: const TextStyle(
-                  color: Colors.white, fontSize: 30,
-                  fontWeight: FontWeight.w800, letterSpacing: -0.8,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              _RingingText(),
-
-              const Spacer(flex: 3),
-
-              Semantics(
-                button: true, label: 'Raccrocher',
-                child: GestureDetector(
-                onTap: _hangup,
-                child: Container(
-                  width: 68, height: 68,
-                  decoration: const BoxDecoration(
-                    color: kCallDecline,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(PhosphorIcons.phoneSlash(), color: Colors.white, size: 28),
-                ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              const Text('Raccrocher',
-                style: TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600)),
-
-              const SizedBox(height: 56),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -197,10 +258,13 @@ class _PulsingOutgoingAvatarState extends State<_PulsingOutgoingAvatar>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400))
       ..repeat(reverse: true);
-    _scale   = Tween(begin: 1.0, end: 1.28).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-    _opacity = Tween(begin: 0.25, end: 0.0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _scale   = Tween(begin: 1.0, end: 1.28).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _opacity = Tween(begin: 0.25, end: 0.0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -232,12 +296,17 @@ class _PulsingOutgoingAvatarState extends State<_PulsingOutgoingAvatar>
         ),
         Container(
           width: 90, height: 90,
-          decoration: BoxDecoration(shape: BoxShape.circle, gradient: trackpartyGradient),
+          decoration: const BoxDecoration(
+              shape: BoxShape.circle, gradient: trackpartyGradient),
           child: widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
-              ? ClipOval(child: CachedNetworkImage(imageUrl: widget.avatarUrl!, width: 90, height: 90, fit: BoxFit.cover))
+              ? ClipOval(child: CachedNetworkImage(
+                  imageUrl: widget.avatarUrl!,
+                  width: 90, height: 90, fit: BoxFit.cover))
               : Center(
                   child: Text(_initials(),
-                    style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 32,
+                        fontWeight: FontWeight.w800)),
                 ),
         ),
       ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
+import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
 
@@ -111,7 +112,7 @@ class TpConfirmSheet extends StatelessWidget {
             button: true,
             label: confirmLabel,
             child: GestureDetector(
-              onTap: () => Navigator.pop(context, true),
+              onTap: () { Haptics.heavy(); Navigator.pop(context, true); },
               child: Container(
                 width: double.infinity,
                 height: 52,
@@ -137,7 +138,7 @@ class TpConfirmSheet extends StatelessWidget {
             button: true,
             label: cancelLabel,
             child: GestureDetector(
-              onTap: () => Navigator.pop(context, false),
+              onTap: () { Haptics.light(); Navigator.pop(context, false); },
               child: Container(
                 width: double.infinity,
                 height: 52,

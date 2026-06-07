@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/services/call_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
+import '../../theme/haptics.dart';
 import '../../theme/spacing.dart';
 import 'active_call_screen.dart';
 
@@ -53,6 +54,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
   Future<void> _accept() async {
     if (_isAccepting) return;
+    Haptics.medium();
     setState(() => _isAccepting = true);
     try {
       await CallService().acceptCall();
@@ -63,6 +65,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
 
   void _reject() {
+    Haptics.heavy();
     _pop();
     CallService().rejectCall().catchError((_) {});
   }

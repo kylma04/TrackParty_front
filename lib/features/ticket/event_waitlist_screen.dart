@@ -10,6 +10,7 @@ import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_toast.dart';
 
 class EventWaitlistScreen extends ConsumerStatefulWidget {
   final String eventId;
@@ -38,21 +39,13 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
       ref.invalidate(eventWaitlistProvider(widget.eventId));
       ref.invalidate(eventStatsProvider(widget.eventId));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(accept ? 'Participant accepté !' : 'Participant rejeté.'),
-          backgroundColor: accept ? kSuccess : kError,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        accept
+            ? TpToast.success(context, 'Participant accepté !')
+            : TpToast.info(context, 'Participant rejeté.');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erreur : $e'),
-          backgroundColor: kError,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(context, 'Erreur : $e');
       }
     } finally {
       if (mounted) setState(() => _processing.remove(participationId));

@@ -25,6 +25,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_toast.dart';
 
 class ChatThreadScreen extends ConsumerStatefulWidget {
   final String roomId;
@@ -162,11 +163,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       final hasPermission = await _recorder.hasPermission();
       if (!hasPermission) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text('Permission micro refusée — autorise le micro dans les réglages.'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-          ));
+          TpToast.warning(context, 'Permission micro refusée — autorise le micro dans les réglages.');
         }
         return false;
       }
@@ -182,11 +179,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       return true;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erreur micro : $e'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(context, 'Erreur micro : $e');
       }
       return false;
     }
@@ -344,11 +337,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       }
     } catch (e) {
       if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-          content: Text('Impossible de lancer l\'appel : $e'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(ctx, 'Impossible de lancer l\'appel : $e');
       }
     }
   }
@@ -1539,11 +1528,7 @@ class _InvitationDmBubble extends ConsumerWidget {
       ref.read(chatThreadProvider(roomId).notifier).updateInvitationStatus(message.invitationId!, action == 'accept' ? 'accepted' : 'refused');
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erreur : $e'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(context, 'Erreur : $e');
       }
     }
   }

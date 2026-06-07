@@ -12,6 +12,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_skeleton.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -58,8 +59,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             _buildFilters(context),
             Expanded(
               child: notifsAsync.when(
-                loading: () => const Center(
-                    child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2)),
+                loading: () => SkList(
+                    count: 7, builder: (_) => const SkRowItem(avatarSize: 44)),
                 error: (error, stack) => _buildError(context),
                 data: (all) {
                   final notifs = _filtered(all);

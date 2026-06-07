@@ -11,6 +11,7 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_toast.dart';
 import '../../widgets/tp_avatar.dart';
 
 class ReviewsScreen extends ConsumerStatefulWidget {
@@ -453,11 +454,7 @@ class _ReplySheetState extends State<_ReplySheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erreur : $e'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(context, 'Erreur : $e');
       }
     }
   }

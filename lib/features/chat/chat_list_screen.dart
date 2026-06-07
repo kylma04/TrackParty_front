@@ -19,6 +19,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_skeleton.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
@@ -56,9 +57,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             _buildTabs(context, roomsAsync),
             Expanded(
               child: roomsAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2),
-                ),
+                loading: () => SkList(count: 8, builder: (_) => const SkRowItem()),
                 error: (e, _) => _buildError(context),
                 data: (rooms) {
                   final filtered = rooms

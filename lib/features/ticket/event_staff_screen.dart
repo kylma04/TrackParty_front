@@ -16,6 +16,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_confirm_sheet.dart';
+import '../../widgets/tp_toast.dart';
 
 class EventStaffScreen extends ConsumerStatefulWidget {
   final String eventId;
@@ -184,7 +185,6 @@ class _EventStaffScreenState extends ConsumerState<EventStaffScreen> {
   }
 
   Future<void> _removeStaff(BuildContext context, EventStaffModel member) async {
-    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await TpConfirmSheet.show(
       context,
       title: 'Retirer du staff ?',
@@ -198,12 +198,7 @@ class _EventStaffScreenState extends ConsumerState<EventStaffScreen> {
       await ref.read(eventStaffProvider(widget.eventId).notifier).remove(member.userId);
     } catch (_) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(
-        content: const Text('Impossible de retirer ce membre'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kError,
-      ));
+      TpToast.error(context, 'Impossible de retirer ce membre');
     }
   }
 
@@ -313,21 +308,11 @@ class _AddStaffSheetState extends ConsumerState<_AddStaffSheet> {
       await ref.read(eventStaffProvider(widget.eventId).notifier).add(user.id);
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${user.displayName} ajouté au staff'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kSuccess,
-      ));
+      TpToast.success(context, '${user.displayName} ajouté au staff');
     } catch (_) {
       if (!mounted) return;
       setState(() => _adding = null);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Impossible d\'ajouter ce membre'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kError,
-      ));
+      TpToast.error(context, 'Impossible d\'ajouter ce membre');
     }
   }
 

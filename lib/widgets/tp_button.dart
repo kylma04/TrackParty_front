@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import '../theme/gradients.dart';
+import '../theme/haptics.dart';
 import '../theme/shadows.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
@@ -99,7 +100,20 @@ class _TpButtonState extends State<TpButton> {
       label: widget.label,
       enabled: !_isDisabled,
       child: GestureDetector(
-      onTapDown: _isDisabled || _isLoading ? null : (_) => setState(() => _pressed = true),
+      onTapDown: _isDisabled || _isLoading
+          ? null
+          : (_) {
+              setState(() => _pressed = true);
+              switch (widget.variant) {
+                case TpButtonVariant.gradient:
+                case TpButtonVariant.coral:
+                  Haptics.medium();
+                case TpButtonVariant.danger:
+                  Haptics.heavy();
+                default:
+                  Haptics.light();
+              }
+            },
       onTapUp: _isDisabled || _isLoading
           ? null
           : (_) {

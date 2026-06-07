@@ -8,6 +8,7 @@ import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_toast.dart';
 
 class ReportSheet extends ConsumerStatefulWidget {
   final String targetType; // 'event' | 'user' | 'comment'
@@ -79,15 +80,11 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
       }
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signalement envoyé. Merci !')),
-        );
+        TpToast.success(context, 'Signalement envoyé. Merci !');
       }
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
+        TpToast.error(context, e.message);
       }
     } finally {
       if (mounted) setState(() => _loading = false);

@@ -25,6 +25,8 @@ class CallState {
   final MediaStream? remoteStream;
   final bool micEnabled;
   final bool videoEnabled;
+  final bool isFrontCamera;
+  final bool speakerEnabled;
 
   const CallState({
     required this.status,
@@ -37,6 +39,8 @@ class CallState {
     this.remoteStream,
     this.micEnabled = true,
     this.videoEnabled = true,
+    this.isFrontCamera = true,
+    this.speakerEnabled = false,
   });
 
   static const idle = CallState(status: CallStatus.idle);
@@ -52,6 +56,8 @@ class CallState {
     MediaStream? remoteStream,
     bool? micEnabled,
     bool? videoEnabled,
+    bool? isFrontCamera,
+    bool? speakerEnabled,
   }) =>
       CallState(
         status: status ?? this.status,
@@ -64,6 +70,8 @@ class CallState {
         remoteStream: remoteStream ?? this.remoteStream,
         micEnabled: micEnabled ?? this.micEnabled,
         videoEnabled: videoEnabled ?? this.videoEnabled,
+        isFrontCamera: isFrontCamera ?? this.isFrontCamera,
+        speakerEnabled: speakerEnabled ?? this.speakerEnabled,
       );
 }
 
@@ -127,6 +135,8 @@ class CallService {
       });
       final callId = response.data['call_id'] as String;
 
+      final isVideo = callType == 'video';
+      if (isVideo) Helper.setSpeakerphoneOn(true);
       stateNotifier.value = CallState(
         status: CallStatus.outgoing,
         callId: callId,
@@ -135,6 +145,7 @@ class CallService {
         remoteUserName: remoteUserName,
         remoteUserAvatarUrl: remoteUserAvatarUrl,
         localStream: stream,
+        speakerEnabled: isVideo,
       );
 
       _isOfferer = true;
@@ -157,7 +168,9 @@ class CallService {
     try {
       final stream = await _getLocalStream(s.callType ?? 'audio');
       _localStream = stream;
-      stateNotifier.value = s.copyWith(localStream: stream);
+      final isVideo = (s.callType ?? 'audio') == 'video';
+      if (isVideo) Helper.setSpeakerphoneOn(true);
+      stateNotifier.value = s.copyWith(localStream: stream, speakerEnabled: isVideo);
 
       _isOfferer = false;
       await _connectSignaling(s.callId!);
@@ -224,6 +237,13 @@ class CallService {
     final track = _localStream?.getVideoTracks().firstOrNull;
     if (track == null) return;
     await Helper.switchCamera(track);
+    stateNotifier.value = state.copyWith(isFrontCamera: !state.isFrontCamera);
+  }
+
+  void toggleSpeaker() {
+    final next = !state.speakerEnabled;
+    Helper.setSpeakerphoneOn(next);
+    stateNotifier.value = state.copyWith(speakerEnabled: next);
   }
 
   // ─── Appel entrant ────────────────────────────────────────────────────────

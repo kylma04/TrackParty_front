@@ -9,6 +9,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_field.dart';
+import '../../widgets/tp_toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -70,9 +71,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           if (emailErr != null || nameErr != null) {
             setState(() { _emailError = emailErr; _nameError = nameErr; });
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(err.message), backgroundColor: kError),
-            );
+            TpToast.error(context, err.message);
           }
         }
       }

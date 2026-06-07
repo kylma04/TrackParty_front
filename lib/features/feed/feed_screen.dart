@@ -391,17 +391,20 @@ class _EventCard extends StatelessWidget {
           child: SizedBox(
             height: 140,
             child: Stack(fit: StackFit.expand, children: [
-              event.coverImageUrl != null
-                  ? ExcludeSemantics(
-                      child: CachedNetworkImage(
-                        imageUrl: event.coverImageUrl!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        errorWidget: (ctx, url, err) => _GradientPlaceholder(),
-                        placeholder: (ctx, url) => _GradientPlaceholder(),
-                      ),
-                    )
-                  : _GradientPlaceholder(),
+              Hero(
+                tag: 'event_cover_${event.id}',
+                child: event.coverImageUrl != null
+                    ? ExcludeSemantics(
+                        child: CachedNetworkImage(
+                          imageUrl: event.coverImageUrl!,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          errorWidget: (ctx, url, err) => _GradientPlaceholder(),
+                          placeholder: (ctx, url) => _GradientPlaceholder(),
+                        ),
+                      )
+                    : _GradientPlaceholder(),
+              ),
               Positioned(
                 top: 10, left: 10,
                 child: _OverlayPill(_categoryEmoji(event.category)),

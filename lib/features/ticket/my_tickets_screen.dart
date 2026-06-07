@@ -12,6 +12,7 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_skeleton.dart';
 
 class MyTicketsScreen extends ConsumerWidget {
   const MyTicketsScreen({super.key});
@@ -53,7 +54,7 @@ class MyTicketsScreen extends ConsumerWidget {
               color: kPrimary,
               onRefresh: () => ref.refresh(myTicketsProvider.future),
               child: ticketsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => SkList(count: 4, builder: (_) => const SkEventCard()),
                 error: (_, _) => ListView(
                   children: [
                     SizedBox(

@@ -9,6 +9,7 @@ import '../../theme/colors.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_toast.dart';
 
 class CoOrganizerInvitationsScreen extends ConsumerWidget {
   const CoOrganizerInvitationsScreen({super.key});
@@ -123,27 +124,17 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
     CoOrganizerInvitationModel invitation, {
     required bool accept,
   }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final cardColor = context.tpCard;
     try {
       await ref
           .read(coOrganizerInvitationsProvider.notifier)
           .respond(invitation.id, accept: accept);
-      messenger.showSnackBar(SnackBar(
-        content: Text(accept
-            ? 'Tu co-organises maintenant « ${invitation.eventTitle} » !'
-            : 'Invitation refusée'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: accept ? kSuccess : cardColor,
-      ));
+      if (context.mounted) {
+        accept
+            ? TpToast.success(context, 'Tu co-organises maintenant « ${invitation.eventTitle} » !')
+            : TpToast.info(context, 'Invitation refusée');
+      }
     } catch (_) {
-      messenger.showSnackBar(SnackBar(
-        content: const Text('Une erreur est survenue'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kError,
-      ));
+      if (context.mounted) TpToast.error(context, 'Une erreur est survenue');
     }
   }
 }

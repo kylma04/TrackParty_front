@@ -21,6 +21,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_toast.dart';
 
 class CommunityChatScreen extends ConsumerStatefulWidget {
   final String promoterId;
@@ -94,11 +95,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
       ref.invalidate(communityRoomProvider(widget.promoterId));
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Impossible de mettre à jour la photo'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(context, 'Impossible de mettre à jour la photo');
       }
     }
   }
@@ -111,11 +108,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
       ref.invalidate(communityRoomProvider(widget.promoterId));
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Impossible de renommer la communauté'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        ));
+        TpToast.error(context, 'Impossible de renommer la communauté');
       }
     }
   }

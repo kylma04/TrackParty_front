@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/gradients.dart';
+import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
 
@@ -24,7 +25,7 @@ class TpFilterChip extends StatelessWidget {
       label: label,
       selected: active,
       child: GestureDetector(
-      onTap: onTap,
+      onTap: () { Haptics.selection(); onTap(); },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         height: 44,

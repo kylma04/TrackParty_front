@@ -24,6 +24,8 @@ import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_badge.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_photo.dart';
+import '../../widgets/tp_skeleton.dart';
+import '../../widgets/tp_toast.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
   final String id;
@@ -41,7 +43,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
     final eventAsync = ref.watch(eventDetailProvider(widget.id));
 
     return eventAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: SingleChildScrollView(child: SkEventDetail())),
       error: (e, _) => Scaffold(
         body: Center(
           child: Column(
@@ -162,16 +164,19 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          event.coverImageUrl != null
-              ? CachedNetworkImage(
-                  imageUrl: event.coverImageUrl!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  errorWidget: (ctx, url, err) => const TpPhoto(),
-                  placeholder: (ctx, url) => const TpPhoto(),
-                )
-              : const TpPhoto(),
+          Hero(
+            tag: 'event_cover_${event.id}',
+            child: event.coverImageUrl != null
+                ? CachedNetworkImage(
+                    imageUrl: event.coverImageUrl!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorWidget: (ctx, url, err) => const TpPhoto(),
+                    placeholder: (ctx, url) => const TpPhoto(),
+                  )
+                : const TpPhoto(),
+          ),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -336,7 +341,6 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               label: _following ? 'Se désabonner' : 'Suivre ${event.organizerName}',
               child: GestureDetector(
                 onTap: () async {
-                  final messenger   = ScaffoldMessenger.of(context);
                   final wasFollowing = _following;
                   setState(() => _following = !_following);
                   try {
@@ -348,11 +352,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   } catch (_) {
                     if (mounted) {
                       setState(() => _following = wasFollowing);
-                      messenger.showSnackBar(SnackBar(
-                        content: Text(wasFollowing ? 'Impossible de se désabonner' : 'Impossible de suivre ce promoteur'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-                      ));
+                      TpToast.error(context, wasFollowing ? 'Impossible de se désabonner' : 'Impossible de suivre ce promoteur');
                     }
                   }
                 },

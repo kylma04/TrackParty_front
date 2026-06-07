@@ -13,6 +13,7 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_toast.dart';
 
 class TicketScreen extends ConsumerWidget {
   final String eventId;
@@ -93,11 +94,7 @@ class _TicketBody extends StatelessWidget {
               child: GestureDetector(
               onTap: () {
                 Clipboard.setData(ClipboardData(text: ticket.token));
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: const Text('Token copié'),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-                ));
+                TpToast.success(context, 'Token copié !');
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),

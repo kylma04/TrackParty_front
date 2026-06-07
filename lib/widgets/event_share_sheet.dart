@@ -12,9 +12,11 @@ import '../core/services/chat_service.dart';
 import '../core/services/invitation_service.dart';
 import '../theme/colors.dart';
 import '../theme/gradients.dart';
+import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
 import 'tp_avatar.dart';
+import 'tp_toast.dart';
 
 // ── URL helpers ───────────────────────────────────────────────────────────────
 
@@ -75,12 +77,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
 
   void _copyLink() {
     Clipboard.setData(ClipboardData(text: eventDeepLink(widget.eventId)));
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: const Text('Lien copié !'),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-      duration: const Duration(seconds: 2),
-    ));
+    TpToast.success(context, 'Lien copié !');
   }
 
   Future<void> _shareNative() async {
@@ -119,12 +116,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _sending = null);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Impossible d\'envoyer le message'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
-        backgroundColor: kError,
-      ));
+      TpToast.error(context, 'Impossible d\'envoyer le message');
     }
   }
 
@@ -337,7 +329,7 @@ class _ActionBtn extends StatelessWidget {
         button: true,
         label: label,
         child: GestureDetector(
-          onTap: onTap,
+          onTap: () { Haptics.medium(); onTap(); },
           child: Column(children: [
           Container(
             width: 52, height: 52,

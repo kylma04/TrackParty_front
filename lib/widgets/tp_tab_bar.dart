@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import '../theme/gradients.dart';
+import '../theme/haptics.dart';
 import '../theme/shadows.dart';
 import '../theme/theme_ext.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -54,7 +55,7 @@ class TpTabBar extends StatelessWidget {
                       button: true,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => onTap(tabIndex),
+                        onTap: () { Haptics.selection(); onTap(tabIndex); },
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -100,7 +101,7 @@ class TpTabBar extends StatelessWidget {
                     label: 'Créer un événement',
                     button: true,
                     child: GestureDetector(
-                      onTap: onCreateTap,
+                      onTap: () { Haptics.medium(); onCreateTap(); },
                       child: Container(
                         width: 58,
                         height: 58,

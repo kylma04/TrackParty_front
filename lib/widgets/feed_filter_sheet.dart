@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/providers/event_provider.dart';
 import '../theme/colors.dart';
+import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
 import 'tp_chip.dart';
@@ -124,7 +125,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
                 button: true,
                 label: 'Réinitialiser les filtres',
                 child: GestureDetector(
-                  onTap: _reset,
+                  onTap: () { Haptics.light(); _reset(); },
                   child: const Text('Réinitialiser',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
                 ),
@@ -281,7 +282,7 @@ class _SortOption extends StatelessWidget {
       label: label,
       selected: isActive,
       child: GestureDetector(
-      onTap: onTap,
+      onTap: () { Haptics.selection(); onTap(); },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

@@ -12,6 +12,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_skeleton.dart';
 import 'trust_score_sheet.dart';
 import 'report_sheet.dart';
 
@@ -409,7 +410,13 @@ class _LoadingBody extends StatelessWidget {
   const _LoadingBody();
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const SkProfileHeader(),
+        SkList(count: 4, builder: (_) => const SkRowItem(avatarSize: 44, lines: 3)),
+      ]),
+    );
   }
 }
 

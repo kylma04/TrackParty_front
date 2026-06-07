@@ -54,6 +54,21 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
+// ── Slide transition helper ───────────────────────────────────────────────────
+
+CustomTransitionPage<T> _slide<T>(GoRouterState state, Widget child) =>
+    CustomTransitionPage<T>(
+      key: state.pageKey,
+      child: child,
+      transitionsBuilder: (_, animation, __, child) => SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1.0, 0.0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+        child: child,
+      ),
+    );
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 final _routes = [
@@ -72,8 +87,8 @@ final _routes = [
   GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordScreen()),
 
   // ── Notifications ──────────────────────────────────────────────────────────
-  GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
-  GoRoute(path: '/invitations',  builder: (_, _) => const InvitationsScreen()),
+  GoRoute(path: '/notifications', pageBuilder: (_, s) => _slide(s, const NotificationsScreen())),
+  GoRoute(path: '/invitations',  pageBuilder: (_, s) => _slide(s, const InvitationsScreen())),
   GoRoute(path: '/call/incoming', builder: (_, _) => const IncomingCallScreen()),
   GoRoute(
     path: '/call/outgoing',
@@ -113,7 +128,10 @@ final _routes = [
       return EventCreateScreen(initialEvent: event, isClone: true);
     },
   ),
-  GoRoute(path: '/event/:id', builder: (_, s) => EventDetailScreen(id: s.pathParameters['id']!)),
+  GoRoute(
+    path: '/event/:id',
+    pageBuilder: (_, s) => _slide(s, EventDetailScreen(id: s.pathParameters['id']!)),
+  ),
   GoRoute(
     path: '/event/:id/participants',
     builder: (_, s) => EventParticipantsScreen(eventId: s.pathParameters['id']!),
@@ -134,11 +152,11 @@ final _routes = [
   ),
   GoRoute(
     path: '/ticket/:eventId',
-    builder: (_, s) => TicketScreen(eventId: s.pathParameters['eventId']!),
+    pageBuilder: (_, s) => _slide(s, TicketScreen(eventId: s.pathParameters['eventId']!)),
   ),
   GoRoute(
     path: '/my-tickets',
-    builder: (_, _) => const MyTicketsScreen(),
+    pageBuilder: (_, s) => _slide(s, const MyTicketsScreen()),
   ),
   GoRoute(
     path: '/event/:id/checkins',
@@ -200,7 +218,7 @@ final _routes = [
   ),
   GoRoute(
     path: '/chat/:roomId',
-    builder: (_, s) => ChatThreadScreen(roomId: s.pathParameters['roomId']!),
+    pageBuilder: (_, s) => _slide(s, ChatThreadScreen(roomId: s.pathParameters['roomId']!)),
   ),
   GoRoute(
     path: '/community/:promoterId',
@@ -208,8 +226,8 @@ final _routes = [
   ),
 
   // ── Profiles ──────────────────────────────────────────────────────────────
-  GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
-  GoRoute(path: '/saved-events', builder: (_, _) => const SavedEventsScreen()),
+  GoRoute(path: '/settings',     pageBuilder: (_, s) => _slide(s, const SettingsScreen())),
+  GoRoute(path: '/saved-events', pageBuilder: (_, s) => _slide(s, const SavedEventsScreen())),
   GoRoute(
     path: '/event/:id/waitlist',
     builder: (_, s) {
@@ -220,10 +238,10 @@ final _routes = [
       );
     },
   ),
-  GoRoute(path: '/me/edit', builder: (_, _) => const EditProfileScreen()),
+  GoRoute(path: '/me/edit', pageBuilder: (_, s) => _slide(s, const EditProfileScreen())),
   GoRoute(
     path: '/promoter/:id',
-    builder: (_, s) => PromoterProfileScreen(id: s.pathParameters['id']!),
+    pageBuilder: (_, s) => _slide(s, PromoterProfileScreen(id: s.pathParameters['id']!)),
   ),
   GoRoute(
     path: '/promoter/:id/reviews',
