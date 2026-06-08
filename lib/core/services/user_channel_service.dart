@@ -8,7 +8,7 @@ import 'call_service.dart';
 import 'token_storage.dart';
 
 /// Canal WebSocket personnel de l'utilisateur.
-/// Reçoit les appels entrants et les annulations d'appels.
+/// Reçoit les appels entrants, les annulations d'appels et les mises à jour de salles.
 class UserChannelService {
   static final UserChannelService _instance = UserChannelService._();
   factory UserChannelService() => _instance;
@@ -18,6 +18,15 @@ class UserChannelService {
   StreamSubscription? _sub;
   bool _connected = false;
   Timer? _reconnectTimer;
+
+  final _roomsUpdatedCtrl = StreamController<String>.broadcast();
+  final _newMessageCtrl   = StreamController<Map<String, dynamic>>.broadcast();
+
+  /// Émis quand la salle a été marquée comme lue (compteur → 0).
+  Stream<String> get roomsUpdated => _roomsUpdatedCtrl.stream;
+
+  /// Émis quand un nouveau message arrive dans une salle (mise à jour du preview).
+  Stream<Map<String, dynamic>> get newMessages => _newMessageCtrl.stream;
 
   Future<void> connect() async {
     if (_connected) return;
@@ -56,6 +65,13 @@ class UserChannelService {
         );
       } else if (type == 'call_cancelled') {
         CallService().cancelIncomingCall(data['call_id'] as String);
+      } else if (type == 'rooms_updated') {
+        final roomId = data['room_id'] as String?;
+        if (roomId != null && !_roomsUpdatedCtrl.isClosed) {
+          _roomsUpdatedCtrl.add(roomId);
+        }
+      } else if (type == 'new_message') {
+        if (!_newMessageCtrl.isClosed) _newMessageCtrl.add(data);
       }
     } catch (_) {}
   }

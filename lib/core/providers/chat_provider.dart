@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/chat_model.dart';
 import '../services/chat_service.dart';
 import '../services/invitation_service.dart';
+import '../services/user_channel_service.dart';
 import '../services/chat_websocket_service.dart' show chatWebSocketServiceProvider, ReactionEvent, ReadReceiptEvent;
 
 // ── Dernier "lu" du partenaire dans un DM (roomId → DateTime?) ───────────────
@@ -43,10 +44,28 @@ final chatRoomsProvider =
 
 class ChatRoomsNotifier extends AsyncNotifier<List<ChatRoomModel>> {
   @override
-  Future<List<ChatRoomModel>> build() => _load();
+  Future<List<ChatRoomModel>> build() async {
+    final rooms = await _load();
+
+    // Écouter le canal personnel pour les mises à jour en temps réel
+    final userChannel = UserChannelService();
+    final roomsSub = userChannel.roomsUpdated.listen((_) => _silentRefresh());
+    final msgSub   = userChannel.newMessages.listen((_) => _silentRefresh());
+    ref.onDispose(() {
+      roomsSub.cancel();
+      msgSub.cancel();
+    });
+
+    return rooms;
+  }
 
   Future<List<ChatRoomModel>> _load() =>
       ref.read(chatServiceProvider).getRooms();
+
+  Future<void> _silentRefresh() async {
+    final updated = await AsyncValue.guard(_load);
+    state = updated;
+  }
 
   Future<void> refresh() async {
     state = const AsyncLoading();
@@ -56,10 +75,10 @@ class ChatRoomsNotifier extends AsyncNotifier<List<ChatRoomModel>> {
 
 // ── Thread d'un room (messages + WebSocket) ───────────────────────────────────
 
-final chatThreadProvider = AsyncNotifierProvider.family<ChatThreadNotifier,
-    List<ChatMessage>, String>(ChatThreadNotifier.new);
+final chatThreadProvider = AsyncNotifierProvider.autoDispose
+    .family<ChatThreadNotifier, List<ChatMessage>, String>(ChatThreadNotifier.new);
 
-class ChatThreadNotifier extends FamilyAsyncNotifier<List<ChatMessage>, String> {
+class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage>, String> {
   StreamSubscription<ChatMessage>? _wsSub;
   StreamSubscription<ReactionEvent>? _reactionSub;
   StreamSubscription<ReadReceiptEvent>? _readReceiptSub;

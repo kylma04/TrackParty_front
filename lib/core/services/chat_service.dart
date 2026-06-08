@@ -52,9 +52,9 @@ class ChatService {
             .toList();
       });
 
-  /// Marque tous les messages d'une room comme lus (le backend update last_read_at).
+  /// Marque tous les messages d'une room comme lus (réinitialise le compteur non-lu).
   Future<void> markRoomAsRead(String roomId) => _call(() async {
-        await _dio.get('chat/rooms/$roomId/messages/', queryParameters: {'page': 1});
+        await _dio.post('chat/rooms/$roomId/read/');
       });
 
   Future<ChatMessage> sendMessage(
