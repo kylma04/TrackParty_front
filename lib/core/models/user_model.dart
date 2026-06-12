@@ -34,6 +34,7 @@ class UserModel {
   final String displayName;
   final String? phone;
   final String? avatarUrl;
+  final DateTime? dateBirth;
   final String bio;
   final String city;
   final String quartier;
@@ -48,6 +49,7 @@ class UserModel {
     required this.displayName,
     this.phone,
     this.avatarUrl,
+    this.dateBirth,
     required this.bio,
     required this.city,
     required this.quartier,
@@ -63,6 +65,9 @@ class UserModel {
         displayName: j['display_name'] as String,
         phone: j['phone'] as String?,
         avatarUrl: j['avatar_url'] as String?,
+        dateBirth: j['date_birth'] != null
+          ? DateTime.parse(j['date_birth'] as String)
+          : null,
         bio: (j['bio'] as String?) ?? '',
         city: (j['city'] as String?) ?? '',
         quartier: (j['quartier'] as String?) ?? '',
@@ -78,6 +83,7 @@ class UserModel {
     String? displayName,
     String? phone,
     String? avatarUrl,
+    DateTime? dateBirth,
     String? bio,
     String? city,
     String? quartier,
@@ -90,6 +96,7 @@ class UserModel {
         displayName: displayName ?? this.displayName,
         phone: phone ?? this.phone,
         avatarUrl: avatarUrl ?? this.avatarUrl,
+        dateBirth: dateBirth ?? this.dateBirth,
         bio: bio ?? this.bio,
         city: city ?? this.city,
         quartier: quartier ?? this.quartier,

@@ -33,13 +33,16 @@ class AuthService {
     required String email,
     required String displayName,
     required String password,
+    required DateTime dateBirth,
   }) =>
       _call(() async {
         final resp = await _dio.post('auth/register/', data: {
           'email': email,
           'display_name': displayName,
           'password': password,
-        });
+          'date_birth':
+            '${dateBirth.year.toString().padLeft(4, '0')}-${dateBirth.month.toString().padLeft(2, '0')}-${dateBirth.day.toString().padLeft(2, '0')}',
+          });
         final data = resp.data as Map<String, dynamic>;
         return (data['email'] as String?) ?? email;
       });
