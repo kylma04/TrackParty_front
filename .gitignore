@@ -47,3 +47,8 @@ app.*.map.json
 
 # Dart defines with real secrets (use dart_defines/*.example.json as template)
 dart_defines/*.json
+
+~/
+Android/
+android/build/
+env.json

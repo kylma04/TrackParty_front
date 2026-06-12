@@ -24,6 +24,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _dateBirthCtrl = TextEditingController();
+  DateTime? _dateBirth;
   bool _obscure = true;
 
   String? _emailError;
@@ -34,6 +36,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _dateBirthCtrl.dispose();
     super.dispose();
   }
 
@@ -46,6 +49,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             email: _emailCtrl.text.trim(),
             displayName: _nameCtrl.text.trim(),
             password: _passCtrl.text,
+            dateBirth: _dateBirth!,
           );
       // Vérification d'email obligatoire : on dirige vers l'écran de vérification.
       // Le mot de passe est transmis (extra) pour permettre un re-login direct.
@@ -112,6 +116,34 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 controller: _emailCtrl,
                 errorText: _emailError,
                 validator: (v) => v == null || !v.contains('@') ? 'Email invalide' : null,
+              ),
+              const SizedBox(height: Sp.md),
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime(2000),
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime.now(),
+                  );
+
+                  if (picked != null) {
+                    setState(() {
+                      _dateBirth = picked;
+                      _dateBirthCtrl.text =
+                          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                    });
+                  }
+                },
+                child: AbsorbPointer(
+                  child: TpField(
+                    label: 'Date de naissance',
+                    prefixIcon: PhosphorIcons.calendar(),
+                    controller: _dateBirthCtrl,
+                    validator: (_) =>
+                        _dateBirth == null ? 'Date de naissance obligatoire' : null,
+                  ),
+                ),
               ),
               const SizedBox(height: Sp.md),
               TpField(
