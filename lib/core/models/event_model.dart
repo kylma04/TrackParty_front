@@ -88,6 +88,7 @@ class EventModel {
   final String contributionType;
   final double? contributionAmount;
   final int? maxParticipants;
+  final int? minAge;
   final int participantsCount;
   final double avgRating;
   final String organizerId;
@@ -129,6 +130,7 @@ class EventModel {
     required this.contributionType,
     this.contributionAmount,
     this.maxParticipants,
+    this.minAge,
     required this.participantsCount,
     required this.avgRating,
     required this.organizerId,
@@ -171,6 +173,7 @@ class EventModel {
         contributionType: j['contribution_type'] as String,
         contributionAmount: (j['contribution_amount'] as num?)?.toDouble(),
         maxParticipants: j['max_participants'] as int?,
+        minAge: j['min_age'] as int?,
         participantsCount: j['participants_count'] as int,
         avgRating: (j['avg_rating'] as num?)?.toDouble() ?? 0.0,
         organizerId: j['organizer_id'] as String,
@@ -260,6 +263,7 @@ class EventModel {
         contributionType: contributionType,
         contributionAmount: contributionAmount,
         maxParticipants: maxParticipants,
+        minAge: minAge,
         participantsCount: participantsCount ?? this.participantsCount,
         avgRating: avgRating,
         organizerId: organizerId,

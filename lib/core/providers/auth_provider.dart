@@ -7,6 +7,7 @@ import '../models/auth_response.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/token_storage.dart';
+import '../providers/event_provider.dart';
 
 // ── Auth state ────────────────────────────────────────────────────────────────
 
@@ -82,11 +83,15 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     required String email,
     required String displayName,
     required String password,
+    required DateTime dateBirth,
   }) async {
     state = const AsyncValue.loading();
     try {
       final registeredEmail = await _service.register(
-        email: email, displayName: displayName, password: password,
+        email: email, 
+        displayName: displayName, 
+        password: password,
+        dateBirth: dateBirth,
       );
       state = const AsyncValue.data(AuthUnauthenticated());
       return registeredEmail;
@@ -99,6 +104,9 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   /// Applique une AuthResponse déjà obtenue (ex: tokens retournés par verify-email-code).
   Future<void> loginWithResponse(AuthResponse response) async {
     state = AsyncValue.data(await _applyResponse(Future.value(response)));
+    ref.invalidate(nearbyEventsFeedProvider);
+    ref.invalidate(trendingEventsFeedProvider);
+    ref.invalidate(savedEventsProvider);
   }
 
   Future<void> updateProfile(Map<String, dynamic> data) async {
@@ -128,6 +136,9 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     // On ne supprime PAS les credentials biométriques à la déconnexion
     // pour permettre une reconnexion rapide par biométrie
     state = const AsyncValue.data(AuthUnauthenticated());
+    ref.invalidate(nearbyEventsFeedProvider);
+    ref.invalidate(trendingEventsFeedProvider);
+    ref.invalidate(savedEventsProvider);
   }
 
   // ── Social auth ─────────────────────────────────────────────────────────────
@@ -165,6 +176,9 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     final response = await future;
     await TokenStorage.save(access: response.access, refresh: response.refresh);
     _registerFcmToken();
+    ref.invalidate(nearbyEventsFeedProvider);
+    ref.invalidate(trendingEventsFeedProvider);
+    ref.invalidate(savedEventsProvider);
     return AuthAuthenticated(
       user: response.user,
       accessToken: response.access,
