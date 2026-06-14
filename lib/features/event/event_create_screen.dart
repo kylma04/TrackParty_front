@@ -51,6 +51,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   final _descCtrl = TextEditingController();
   final _capacityCtrl = TextEditingController(text: '80');
   final _minAgeCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController();
 
   String? _category;
   String? _customCategoryLabel;
@@ -76,11 +77,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   final List<UserSearchResult> _pendingCoOrgs = [];
 
-  final List<_Item> _items = [
-    _Item(emoji: '🍾', label: 'Bouteille (vin/spiritueux)', qty: 50),
-    _Item(emoji: '🍰', label: 'Plat sucré ou snack', qty: 12),
-    _Item(emoji: '🎧', label: 'Sono / DJ set', qty: 1),
-  ];
+  final List<_Item> _items = [];
 
   static const _categories = [
     ('musique', '🎵', 'Musique', kSecondary),
@@ -104,7 +101,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       _customCategoryLabel = ev.customCategoryLabel;
       _customCategoryEmoji = ev.customCategoryEmoji;
       _visibility = ev.visibility;
-      _contribMode = ev.contributionType;
+      // 'nature' a fusionné dans 'monetaire' (sécurité si une donnée ancienne traîne).
+      _contribMode = ev.contributionType == 'nature'
+          ? 'monetaire'
+          : ev.contributionType;
+      if (ev.contributionAmount != null && ev.contributionAmount! > 0) {
+        _amountCtrl.text = ev.contributionAmount!.toStringAsFixed(0);
+      }
       _capacity = ev.maxParticipants ?? 80;
       _capacityCtrl.text = _capacity.toString();
       _minAge = ev.minAge;
@@ -139,6 +142,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     _descCtrl.dispose();
     _capacityCtrl.dispose();
     _minAgeCtrl.dispose();
+    _amountCtrl.dispose();
     super.dispose();
   }
 
@@ -161,8 +165,11 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     }
     if (step == 1) {
       if (_startAt == null) return 'Choisis une date et heure.';
-      if (_contribMode == 'nature' && _items.isEmpty) {
-        return 'Ajoute au moins un item de contribution.';
+      if (_contribMode == 'monetaire') {
+        final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
+        if (amount <= 0 && _items.isEmpty) {
+          return 'Ajoute un prix ou au moins un item de contribution en nature.';
+        }
       }
     }
     return null;
@@ -206,10 +213,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     switch (_contribMode) {
       case 'gratuit':
         return '💸 Gratuit';
-      case 'nature':
-        return '🎁 En nature (${_items.length} items)';
       case 'monetaire':
-        return '💰 Payant';
+        final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
+        final parts = <String>[];
+        if (amount > 0) parts.add('$amount FCFA');
+        if (_items.isNotEmpty) parts.add('${_items.length} en nature');
+        return '💰 Payant${parts.isNotEmpty ? ' · ${parts.join(' / ')}' : ''}';
       default:
         return _contribMode;
     }
@@ -516,16 +525,20 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           'custom_category_label': _customCategoryLabel,
           'custom_category_emoji': _customCategoryEmoji ?? '✨',
         },
-        if (_contribMode == 'nature')
-          'contribution_items': _items
-              .map(
-                (i) => {
-                  'name': i.label,
-                  'emoji': i.emoji,
-                  'quantity_total': i.qty,
-                },
-              )
-              .toList(),
+        'contribution_amount': _contribMode == 'monetaire'
+            ? int.tryParse(_amountCtrl.text.trim())
+            : null,
+        'contribution_items': _contribMode == 'monetaire'
+            ? _items
+                  .map(
+                    (i) => {
+                      'name': i.label,
+                      'emoji': i.emoji,
+                      'quantity_total': i.qty,
+                    },
+                  )
+                  .toList()
+            : <Map<String, dynamic>>[],
       };
 
       final svc = ref.read(eventServiceProvider);
@@ -1113,9 +1126,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           _buildVisibility(),
           const SizedBox(height: 14),
           _buildContribMode(),
-          if (_contribMode == 'nature') ...[
+          if (_contribMode == 'monetaire') ...[
             const SizedBox(height: 14),
-            _buildItemsList(context),
+            _buildPaidOptions(context),
           ],
           const SizedBox(height: 14),
           _buildCapacity(context),
@@ -1209,7 +1222,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               child: _ModeCard(
                 emoji: '💸',
                 title: 'Gratuit',
-                sub: 'Aucune',
+                sub: 'Entrée libre',
                 active: _contribMode == 'gratuit',
                 onTap: () => setState(() => _contribMode = 'gratuit'),
               ),
@@ -1217,25 +1230,62 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _ModeCard(
-                emoji: '🎁',
-                title: 'En nature',
-                sub: '${_items.length} items',
-                active: _contribMode == 'nature',
-                onTap: () => setState(() => _contribMode = 'nature'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ModeCard(
                 emoji: '💰',
                 title: 'Payant',
-                sub: 'Montant',
+                sub: 'Prix et/ou nature',
                 active: _contribMode == 'monetaire',
                 onTap: () => setState(() => _contribMode = 'monetaire'),
               ),
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  // ── Options payantes : prix + contribution en nature optionnelle ──────────
+
+  Widget _buildPaidOptions(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CreateField(
+          label: 'Prix par participant (FCFA)',
+          child: TextField(
+            controller: _amountCtrl,
+            keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: context.tpInk,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Ex. 5000 — laisse vide si nature uniquement',
+              hintStyle: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: context.tpInkMute,
+              ),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const _SectionLabel('Contribution en nature (optionnel)'),
+        const SizedBox(height: 4),
+        Text(
+          'Le participant pourra choisir de payer ou d\'apporter un de ces items.',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.tpInkMute,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildItemsList(context),
       ],
     );
   }
@@ -1784,8 +1834,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             ),
           ),
 
-          // Items contribution si nature
-          if (_contribMode == 'nature' && _items.isNotEmpty) ...[
+          // Items de contribution en nature (mode payant)
+          if (_contribMode == 'monetaire' && _items.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),

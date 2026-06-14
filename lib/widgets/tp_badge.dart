@@ -23,7 +23,8 @@ class TpBadge extends StatelessWidget {
   });
 
   factory TpBadge.category(String category) {
-    final styles = _categoryStyles[category.toLowerCase()] ??
+    final styles =
+        _categoryStyles[category.toLowerCase()] ??
         (bg: const Color(0xFFFFF3E0), text: kWarning, emoji: '🎉');
     return TpBadge(
       label: category,
@@ -41,7 +42,8 @@ class TpBadge extends StatelessWidget {
     required String label,
     required String emoji,
   }) {
-    final styles = _categoryStyles[category.toLowerCase()] ??
+    final styles =
+        _categoryStyles[category.toLowerCase()] ??
         (bg: const Color(0xFFFFF3E0), text: kWarning, emoji: emoji);
     return TpBadge(
       label: label,
@@ -53,29 +55,18 @@ class TpBadge extends StatelessWidget {
 
   factory TpBadge.contrib(String type) {
     return switch (type.toLowerCase()) {
-      'gratuit' => const TpBadge(
-          label: 'Gratuit',
-          textColor: kContribFreeText,
-          backgroundColor: kContribFreeBg,
-          emoji: '💸',
-        ),
-      'en nature' => const TpBadge(
-          label: 'En nature',
-          textColor: kContribNatureText,
-          backgroundColor: kContribNatureBg,
-          emoji: '🎁',
-        ),
-      'payant' => const TpBadge(
-          label: 'Payant',
-          textColor: kContribPaidText,
-          backgroundColor: kContribPaidBg,
-          emoji: '💰',
-        ),
+      'payant' || 'monetaire' => const TpBadge(
+        label: 'Payant',
+        textColor: kContribPaidText,
+        backgroundColor: kContribPaidBg,
+        emoji: '💰',
+      ),
       _ => const TpBadge(
-          label: 'Gratuit',
-          textColor: kContribFreeText,
-          backgroundColor: kContribFreeBg,
-        ),
+        label: 'Gratuit',
+        textColor: kContribFreeText,
+        backgroundColor: kContribFreeBg,
+        emoji: '💸',
+      ),
     };
   }
 
@@ -88,14 +79,19 @@ class TpBadge extends StatelessWidget {
     );
   }
 
-  static const _categoryStyles = <String, ({Color bg, Color text, String emoji})>{
-    'musique': (bg: Color(0xFFF3E8FF), text: kSecondary, emoji: '🎵'),
-    'soirée': (bg: kContribPaidBg, text: kContribPaidText, emoji: '🎉'),
-    'cuisine': (bg: Color(0xFFFFF7ED), text: Color(0xFFEA580C), emoji: '🍽'),
-    'sport': (bg: Color(0xFFECFEFF), text: Color(0xFF0891B2), emoji: '⚽'),
-    'art': (bg: Color(0xFFF0FDF4), text: kContribFreeText, emoji: '🎨'),
-    'plage': (bg: Color(0xFFFFFBEB), text: kContribNatureText, emoji: '🏖'),
-  };
+  static const _categoryStyles =
+      <String, ({Color bg, Color text, String emoji})>{
+        'musique': (bg: Color(0xFFF3E8FF), text: kSecondary, emoji: '🎵'),
+        'soirée': (bg: kContribPaidBg, text: kContribPaidText, emoji: '🎉'),
+        'cuisine': (
+          bg: Color(0xFFFFF7ED),
+          text: Color(0xFFEA580C),
+          emoji: '🍽',
+        ),
+        'sport': (bg: Color(0xFFECFEFF), text: Color(0xFF0891B2), emoji: '⚽'),
+        'art': (bg: Color(0xFFF0FDF4), text: kContribFreeText, emoji: '🎨'),
+        'plage': (bg: Color(0xFFFFFBEB), text: kContribNatureText, emoji: '🏖'),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -104,8 +100,8 @@ class TpBadge extends StatelessWidget {
     final effectiveBg = gradient != null
         ? null
         : context.isDark
-            ? textColor.withValues(alpha: 0.15)
-            : backgroundColor;
+        ? textColor.withValues(alpha: 0.15)
+        : backgroundColor;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

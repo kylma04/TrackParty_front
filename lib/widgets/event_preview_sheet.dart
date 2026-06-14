@@ -94,37 +94,43 @@ class _EventPreviewSheet extends StatelessWidget {
   });
 
   String get _displayEmoji {
-    if (category == 'autre' && customCategoryEmoji != null && customCategoryEmoji!.isNotEmpty) {
+    if (category == 'autre' &&
+        customCategoryEmoji != null &&
+        customCategoryEmoji!.isNotEmpty) {
       return customCategoryEmoji!;
     }
     const emojis = {
-      'musique': '🎵', 'soiree': '🎉', 'cuisine': '🍽',
-      'sport': '⚽', 'art': '🎨', 'plage': '🏖',
+      'musique': '🎵',
+      'soiree': '🎉',
+      'cuisine': '🍽',
+      'sport': '⚽',
+      'art': '🎨',
+      'plage': '🏖',
     };
     return emojis[category] ?? '✨';
   }
 
   String get _displayCategory {
-    if (category == 'autre' && customCategoryLabel != null && customCategoryLabel!.isNotEmpty) {
+    if (category == 'autre' &&
+        customCategoryLabel != null &&
+        customCategoryLabel!.isNotEmpty) {
       return customCategoryLabel!;
     }
     const labels = {
-      'musique': 'Musique', 'soiree': 'Soirée', 'cuisine': 'Cuisine',
-      'sport': 'Sport', 'art': 'Art', 'plage': 'Plage', 'autre': 'Autre',
+      'musique': 'Musique',
+      'soiree': 'Soirée',
+      'cuisine': 'Cuisine',
+      'sport': 'Sport',
+      'art': 'Art',
+      'plage': 'Plage',
+      'autre': 'Autre',
     };
     return labels[category] ?? (category ?? 'Autre');
   }
 
-  String _fmtDate(DateTime dt) => DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(dt);
+  String _fmtDate(DateTime dt) =>
+      DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(dt);
   String _fmtTime(DateTime dt) => DateFormat('HH:mm').format(dt);
-
-  String get _contribLabel {
-    return switch (contribMode) {
-      'nature'    => 'Contribution nature',
-      'monetaire' => 'Contribution monétaire',
-      _           => 'Gratuit',
-    };
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,194 +139,332 @@ class _EventPreviewSheet extends StatelessWidget {
       height: h,
       decoration: BoxDecoration(
         color: context.tpBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
-      ),
-      child: Column(children: [
-        // Handle + header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 0),
-          child: Column(children: [
-            Container(width: 36, height: 4,
-                decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 14),
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                    color: kAccent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(Radii.sm)),
-                child: Text('APERÇU',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
-                        color: kAccent, letterSpacing: 0.5)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text('Comme vu par les invités',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-              ),
-              Semantics(
-                button: true, label: 'Fermer',
-                child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Icon(PhosphorIcons.x(), color: context.tpInk, size: 20),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 14),
-          ]),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Radii.cardLg),
         ),
+      ),
+      child: Column(
+        children: [
+          // Handle + header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 0),
+            child: Column(
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.tpHair,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kAccent.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(Radii.sm),
+                      ),
+                      child: Text(
+                        'APERÇU',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: kAccent,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Comme vu par les invités',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: context.tpInkSub,
+                        ),
+                      ),
+                    ),
+                    Semantics(
+                      button: true,
+                      label: 'Fermer',
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Icon(
+                          PhosphorIcons.x(),
+                          color: context.tpInk,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ),
 
-        // Scrollable content
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 40),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Scrollable content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Cover
+                  SizedBox(
+                    height: 240,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        coverUrl != null
+                            ? CachedNetworkImage(
+                                imageUrl: coverUrl!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorWidget: (ctx, url, err) => const TpPhoto(),
+                                placeholder: (ctx, url) => const TpPhoto(),
+                              )
+                            : const TpPhoto(),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.transparent,
+                                context.tpBg,
+                              ],
+                              stops: const [0, 0.55, 1.0],
+                            ),
+                          ),
+                        ),
+                        // Badges
+                        Positioned(
+                          bottom: 52,
+                          left: Sp.md,
+                          right: Sp.md,
+                          child: Row(
+                            children: [
+                              TpBadge.category(
+                                '$_displayEmoji $_displayCategory',
+                              ),
+                              const SizedBox(width: 6),
+                              if (contribMode != 'gratuit')
+                                TpBadge.contrib(contribMode),
+                            ],
+                          ),
+                        ),
+                        // Title in hero
+                        Positioned(
+                          bottom: 12,
+                          left: Sp.md,
+                          right: Sp.md,
+                          child: Text(
+                            title.isEmpty ? 'Titre de l\'événement' : title,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
-              // Cover
-              SizedBox(
-                height: 240,
-                child: Stack(fit: StackFit.expand, children: [
-                  coverUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: coverUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                          errorWidget: (ctx, url, err) => const TpPhoto(),
-                          placeholder: (ctx, url) => const TpPhoto(),
-                        )
-                      : const TpPhoto(),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.transparent, context.tpBg],
-                        stops: const [0, 0.55, 1.0],
+                  // Organizer card
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(Sp.md, 16, Sp.md, 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: context.tpCard,
+                        borderRadius: BorderRadius.circular(Radii.lg),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          TpAvatar(
+                            name: organizerName,
+                            imageUrl: organizerAvatarUrl,
+                            size: 42,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  organizerName,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: context.tpInk,
+                                  ),
+                                ),
+                                Text(
+                                  'Organisateur',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: context.tpInkSub,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: trackpartyGradient,
+                              borderRadius: BorderRadius.circular(Radii.sm),
+                            ),
+                            child: const Text(
+                              'Suivre',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  // Badges
-                  Positioned(
-                    bottom: 52, left: Sp.md, right: Sp.md,
-                    child: Row(children: [
-                      TpBadge.category('$_displayEmoji $_displayCategory'),
-                      const SizedBox(width: 6),
-                      if (contribMode != 'gratuit')
-                        TpBadge.contrib(_contribLabel),
-                    ]),
-                  ),
-                  // Title in hero
-                  Positioned(
-                    bottom: 12, left: Sp.md, right: Sp.md,
-                    child: Text(
-                      title.isEmpty ? 'Titre de l\'événement' : title,
-                      style: const TextStyle(
-                          fontSize: 24, fontWeight: FontWeight.w900,
-                          color: Colors.white, letterSpacing: -0.5),
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ]),
-              ),
 
-              // Organizer card
-              Padding(
-                padding: const EdgeInsets.fromLTRB(Sp.md, 16, Sp.md, 0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: context.tpCard,
-                    borderRadius: BorderRadius.circular(Radii.lg),
-                    boxShadow: const [BoxShadow(color: Color(0x0D1B1A2E), blurRadius: 8)],
-                  ),
-                  child: Row(children: [
-                    TpAvatar(name: organizerName, imageUrl: organizerAvatarUrl, size: 42),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(organizerName,
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
-                        Text('Organisateur',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-                      ]),
+                  // Info grid
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(Sp.md, 16, Sp.md, 0),
+                    child: Column(
+                      children: [
+                        _InfoRow(
+                          icon: PhosphorIcons.calendarBlank(
+                            PhosphorIconsStyle.fill,
+                          ),
+                          iconColor: kPrimary,
+                          title: startAt != null
+                              ? _fmtDate(startAt!)
+                              : 'Date à définir',
+                          sub: startAt != null
+                              ? 'à ${_fmtTime(startAt!)}${endAt != null ? ' · fin ${_fmtTime(endAt!)}' : ''}'
+                              : '',
+                        ),
+                        const SizedBox(height: 10),
+                        _InfoRow(
+                          icon: PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                          iconColor: kTertiary,
+                          title: addressLabel.isNotEmpty
+                              ? addressLabel
+                              : 'Lieu à définir',
+                          sub: [
+                            quartier,
+                            city,
+                          ].where((s) => s.isNotEmpty).join(', '),
+                        ),
+                        const SizedBox(height: 10),
+                        _InfoRow(
+                          icon: PhosphorIcons.usersThree(
+                            PhosphorIconsStyle.fill,
+                          ),
+                          iconColor: kAccent,
+                          title: '$capacity places',
+                          sub: visibility == 'private'
+                              ? 'Événement privé'
+                              : 'Événement public',
+                        ),
+                      ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+
+                  // Description
+                  if (description.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(Sp.md, 20, Sp.md, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'À propos',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: context.tpInk,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            description,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: context.tpInkSub,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 20),
+                  // CTA preview (non-functional)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                          gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.sm)),
-                      child: const Text('Suivre',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                        gradient: trackpartyGradient,
+                        borderRadius: BorderRadius.circular(Radii.lg),
+                        boxShadow: [
+                          BoxShadow(
+                            color: kPrimary.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Participer',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ]),
-                ),
+                  ),
+                ],
               ),
-
-              // Info grid
-              Padding(
-                padding: const EdgeInsets.fromLTRB(Sp.md, 16, Sp.md, 0),
-                child: Column(children: [
-                  _InfoRow(
-                    icon: PhosphorIcons.calendarBlank(PhosphorIconsStyle.fill),
-                    iconColor: kPrimary,
-                    title: startAt != null ? _fmtDate(startAt!) : 'Date à définir',
-                    sub: startAt != null
-                        ? 'à ${_fmtTime(startAt!)}${endAt != null ? ' · fin ${_fmtTime(endAt!)}' : ''}'
-                        : '',
-                  ),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    icon: PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
-                    iconColor: kTertiary,
-                    title: addressLabel.isNotEmpty ? addressLabel : 'Lieu à définir',
-                    sub: [quartier, city].where((s) => s.isNotEmpty).join(', '),
-                  ),
-                  const SizedBox(height: 10),
-                  _InfoRow(
-                    icon: PhosphorIcons.usersThree(PhosphorIconsStyle.fill),
-                    iconColor: kAccent,
-                    title: '$capacity places',
-                    sub: visibility == 'private' ? 'Événement privé' : 'Événement public',
-                  ),
-                ]),
-              ),
-
-              // Description
-              if (description.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(Sp.md, 20, Sp.md, 0),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('À propos',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
-                    const SizedBox(height: 8),
-                    Text(description,
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500,
-                            color: context.tpInkSub, height: 1.5)),
-                  ]),
-                ),
-              ],
-
-              const SizedBox(height: 20),
-              // CTA preview (non-functional)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    gradient: trackpartyGradient,
-                    borderRadius: BorderRadius.circular(Radii.lg),
-                    boxShadow: [BoxShadow(
-                        color: kPrimary.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
-                  ),
-                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text('Participer', style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white)),
-                  ]),
-                ),
-              ),
-            ]),
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -330,22 +474,50 @@ class _InfoRow extends StatelessWidget {
   final Color iconColor;
   final String title;
   final String sub;
-  const _InfoRow({required this.icon, required this.iconColor, required this.title, required this.sub});
+  const _InfoRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.sub,
+  });
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-        Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(Radii.button)),
-          child: Icon(icon, color: iconColor, size: 22),
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(Radii.button),
         ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
-          if (sub.isNotEmpty)
-            Text(sub, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
-        ])),
-      ]);
+        child: Icon(icon, color: iconColor, size: 22),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: context.tpInk,
+              ),
+            ),
+            if (sub.isNotEmpty)
+              Text(
+                sub,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: context.tpInkSub,
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
 }

@@ -12,11 +12,11 @@ class ChatUser {
   });
 
   factory ChatUser.fromJson(Map<String, dynamic> j) => ChatUser(
-        id: j['id'] as String,
-        displayName: j['display_name'] as String,
-        avatarUrl: j['avatar_url'] as String?,
-        isPromoter: j['is_promoter'] as bool? ?? false,
-      );
+    id: j['id'] as String,
+    displayName: j['display_name'] as String,
+    avatarUrl: j['avatar_url'] as String?,
+    isPromoter: j['is_promoter'] as bool? ?? false,
+  );
 }
 
 class ChatLastMessage {
@@ -33,11 +33,11 @@ class ChatLastMessage {
   });
 
   factory ChatLastMessage.fromJson(Map<String, dynamic> j) => ChatLastMessage(
-        id: j['id'] as String,
-        senderName: j['sender_name'] as String,
-        content: j['content'] as String,
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['id'] as String,
+    senderName: j['sender_name'] as String,
+    content: j['content'] as String,
+    createdAt: DateTime.parse(j['created_at'] as String),
+  );
 }
 
 class ChatMemberPreview {
@@ -51,7 +51,8 @@ class ChatMemberPreview {
     this.avatarUrl,
   });
 
-  factory ChatMemberPreview.fromJson(Map<String, dynamic> j) => ChatMemberPreview(
+  factory ChatMemberPreview.fromJson(Map<String, dynamic> j) =>
+      ChatMemberPreview(
         id: j['id'] as String,
         displayName: j['display_name'] as String,
         avatarUrl: j['avatar_url'] as String?,
@@ -60,10 +61,10 @@ class ChatMemberPreview {
 
 class ChatRoomModel {
   final String id;
-  final String roomType;  // 'private', 'event', 'community'
+  final String roomType; // 'private', 'event', 'community'
   final String displayName;
-  final String groupMode;  // 'open', 'broadcast'
-  final String myRole;     // 'admin', 'member'
+  final String groupMode; // 'open', 'broadcast'
+  final String myRole; // 'admin', 'member'
   final String? eventId;
   final String? eventTitle;
   final ChatLastMessage? lastMessage;
@@ -96,33 +97,33 @@ class ChatRoomModel {
   });
 
   factory ChatRoomModel.fromJson(Map<String, dynamic> j) => ChatRoomModel(
-        id: j['id'] as String,
-        roomType: j['room_type'] as String,
-        displayName: j['display_name'] as String? ?? 'Conversation',
-        groupMode: j['group_mode'] as String? ?? 'open',
-        myRole: j['my_role'] as String? ?? 'member',
-        eventId: j['event_id'] as String?,
-        eventTitle: j['event_title'] as String?,
-        lastMessage: j['last_message'] != null
-            ? ChatLastMessage.fromJson(j['last_message'] as Map<String, dynamic>)
-            : null,
-        unreadCount: j['unread_count'] as int? ?? 0,
-        membersCount: j['members_count'] as int? ?? 0,
-        membersPreview: (j['members_preview'] as List<dynamic>? ?? [])
-            .map((e) => ChatMemberPreview.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        createdAt: DateTime.parse(j['created_at'] as String),
-        promoterId: j['promoter_id'] as String?,
-        promoterName: j['promoter_name'] as String?,
-        promoterAvatarUrl: j['promoter_avatar_url'] as String?,
-        roomAvatarUrl: j['room_avatar_url'] as String?,
-      );
+    id: j['id'] as String,
+    roomType: j['room_type'] as String,
+    displayName: j['display_name'] as String? ?? 'Conversation',
+    groupMode: j['group_mode'] as String? ?? 'open',
+    myRole: j['my_role'] as String? ?? 'member',
+    eventId: j['event_id'] as String?,
+    eventTitle: j['event_title'] as String?,
+    lastMessage: j['last_message'] != null
+        ? ChatLastMessage.fromJson(j['last_message'] as Map<String, dynamic>)
+        : null,
+    unreadCount: j['unread_count'] as int? ?? 0,
+    membersCount: j['members_count'] as int? ?? 0,
+    membersPreview: (j['members_preview'] as List<dynamic>? ?? [])
+        .map((e) => ChatMemberPreview.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    createdAt: DateTime.parse(j['created_at'] as String),
+    promoterId: j['promoter_id'] as String?,
+    promoterName: j['promoter_name'] as String?,
+    promoterAvatarUrl: j['promoter_avatar_url'] as String?,
+    roomAvatarUrl: j['room_avatar_url'] as String?,
+  );
 
-  bool get isPrivate    => roomType == 'private';
-  bool get isEvent      => roomType == 'event';
-  bool get isCommunity  => roomType == 'community';
-  bool get isBroadcast  => groupMode == 'broadcast';
-  bool get isAdmin      => myRole == 'admin';
+  bool get isPrivate => roomType == 'private';
+  bool get isEvent => roomType == 'event';
+  bool get isCommunity => roomType == 'community';
+  bool get isBroadcast => groupMode == 'broadcast';
+  bool get isAdmin => myRole == 'admin';
 }
 
 class MessageReaction {
@@ -174,29 +175,32 @@ class EventInviteData {
   }
 
   factory EventInviteData.fromJson(Map<String, dynamic> j) => EventInviteData(
-        id: j['id'] as String,
-        title: j['title'] as String,
-        category: j['category'] as String? ?? 'autre',
-        categoryEmoji: j['category_emoji'] as String?,
-        startAt: DateTime.parse(j['start_at'] as String),
-        addressLabel: j['address_label'] as String? ?? '',
-        quartier: j['quartier'] as String? ?? '',
-        contributionType: j['contribution_type'] as String? ?? 'gratuit',
-        coverImageUrl: j['cover_image_url'] as String?,
-        contributionItems: (j['contribution_items'] as List<dynamic>? ?? [])
-            .map((e) => {
-                  'name': (e as Map<String, dynamic>)['name'] as String,
-                  'emoji': e['emoji'] as String? ?? '',
-                })
-            .toList(),
-      );
+    id: j['id'] as String,
+    title: j['title'] as String,
+    category: j['category'] as String? ?? 'autre',
+    categoryEmoji: j['category_emoji'] as String?,
+    startAt: DateTime.parse(j['start_at'] as String),
+    addressLabel: j['address_label'] as String? ?? '',
+    quartier: j['quartier'] as String? ?? '',
+    contributionType: j['contribution_type'] as String? ?? 'gratuit',
+    coverImageUrl: j['cover_image_url'] as String?,
+    contributionItems: (j['contribution_items'] as List<dynamic>? ?? [])
+        .map(
+          (e) => {
+            'name': (e as Map<String, dynamic>)['name'] as String,
+            'emoji': e['emoji'] as String? ?? '',
+          },
+        )
+        .toList(),
+  );
 }
 
 class ChatMessage {
   final String id;
   final ChatUser sender;
   final String content;
-  final String messageType; // 'text', 'image', 'voice', 'event_invite', 'announcement'
+  final String
+  messageType; // 'text', 'image', 'voice', 'event_invite', 'announcement'
   final String? imageUrl;
   final String? voiceUrl;
   final int? voiceDuration;
@@ -225,22 +229,25 @@ class ChatMessage {
     required this.createdAt,
   });
 
-  ChatMessage copyWith({String? invitationStatus, List<MessageReaction>? reactions}) => ChatMessage(
-        id: id,
-        sender: sender,
-        content: content,
-        messageType: messageType,
-        imageUrl: imageUrl,
-        voiceUrl: voiceUrl,
-        voiceDuration: voiceDuration,
-        eventInviteId: eventInviteId,
-        eventInviteData: eventInviteData,
-        invitationId: invitationId,
-        invitationStatus: invitationStatus ?? this.invitationStatus,
-        reactions: reactions ?? this.reactions,
-        isPinned: isPinned,
-        createdAt: createdAt,
-      );
+  ChatMessage copyWith({
+    String? invitationStatus,
+    List<MessageReaction>? reactions,
+  }) => ChatMessage(
+    id: id,
+    sender: sender,
+    content: content,
+    messageType: messageType,
+    imageUrl: imageUrl,
+    voiceUrl: voiceUrl,
+    voiceDuration: voiceDuration,
+    eventInviteId: eventInviteId,
+    eventInviteData: eventInviteData,
+    invitationId: invitationId,
+    invitationStatus: invitationStatus ?? this.invitationStatus,
+    reactions: reactions ?? this.reactions,
+    isPinned: isPinned,
+    createdAt: createdAt,
+  );
 
   static List<MessageReaction> _parseReactions(dynamic raw) {
     if (raw == null) return const [];
@@ -250,51 +257,55 @@ class ChatMessage {
   }
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
-        id: j['id'] as String,
-        sender: ChatUser.fromJson(j['sender'] as Map<String, dynamic>),
-        content: j['content'] as String? ?? '',
-        messageType: j['message_type'] as String? ?? 'text',
-        imageUrl: j['image_url'] as String?,
-        voiceUrl: j['voice_url'] as String?,
-        voiceDuration: j['voice_duration'] as int?,
-        eventInviteId: j['event_invite_id'] as String?,
-        eventInviteData: j['event_invite_data'] != null
-            ? EventInviteData.fromJson(j['event_invite_data'] as Map<String, dynamic>)
-            : null,
-        invitationId: j['invitation_id'] as String?,
-        invitationStatus: j['invitation_status'] as String?,
-        reactions: _parseReactions(j['reactions']),
-        isPinned: j['is_pinned'] as bool? ?? false,
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['id'] as String,
+    sender: ChatUser.fromJson(j['sender'] as Map<String, dynamic>),
+    content: j['content'] as String? ?? '',
+    messageType: j['message_type'] as String? ?? 'text',
+    imageUrl: j['image_url'] as String?,
+    voiceUrl: j['voice_url'] as String?,
+    voiceDuration: j['voice_duration'] as int?,
+    eventInviteId: j['event_invite_id'] as String?,
+    eventInviteData: j['event_invite_data'] != null
+        ? EventInviteData.fromJson(
+            j['event_invite_data'] as Map<String, dynamic>,
+          )
+        : null,
+    invitationId: j['invitation_id'] as String?,
+    invitationStatus: j['invitation_status'] as String?,
+    reactions: _parseReactions(j['reactions']),
+    isPinned: j['is_pinned'] as bool? ?? false,
+    createdAt: DateTime.parse(j['created_at'] as String),
+  );
 
   factory ChatMessage.fromWsEvent(Map<String, dynamic> j) => ChatMessage(
-        id: j['id'] as String,
-        sender: ChatUser(
-          id: j['sender_id'] as String,
-          displayName: j['sender_name'] as String,
-          avatarUrl: j['sender_avatar_url'] as String?,
-        ),
-        content: j['content'] as String? ?? '',
-        messageType: j['message_type'] as String? ?? 'text',
-        imageUrl: j['image_url'] as String?,
-        voiceUrl: j['voice_url'] as String?,
-        voiceDuration: j['voice_duration'] as int?,
-        eventInviteId: j['event_invite_id'] as String?,
-        eventInviteData: j['event_invite_data'] != null
-            ? EventInviteData.fromJson(j['event_invite_data'] as Map<String, dynamic>)
-            : null,
-        invitationId: j['invitation_id'] as String?,
-        invitationStatus: j['invitation_status'] as String?,
-        reactions: _parseReactions(j['reactions']),
-        isPinned: false,
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['id'] as String,
+    sender: ChatUser(
+      id: j['sender_id'] as String,
+      displayName: j['sender_name'] as String,
+      avatarUrl: j['sender_avatar_url'] as String?,
+    ),
+    content: j['content'] as String? ?? '',
+    messageType: j['message_type'] as String? ?? 'text',
+    imageUrl: j['image_url'] as String?,
+    voiceUrl: j['voice_url'] as String?,
+    voiceDuration: j['voice_duration'] as int?,
+    eventInviteId: j['event_invite_id'] as String?,
+    eventInviteData: j['event_invite_data'] != null
+        ? EventInviteData.fromJson(
+            j['event_invite_data'] as Map<String, dynamic>,
+          )
+        : null,
+    invitationId: j['invitation_id'] as String?,
+    invitationStatus: j['invitation_status'] as String?,
+    reactions: _parseReactions(j['reactions']),
+    isPinned: false,
+    createdAt: DateTime.parse(j['created_at'] as String),
+  );
 
-  bool get isText         => messageType == 'text';
-  bool get isImage        => messageType == 'image';
-  bool get isVoice        => messageType == 'voice';
-  bool get isEventInvite  => messageType == 'event_invite';
+  bool get isText => messageType == 'text';
+  bool get isImage => messageType == 'image';
+  bool get isVoice => messageType == 'voice';
+  bool get isEventInvite => messageType == 'event_invite';
   bool get isAnnouncement => messageType == 'announcement';
 }
 
@@ -346,7 +357,7 @@ class InvitationEventInfo {
   });
 
   bool get needsContribution =>
-      contributionType == 'nature' && contributionItems.isNotEmpty;
+      contributionType == 'monetaire' && contributionItems.isNotEmpty;
 
   factory InvitationEventInfo.fromJson(Map<String, dynamic> j) =>
       InvitationEventInfo(
@@ -355,8 +366,12 @@ class InvitationEventInfo {
         coverImageUrl: j['cover_image_url'] as String?,
         startAt: DateTime.parse(j['start_at'] as String),
         contributionType: j['contribution_type'] as String? ?? 'gratuit',
-        contributionItems: (j['contribution_items'] as List<dynamic>?)
-                ?.map((e) => InvitationContribItem.fromJson(e as Map<String, dynamic>))
+        contributionItems:
+            (j['contribution_items'] as List<dynamic>?)
+                ?.map(
+                  (e) =>
+                      InvitationContribItem.fromJson(e as Map<String, dynamic>),
+                )
                 .toList() ??
             [],
       );
@@ -384,23 +399,23 @@ class InvitationModel {
   });
 
   factory InvitationModel.fromJson(Map<String, dynamic> j) => InvitationModel(
-        id: j['id'] as String,
-        sender: ChatUser.fromJson(j['sender'] as Map<String, dynamic>),
-        receiver: ChatUser.fromJson(j['receiver'] as Map<String, dynamic>),
-        invitationType: j['invitation_type'] as String? ?? 'event',
-        event: j['event'] != null
-            ? InvitationEventInfo.fromJson(j['event'] as Map<String, dynamic>)
-            : null,
-        status: j['status'] as String? ?? 'pending',
-        createdAt: DateTime.parse(j['created_at'] as String),
-        respondedAt: j['responded_at'] != null
-            ? DateTime.parse(j['responded_at'] as String)
-            : null,
-      );
+    id: j['id'] as String,
+    sender: ChatUser.fromJson(j['sender'] as Map<String, dynamic>),
+    receiver: ChatUser.fromJson(j['receiver'] as Map<String, dynamic>),
+    invitationType: j['invitation_type'] as String? ?? 'event',
+    event: j['event'] != null
+        ? InvitationEventInfo.fromJson(j['event'] as Map<String, dynamic>)
+        : null,
+    status: j['status'] as String? ?? 'pending',
+    createdAt: DateTime.parse(j['created_at'] as String),
+    respondedAt: j['responded_at'] != null
+        ? DateTime.parse(j['responded_at'] as String)
+        : null,
+  );
 
-  bool get isPending  => status == 'pending';
+  bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted';
-  bool get isRefused  => status == 'refused';
+  bool get isRefused => status == 'refused';
 }
 
 // ── Membre d'une salle ───────────────────────────────────────────────────────
@@ -427,14 +442,14 @@ class RoomMemberModel {
   bool get isAdmin => role == 'admin';
 
   factory RoomMemberModel.fromJson(Map<String, dynamic> j) => RoomMemberModel(
-        id:                     j['id'] as String,
-        displayName:            j['display_name'] as String,
-        avatarUrl:              j['avatar_url'] as String?,
-        isPromoter:             j['is_promoter'] as bool? ?? false,
-        role:                   j['role'] as String? ?? 'member',
-        hasDm:                  j['has_dm'] as bool? ?? false,
-        hasPendingInvitation:   j['has_pending_invitation'] as bool? ?? false,
-      );
+    id: j['id'] as String,
+    displayName: j['display_name'] as String,
+    avatarUrl: j['avatar_url'] as String?,
+    isPromoter: j['is_promoter'] as bool? ?? false,
+    role: j['role'] as String? ?? 'member',
+    hasDm: j['has_dm'] as bool? ?? false,
+    hasPendingInvitation: j['has_pending_invitation'] as bool? ?? false,
+  );
 }
 
 // ── Résultat de recherche d'utilisateurs ─────────────────────────────────────
@@ -453,9 +468,9 @@ class UserSearchResult {
   });
 
   factory UserSearchResult.fromJson(Map<String, dynamic> j) => UserSearchResult(
-        id: j['id'] as String,
-        displayName: j['display_name'] as String,
-        avatarUrl: j['avatar_url'] as String?,
-        isPromoter: j['is_promoter'] as bool? ?? false,
-      );
+    id: j['id'] as String,
+    displayName: j['display_name'] as String,
+    avatarUrl: j['avatar_url'] as String?,
+    isPromoter: j['is_promoter'] as bool? ?? false,
+  );
 }

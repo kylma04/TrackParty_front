@@ -26,9 +26,9 @@ class FeedScreen extends ConsumerStatefulWidget {
 }
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
-  final _searchCtrl  = TextEditingController();
+  final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
-  final _scrollCtrl  = ScrollController();
+  final _scrollCtrl = ScrollController();
   String _searchQuery = '';
 
   @override
@@ -57,17 +57,22 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   bool get _isSearching => _searchQuery.isNotEmpty;
 
-  List<EventModel> _runSearch(List<EventModel> nearby, List<EventModel> trending) {
-    final q    = _searchQuery.toLowerCase().trim();
+  List<EventModel> _runSearch(
+    List<EventModel> nearby,
+    List<EventModel> trending,
+  ) {
+    final q = _searchQuery.toLowerCase().trim();
     final seen = <String>{};
     return [...nearby, ...trending]
         .where((e) => seen.add(e.id))
-        .where((e) =>
-          e.title.toLowerCase().contains(q) ||
-          e.city.toLowerCase().contains(q) ||
-          e.quartier.toLowerCase().contains(q) ||
-          e.organizerName.toLowerCase().contains(q) ||
-          e.displayCategoryName.toLowerCase().contains(q))
+        .where(
+          (e) =>
+              e.title.toLowerCase().contains(q) ||
+              e.city.toLowerCase().contains(q) ||
+              e.quartier.toLowerCase().contains(q) ||
+              e.organizerName.toLowerCase().contains(q) ||
+              e.displayCategoryName.toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -75,11 +80,14 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider).valueOrNull;
     final displayName = authState is AuthAuthenticated
-        ? authState.user.displayName.split(' ').first : '';
-    final avatarUrl = authState is AuthAuthenticated ? authState.user.avatarUrl : null;
+        ? authState.user.displayName.split(' ').first
+        : '';
+    final avatarUrl = authState is AuthAuthenticated
+        ? authState.user.avatarUrl
+        : null;
 
-    final filters       = ref.watch(feedFiltersProvider);
-    final nearbyAsync   = ref.watch(nearbyEventsFeedProvider);
+    final filters = ref.watch(feedFiltersProvider);
+    final nearbyAsync = ref.watch(nearbyEventsFeedProvider);
     final trendingAsync = ref.watch(trendingEventsFeedProvider);
 
     return Scaffold(
@@ -101,108 +109,179 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(Sp.md, Sp.sm, Sp.md, 0),
-                  child: Column(children: [
-                    Row(children: [
-                      TpAvatar(name: displayName, imageUrl: avatarUrl, size: 44),
-                      const SizedBox(width: Sp.sm),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Bonjour 👋',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.tpInkSub)),
-                          Text(displayName,
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
-                        ]),
-                      ),
-                      const _BellButton(),
-                    ]),
-                    const SizedBox(height: Sp.md),
-                    // Barre de recherche + bouton filtre
-                    Row(children: [
-                      Expanded(
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: context.tpCard,
-                            borderRadius: BorderRadius.circular(Radii.button),
-                            border: Border.all(
-                              color: _searchFocus.hasFocus
-                                  ? kPrimary.withValues(alpha: 0.5) : context.tpHair,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          TpAvatar(
+                            name: displayName,
+                            imageUrl: avatarUrl,
+                            size: 44,
+                          ),
+                          const SizedBox(width: Sp.sm),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Bonjour 👋',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.tpInkSub,
+                                  ),
+                                ),
+                                Text(
+                                  displayName,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    color: context.tpInk,
+                                    letterSpacing: -0.4,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                          child: Row(children: [
-                            Icon(PhosphorIcons.magnifyingGlass(),
-                                color: _isSearching ? kPrimary : context.tpInkMute, size: 20),
-                            const SizedBox(width: Sp.sm),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchCtrl,
-                                focusNode: _searchFocus,
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
-                                decoration: InputDecoration(
-                                  hintText: 'Recherche un event…',
-                                  hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
+                          const _BellButton(),
+                        ],
+                      ),
+                      const SizedBox(height: Sp.md),
+                      // Barre de recherche + bouton filtre
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: context.tpCard,
+                                borderRadius: BorderRadius.circular(
+                                  Radii.button,
                                 ),
-                                onChanged: (v) => setState(() => _searchQuery = v),
-                                textInputAction: TextInputAction.search,
+                                border: Border.all(
+                                  color: _searchFocus.hasFocus
+                                      ? kPrimary.withValues(alpha: 0.5)
+                                      : context.tpHair,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: Sp.md,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    PhosphorIcons.magnifyingGlass(),
+                                    color: _isSearching
+                                        ? kPrimary
+                                        : context.tpInkMute,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: Sp.sm),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchCtrl,
+                                      focusNode: _searchFocus,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: context.tpInk,
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: 'Recherche un event…',
+                                        hintStyle: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: context.tpInkMute,
+                                        ),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                      onChanged: (v) =>
+                                          setState(() => _searchQuery = v),
+                                      textInputAction: TextInputAction.search,
+                                    ),
+                                  ),
+                                  if (_isSearching)
+                                    Semantics(
+                                      button: true,
+                                      label: 'Effacer la recherche',
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          _searchCtrl.clear();
+                                          _searchFocus.unfocus();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                        child: Icon(
+                                          PhosphorIcons.x(),
+                                          color: context.tpInkMute,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (_isSearching)
-                              Semantics(
-                                button: true,
-                                label: 'Effacer la recherche',
-                                child: GestureDetector(
-                                  onTap: () {
-                                    _searchCtrl.clear();
-                                    _searchFocus.unfocus();
-                                    setState(() => _searchQuery = '');
-                                  },
-                                  child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
-                                ),
-                              ),
-                          ]),
-                        ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Bouton filtre/tri
+                          _FilterButton(
+                            hasActiveFilters: filters.hasActiveFilters,
+                            onTap: () => showFeedFilterSheet(context),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      // Bouton filtre/tri
-                      _FilterButton(
-                        hasActiveFilters: filters.hasActiveFilters,
-                        onTap: () => showFeedFilterSheet(context),
-                      ),
-                    ]),
-                    const SizedBox(height: Sp.md),
-                  ]),
+                      const SizedBox(height: Sp.md),
+                    ],
+                  ),
                 ),
               ),
             ),
 
-
             // ── MODE RECHERCHE ───────────────────────────────────────────────
             if (_isSearching)
               nearbyAsync.when(
-                loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-                error:   (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                loading: () =>
+                    const SliverToBoxAdapter(child: SizedBox.shrink()),
+                error: (_, _) =>
+                    const SliverToBoxAdapter(child: SizedBox.shrink()),
                 data: (nearbyPage) => trendingAsync.when(
-                  loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-                  error:   (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  loading: () =>
+                      const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error: (_, _) =>
+                      const SliverToBoxAdapter(child: SizedBox.shrink()),
                   data: (trendingPage) {
-                    final results = _runSearch(nearbyPage.items, trendingPage.items);
+                    final results = _runSearch(
+                      nearbyPage.items,
+                      trendingPage.items,
+                    );
                     if (results.isEmpty) {
                       return SliverFillRemaining(
                         child: Center(
-                          child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            const Text('🔍', style: TextStyle(fontSize: 48)),
-                            const SizedBox(height: 12),
-                            Text('Aucun résultat pour « $_searchQuery »',
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🔍', style: TextStyle(fontSize: 48)),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Aucun résultat pour « $_searchQuery »',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
-                            const SizedBox(height: 4),
-                            Text('Essaie un autre nom, quartier ou catégorie.',
-                                style: TextStyle(fontSize: 13, color: context.tpInkSub)),
-                          ]),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.tpInk,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Essaie un autre nom, quartier ou catégorie.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.tpInkSub,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }
@@ -212,7 +291,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           button: true,
                           label: 'Voir ${results[i].title}',
                           child: GestureDetector(
-                            onTap: () => context.push('/event/${results[i].id}'),
+                            onTap: () =>
+                                context.push('/event/${results[i].id}'),
                             child: _TrendRow(event: results[i], rank: i + 1),
                           ),
                         ),
@@ -233,15 +313,28 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Près de toi',
-                          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
+                      Text(
+                        'Près de toi',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: context.tpInk,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
                       Semantics(
                         button: true,
                         label: 'Voir tous les événements sur la carte',
                         child: GestureDetector(
                           onTap: () => context.push('/map'),
-                          child: const Text('Voir tout',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                          child: const Text(
+                            'Voir tout',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kPrimary,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -254,12 +347,22 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   height: 280,
                   child: nearbyAsync.when(
                     loading: () => _HorizontalSkeleton(),
-                    error: (_, _) => _ErrorHint(onRetry: () => ref.read(nearbyEventsFeedProvider.notifier).refresh()),
+                    error: (_, _) => _ErrorHint(
+                      onRetry: () =>
+                          ref.read(nearbyEventsFeedProvider.notifier).refresh(),
+                    ),
                     data: (page) {
                       if (page.items.isEmpty) {
                         return Center(
-                          child: Text('Aucun event pour le moment 😔',
-                              style: TextStyle(color: context.tpInkSub, fontSize: 14, fontWeight: FontWeight.w600)));
+                          child: Text(
+                            'Aucun event pour le moment 😔',
+                            style: TextStyle(
+                              color: context.tpInkSub,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
                       }
                       return ListView.builder(
                         scrollDirection: Axis.horizontal,
@@ -270,7 +373,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           button: true,
                           label: 'Voir ${page.items[i].title}',
                           child: GestureDetector(
-                            onTap: () => context.push('/event/${page.items[i].id}'),
+                            onTap: () =>
+                                context.push('/event/${page.items[i].id}'),
                             child: _EventCard(event: page.items[i]),
                           ),
                         ),
@@ -287,15 +391,28 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('🔥 Tendances',
-                          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.4)),
+                      Text(
+                        '🔥 Tendances',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: context.tpInk,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
                       Semantics(
                         button: true,
                         label: 'Voir toutes les tendances sur la carte',
                         child: GestureDetector(
                           onTap: () => context.push('/map'),
-                          child: const Text('Voir tout',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                          child: const Text(
+                            'Voir tout',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kPrimary,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -306,51 +423,79 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               trendingAsync.when(
                 loading: () => const SliverToBoxAdapter(child: _ListSkeleton()),
                 error: (_, _) => SliverToBoxAdapter(
-                    child: _ErrorHint(onRetry: () => ref.read(trendingEventsFeedProvider.notifier).refresh())),
+                  child: _ErrorHint(
+                    onRetry: () =>
+                        ref.read(trendingEventsFeedProvider.notifier).refresh(),
+                  ),
+                ),
                 data: (page) {
                   if (page.items.isEmpty) {
                     return SliverToBoxAdapter(
                       child: Center(
                         child: Padding(
                           padding: const EdgeInsets.all(Sp.lg),
-                          child: Text('Aucun événement tendance pour l\'instant 😔',
-                              style: TextStyle(color: context.tpInkSub, fontSize: 14, fontWeight: FontWeight.w600)),
+                          child: Text(
+                            'Aucun événement tendance pour l\'instant 😔',
+                            style: TextStyle(
+                              color: context.tpInkSub,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     );
                   }
-                  return SliverMainAxisGroup(slivers: [
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) => Semantics(
-                          button: true,
-                          label: 'Voir l\'événement tendance ${page.items[i].title}',
-                          child: GestureDetector(
-                            onTap: () => context.push('/event/${page.items[i].id}'),
-                            child: _TrendRow(event: page.items[i], rank: i + 1),
+                  return SliverMainAxisGroup(
+                    slivers: [
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => Semantics(
+                            button: true,
+                            label:
+                                'Voir l\'événement tendance ${page.items[i].title}',
+                            child: GestureDetector(
+                              onTap: () =>
+                                  context.push('/event/${page.items[i].id}'),
+                              child: _TrendRow(
+                                event: page.items[i],
+                                rank: i + 1,
+                              ),
+                            ),
+                          ),
+                          childCount: page.items.length,
+                        ),
+                      ),
+                      if (page.isLoadingMore)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: kPrimary,
+                              ),
+                            ),
                           ),
                         ),
-                        childCount: page.items.length,
-                      ),
-                    ),
-                    if (page.isLoadingMore)
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary)),
-                        ),
-                      ),
-                    if (!page.hasMore && page.items.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Center(
-                            child: Text('Tu as tout vu 🎉',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                      if (!page.hasMore && page.items.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: Text(
+                                'Tu as tout vu 🎉',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.tpInkMute,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                  ]);
+                    ],
+                  );
                 },
               ),
             ],
@@ -370,11 +515,13 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final startFormatted = DateFormat('EEE d MMM · HH\'h\'mm', 'fr_FR').format(event.startAt.toLocal());
+    final startFormatted = DateFormat(
+      'EEE d MMM · HH\'h\'mm',
+      'fr_FR',
+    ).format(event.startAt.toLocal());
     final contribLabel = switch (event.contributionType) {
-      'nature' => '🎁 En nature',
-      'money'  => '💳 Payant',
-      _        => '✨ Gratuit',
+      'monetaire' => '💰 Payant',
+      _ => '✨ Gratuit',
     };
 
     return Container(
@@ -383,104 +530,182 @@ class _EventCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(Radii.card),
-        boxShadow: const [BoxShadow(color: Color(0x141B1A2E), blurRadius: 12, offset: Offset(0, 4))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141B1A2E),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.card)),
-          child: SizedBox(
-            height: 140,
-            child: Stack(fit: StackFit.expand, children: [
-              Hero(
-                tag: 'event_cover_${event.id}',
-                child: event.coverImageUrl != null
-                    ? ExcludeSemantics(
-                        child: CachedNetworkImage(
-                          imageUrl: event.coverImageUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          errorWidget: (ctx, url, err) => _GradientPlaceholder(),
-                          placeholder: (ctx, url) => _GradientPlaceholder(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(Radii.card),
+            ),
+            child: SizedBox(
+              height: 140,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Hero(
+                    tag: 'event_cover_${event.id}',
+                    child: event.coverImageUrl != null
+                        ? ExcludeSemantics(
+                            child: CachedNetworkImage(
+                              imageUrl: event.coverImageUrl!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              errorWidget: (ctx, url, err) =>
+                                  _GradientPlaceholder(),
+                              placeholder: (ctx, url) => _GradientPlaceholder(),
+                            ),
+                          )
+                        : _GradientPlaceholder(),
+                  ),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: _OverlayPill(_categoryEmoji(event.category)),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: _OverlayPill(contribLabel),
+                  ),
+                  if (event.isFull)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
                         ),
-                      )
-                    : _GradientPlaceholder(),
+                        child: const Center(
+                          child: Text(
+                            'COMPLET',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              Positioned(
-                top: 10, left: 10,
-                child: _OverlayPill(_categoryEmoji(event.category)),
-              ),
-              Positioned(
-                top: 10, right: 10,
-                child: _OverlayPill(contribLabel),
-              ),
-              if (event.isFull)
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45)),
-                    child: const Center(
-                      child: Text('COMPLET',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5)),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: context.tpInk,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      PhosphorIcons.calendar(),
+                      size: 12,
+                      color: context.tpInkSub,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        startFormatted,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: context.tpInkSub,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      PhosphorIcons.mapPin(),
+                      size: 12,
+                      color: context.tpInkSub,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        event.city.isNotEmpty ? event.city : event.addressLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: context.tpInkSub,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (event.maxParticipants != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: event.maxParticipants! > 0
+                          ? event.participantsCount / event.maxParticipants!
+                          : 0,
+                      backgroundColor: context.tpHair,
+                      valueColor: const AlwaysStoppedAnimation(kPrimary),
+                      minHeight: 4,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Semantics(
+                  button: true,
+                  label: 'Voir le profil de ${event.organizerName}',
+                  child: GestureDetector(
+                    onTap: () => context.push('/promoter/${event.organizerId}'),
+                    child: Row(
+                      children: [
+                        TpAvatar(
+                          name: event.organizerName,
+                          imageUrl: event.organizerAvatarUrl,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            event.organizerName,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: kPrimary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-            ]),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(event.title,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.3),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(PhosphorIcons.calendar(), size: 12, color: context.tpInkSub),
-              const SizedBox(width: 4),
-              Expanded(child: Text(startFormatted,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub),
-                  overflow: TextOverflow.ellipsis)),
-            ]),
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(PhosphorIcons.mapPin(), size: 12, color: context.tpInkSub),
-              const SizedBox(width: 4),
-              Expanded(child: Text(event.city.isNotEmpty ? event.city : event.addressLabel,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub),
-                  overflow: TextOverflow.ellipsis)),
-            ]),
-            if (event.maxParticipants != null) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: event.maxParticipants! > 0
-                      ? event.participantsCount / event.maxParticipants! : 0,
-                  backgroundColor: context.tpHair,
-                  valueColor: const AlwaysStoppedAnimation(kPrimary),
-                  minHeight: 4,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Semantics(
-              button: true,
-              label: 'Voir le profil de ${event.organizerName}',
-              child: GestureDetector(
-                onTap: () => context.push('/promoter/${event.organizerId}'),
-                child: Row(children: [
-                  TpAvatar(name: event.organizerName, imageUrl: event.organizerAvatarUrl, size: 18),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(event.organizerName,
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kPrimary),
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                ]),
-              ),
+              ],
             ),
-          ]),
-        ),
-      ]),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -500,67 +725,122 @@ class _TrendRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(Radii.lg),
-        boxShadow: const [BoxShadow(color: Color(0x0A1B1A2E), blurRadius: 8, offset: Offset(0, 2))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A1B1A2E),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      child: Row(children: [
-        Stack(children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(Radii.button),
-            child: SizedBox(
-              width: 64, height: 64,
-              child: event.coverImageUrl != null
-                  ? ExcludeSemantics(
-                      child: CachedNetworkImage(
-                        imageUrl: event.coverImageUrl!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorWidget: (ctx, url, err) => _GradientPlaceholder(),
-                        placeholder: (ctx, url) => _GradientPlaceholder(),
-                      ),
-                    )
-                  : _GradientPlaceholder(),
-            ),
-          ),
-          Positioned(
-            top: 0, left: 0,
-            child: Container(
-              width: 22, height: 22,
-              decoration: BoxDecoration(color: kAccent, borderRadius: BorderRadius.circular(7)),
-              alignment: Alignment.center,
-              child: Text('#$rank',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
-            ),
-          ),
-        ]),
-        const SizedBox(width: Sp.sm),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(event.title,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk, letterSpacing: -0.3),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Row(children: [
-              Semantics(
-                button: true,
-                label: 'Voir le profil de ${event.organizerName}',
-                child: GestureDetector(
-                  onTap: () => context.push('/promoter/${event.organizerId}'),
-                  child: Row(children: [
-                    TpAvatar(name: event.organizerName, imageUrl: event.organizerAvatarUrl, size: 16),
-                    const SizedBox(width: 4),
-                    Text(event.organizerName,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
-                  ]),
+      child: Row(
+        children: [
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(Radii.button),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: event.coverImageUrl != null
+                      ? ExcludeSemantics(
+                          child: CachedNetworkImage(
+                            imageUrl: event.coverImageUrl!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            errorWidget: (ctx, url, err) =>
+                                _GradientPlaceholder(),
+                            placeholder: (ctx, url) => _GradientPlaceholder(),
+                          ),
+                        )
+                      : _GradientPlaceholder(),
                 ),
               ),
-              Text(' · ${event.participantsCount} viennent',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
-            ]),
-          ]),
-        ),
-        Icon(PhosphorIcons.caretRight(), color: kPrimary, size: 22),
-      ]),
+              Positioned(
+                top: 0,
+                left: 0,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: kAccent,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '#$rank',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: Sp.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: context.tpInk,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Semantics(
+                      button: true,
+                      label: 'Voir le profil de ${event.organizerName}',
+                      child: GestureDetector(
+                        onTap: () =>
+                            context.push('/promoter/${event.organizerId}'),
+                        child: Row(
+                          children: [
+                            TpAvatar(
+                              name: event.organizerName,
+                              imageUrl: event.organizerAvatarUrl,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              event.organizerName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: kPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Text(
+                      ' · ${event.participantsCount} viennent',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.tpInkSub,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Icon(PhosphorIcons.caretRight(), color: kPrimary, size: 22),
+        ],
+      ),
     );
   }
 }
@@ -573,8 +853,10 @@ class _GradientPlaceholder extends StatelessWidget {
     return const DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-            colors: [kPrimary, kTertiary],
-            begin: Alignment.topLeft, end: Alignment.bottomRight),
+          colors: [kPrimary, kTertiary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
       child: SizedBox.expand(),
     );
@@ -590,10 +872,17 @@ class _OverlayPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(Radii.pill)),
-      child: Text(label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(Radii.pill),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 }
@@ -603,8 +892,12 @@ class _OverlayPill extends StatelessWidget {
 class _HorizontalSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final base      = context.isDark ? const Color(0xFF2A2938) : const Color(0xFFE8E8F0);
-    final highlight = context.isDark ? const Color(0xFF3A3850) : const Color(0xFFF5F5FF);
+    final base = context.isDark
+        ? const Color(0xFF2A2938)
+        : const Color(0xFFE8E8F0);
+    final highlight = context.isDark
+        ? const Color(0xFF3A3850)
+        : const Color(0xFFF5F5FF);
     return Shimmer.fromColors(
       baseColor: base,
       highlightColor: highlight,
@@ -616,7 +909,9 @@ class _HorizontalSkeleton extends StatelessWidget {
           width: 220,
           margin: const EdgeInsets.only(right: Sp.sm),
           decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(Radii.card)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(Radii.card),
+          ),
         ),
       ),
     );
@@ -628,8 +923,12 @@ class _ListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base      = context.isDark ? const Color(0xFF2A2938) : const Color(0xFFE8E8F0);
-    final highlight = context.isDark ? const Color(0xFF3A3850) : const Color(0xFFF5F5FF);
+    final base = context.isDark
+        ? const Color(0xFF2A2938)
+        : const Color(0xFFE8E8F0);
+    final highlight = context.isDark
+        ? const Color(0xFF3A3850)
+        : const Color(0xFFF5F5FF);
     return Shimmer.fromColors(
       baseColor: base,
       highlightColor: highlight,
@@ -640,7 +939,9 @@ class _ListSkeleton extends StatelessWidget {
             height: 80,
             margin: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.sm),
             decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(Radii.lg)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(Radii.lg),
+            ),
           ),
         ),
       ),
@@ -655,14 +956,19 @@ class _ErrorHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Impossible de charger les events',
-            style: TextStyle(fontSize: 13, color: context.tpInkSub)),
-        TextButton(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Impossible de charger les events',
+            style: TextStyle(fontSize: 13, color: context.tpInkSub),
+          ),
+          TextButton(
             onPressed: onRetry,
-            child: const Text('Réessayer',
-                style: TextStyle(color: kPrimary))),
-      ]),
+            child: const Text('Réessayer', style: TextStyle(color: kPrimary)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -680,33 +986,45 @@ class _BellButton extends ConsumerWidget {
       button: true,
       child: GestureDetector(
         onTap: () => context.push('/notifications'),
-        child: Stack(clipBehavior: Clip.none, children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: context.tpCard,
-              borderRadius: BorderRadius.circular(Radii.button),
-              border: Border.all(color: context.tpHair),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: context.tpCard,
+                borderRadius: BorderRadius.circular(Radii.button),
+                border: Border.all(color: context.tpHair),
+              ),
+              child: Icon(PhosphorIcons.bell(), color: context.tpInk, size: 22),
             ),
-            child: Icon(PhosphorIcons.bell(), color: context.tpInk, size: 22),
-          ),
-          if (unread > 0)
-            Positioned(
-              top: -4, right: -4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: kAccent,
-                  borderRadius: BorderRadius.circular(Radii.pill),
-                  border: Border.all(color: context.tpBg, width: 1.5),
-                ),
-                child: Text(
-                  unread > 99 ? '99+' : '$unread',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white),
+            if (unread > 0)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kAccent,
+                    borderRadius: BorderRadius.circular(Radii.pill),
+                    border: Border.all(color: context.tpBg, width: 1.5),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-            ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -723,47 +1041,57 @@ class _FilterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: hasActiveFilters ? 'Filtres actifs — modifier les filtres' : 'Filtres',
+      label: hasActiveFilters
+          ? 'Filtres actifs — modifier les filtres'
+          : 'Filtres',
       child: GestureDetector(
-      onTap: onTap,
-      child: Stack(clipBehavior: Clip.none, children: [
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            color: hasActiveFilters ? kPrimary : context.tpCard,
-            borderRadius: BorderRadius.circular(Radii.button),
-            border: Border.all(color: hasActiveFilters ? kPrimary : context.tpHair),
-          ),
-          child: Icon(
-            PhosphorIcons.slidersHorizontal(),
-            color: hasActiveFilters ? Colors.white : context.tpInkSub,
-            size: 20,
-          ),
-        ),
-        if (hasActiveFilters)
-          Positioned(
-            top: -4, right: -4,
-            child: Container(
-              width: 10, height: 10,
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: kAccent,
-                shape: BoxShape.circle,
-                border: Border.all(color: context.tpBg, width: 1.5),
+                color: hasActiveFilters ? kPrimary : context.tpCard,
+                borderRadius: BorderRadius.circular(Radii.button),
+                border: Border.all(
+                  color: hasActiveFilters ? kPrimary : context.tpHair,
+                ),
+              ),
+              child: Icon(
+                PhosphorIcons.slidersHorizontal(),
+                color: hasActiveFilters ? Colors.white : context.tpInkSub,
+                size: 20,
               ),
             ),
-          ),
-      ]),
+            if (hasActiveFilters)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: kAccent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: context.tpBg, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
 String _categoryEmoji(String category) => switch (category) {
-      'soiree'    => '🎉 Soirée',
-      'musique'   => '🎵 Musique',
-      'cuisine'   => '🍽 Cuisine',
-      'sport'     => '⚽ Sport',
-      'art'       => '🎨 Art',
-      'plage'     => '🏖 Plage',
-      _           => '✨ Event',
-    };
+  'soiree' => '🎉 Soirée',
+  'musique' => '🎵 Musique',
+  'cuisine' => '🍽 Cuisine',
+  'sport' => '⚽ Sport',
+  'art' => '🎨 Art',
+  'plage' => '🏖 Plage',
+  _ => '✨ Event',
+};

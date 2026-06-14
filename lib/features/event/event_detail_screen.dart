@@ -153,7 +153,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                                 emoji: event.displayEmoji,
                               ),
                               const SizedBox(width: Sp.sm),
-                              if (event.contributionType != 'free')
+                              if (event.contributionType != 'gratuit')
                                 TpBadge.contrib(
                                   _contribLabel(event.contributionType),
                                 ),
@@ -565,11 +565,14 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   icon: PhosphorIcons.gift(),
                   iconColor: kWarning,
                   title: _contribLabel(event.contributionType),
-                  subtitle: event.contributionType == 'nature'
-                      ? '${event.contributionItems.length} items'
-                      : event.contributionAmount != null
-                      ? '${event.contributionAmount!.toStringAsFixed(0)} FCFA'
-                      : 'Entrée libre',
+                  subtitle: event.contributionType != 'monetaire'
+                      ? 'Entrée libre'
+                      : [
+                          if (event.contributionAmount != null)
+                            '${event.contributionAmount!.toStringAsFixed(0)} FCFA',
+                          if (event.contributionItems.isNotEmpty)
+                            '${event.contributionItems.length} en nature',
+                        ].join(' · '),
                 ),
               ),
             ],
@@ -1111,8 +1114,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                             widget.onCancelParticipation();
                           } else if (fullNoSlot) {
                             widget.onJoinWaitlist();
-                          } else if (event.contributionType == 'nature' &&
-                              event.contributionItems.isNotEmpty) {
+                          } else if (event.contributionType == 'monetaire' &&
+                              (event.contributionAmount != null ||
+                                  event.contributionItems.isNotEmpty)) {
                             _showContribSheet(context);
                           } else {
                             widget.onParticipate(null, 1);
@@ -1134,6 +1138,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       isScrollControlled: true,
       builder: (_) => _ContribSelectionSheet(
         items: event.contributionItems,
+        amount: event.contributionAmount?.toInt(),
         onConfirm: (itemId, qty) {
           Navigator.pop(context);
           widget.onParticipate(itemId, qty);
@@ -1169,8 +1174,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
 }
 
 String _contribLabel(String type) => switch (type) {
-  'nature' => 'En nature',
-  'money' => 'Payant',
+  'monetaire' => 'Payant',
   _ => 'Gratuit',
 };
 
@@ -1372,18 +1376,26 @@ class _ContribRow extends StatelessWidget {
 
 class _ContribSelectionSheet extends StatefulWidget {
   final List<ContributionItemModel> items;
-  final void Function(String itemId, int quantity) onConfirm;
-  const _ContribSelectionSheet({required this.items, required this.onConfirm});
+  final int? amount;
+  // itemId == null → le participant choisit de payer.
+  final void Function(String? itemId, int quantity) onConfirm;
+  const _ContribSelectionSheet({
+    required this.items,
+    required this.amount,
+    required this.onConfirm,
+  });
 
   @override
   State<_ContribSelectionSheet> createState() => _ContribSelectionSheetState();
 }
 
 class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
+  static const _kPay = '__pay__';
   String? _selectedId;
   int _qty = 1;
 
-  ContributionItemModel? get _selectedItem => _selectedId == null
+  ContributionItemModel? get _selectedItem =>
+      (_selectedId == null || _selectedId == _kPay)
       ? null
       : widget.items.where((i) => i.id == _selectedId).firstOrNull;
 
@@ -1423,7 +1435,7 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
             ),
             const SizedBox(height: Sp.md),
             Text(
-              'Que vas-tu apporter ?',
+              'Comment participer ?',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
@@ -1433,7 +1445,11 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Choisis un item et la quantité',
+              widget.amount != null && widget.items.isNotEmpty
+                  ? 'Paie l\'entrée ou apporte une contribution'
+                  : widget.amount != null
+                  ? 'Confirme ta participation'
+                  : 'Choisis ce que tu apportes',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -1441,6 +1457,87 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
               ),
             ),
             const SizedBox(height: Sp.md),
+
+            // Option « Payer »
+            if (widget.amount != null) ...[
+              GestureDetector(
+                onTap: () => setState(() {
+                  _selectedId = _kPay;
+                  _qty = 1;
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.only(bottom: Sp.sm),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _selectedId == _kPay
+                        ? kPrimary.withValues(alpha: 0.08)
+                        : context.tpCard,
+                    borderRadius: BorderRadius.circular(Radii.button),
+                    border: Border.all(
+                      color: _selectedId == _kPay ? kPrimary : context.tpHair,
+                      width: _selectedId == _kPay ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('💰', style: TextStyle(fontSize: 22)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Payer l\'entrée',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: context.tpInk,
+                              ),
+                            ),
+                            Text(
+                              '${widget.amount} FCFA',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: context.tpInkSub,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_selectedId == _kPay)
+                        Icon(
+                          PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
+                          color: kPrimary,
+                          size: 22,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (widget.items.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Sp.sm),
+                  child: Row(
+                    children: [
+                      Expanded(child: Divider(color: context.tpHair)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
+                          'ou en nature',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: context.tpInkMute,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: context.tpHair)),
+                    ],
+                  ),
+                ),
+            ],
 
             // Item list
             ...widget.items.map((item) {
@@ -1652,7 +1749,9 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
 
             TpButton(
               label: _selectedId == null
-                  ? 'Choisir un item'
+                  ? 'Choisis une option'
+                  : _selectedId == _kPay
+                  ? 'Payer ${widget.amount} FCFA'
                   : 'Confirmer — $_qty ${_qty > 1 ? '${selected!.emoji} apporté(s)' : '${selected!.emoji} apporté'}',
               fullWidth: true,
               state: _selectedId == null
@@ -1660,7 +1759,9 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
                   : TpButtonState.idle,
               onPressed: _selectedId == null
                   ? null
-                  : () => widget.onConfirm(_selectedId!, _qty),
+                  : () => _selectedId == _kPay
+                        ? widget.onConfirm(null, 1)
+                        : widget.onConfirm(_selectedId, _qty),
             ),
             const SizedBox(height: Sp.lg),
           ],
