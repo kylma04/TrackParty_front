@@ -421,7 +421,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
         statusLabel = 'Refusé';
         break;
       case 'manual_review':
-        statusLabel = 'Vérification manuelle';
+        statusLabel = 'En attente';
         break;
     }
 

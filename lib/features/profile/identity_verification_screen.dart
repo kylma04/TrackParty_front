@@ -157,7 +157,7 @@ class _IdentityVerificationScreenState
       case 'rejected':
         return 'Statut : vérification refusée';
       case 'manual_review':
-        return 'Statut : vérification manuelle requise';
+        return 'Statut : en attente de validation';
       default:
         return 'Statut : aucune vérification soumise';
     }
