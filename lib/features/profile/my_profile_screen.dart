@@ -13,6 +13,7 @@ import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_confirm_sheet.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+
 class MyProfileScreen extends ConsumerStatefulWidget {
   const MyProfileScreen({super.key});
 
@@ -38,6 +39,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
             _buildMyTickets(context),
             _buildSavedEvents(context),
             _buildCoOrgaInvitations(context),
+            _buildDocuments(context, user),
             _buildLogout(context),
             const SizedBox(height: 12),
             Text('TrackParty · v1.0.0 · 🇨🇮',
@@ -400,6 +402,35 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen> {
           ),
         ),
       ]),
+    );
+  }
+
+// ── Document ──────────────────────────────────────────────────────────────────
+
+  Widget _buildDocuments(BuildContext context, UserModel? user) {
+    String statusLabel = 'Non vérifié';
+
+    switch (user?.identityVerificationStatus) {
+      case 'pending':
+        statusLabel = 'En attente';
+        break;
+      case 'approved':
+        statusLabel = 'Vérifié';
+        break;
+      case 'rejected':
+        statusLabel = 'Refusé';
+        break;
+      case 'manual_review':
+        statusLabel = 'Vérification manuelle';
+        break;
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.badge_outlined),
+      title: const Text('Documents'),
+      subtitle: Text(statusLabel),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/identity-verification'),
     );
   }
 

@@ -50,3 +50,5 @@ dart_defines/*.json
 
 # Firebase / Google Services Android
 android/app/google-services.json
+android/build/
+env.json
