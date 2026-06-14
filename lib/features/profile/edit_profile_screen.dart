@@ -27,6 +27,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _cityCtrl;
   late final TextEditingController _quartierCtrl;
 
+  DateTime? _dateBirth;
+
   bool _loading       = false;
   bool _avatarLoading = false;
 
@@ -39,6 +41,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _bioCtrl      = TextEditingController(text: user?.bio ?? '');
     _cityCtrl     = TextEditingController(text: user?.city ?? '');
     _quartierCtrl = TextEditingController(text: user?.quartier ?? '');
+    _dateBirth    = user?.dateBirth;
   }
 
   @override
@@ -75,6 +78,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  String _formatDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateBirth ?? DateTime(now.year - 18, now.month, now.day),
+      firstDate: DateTime(1920),
+      lastDate: now,
+      helpText: 'Date de naissance',
+    );
+    if (picked != null) setState(() => _dateBirth = picked);
+  }
+
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _loading = true);
@@ -85,6 +103,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         'bio':          _bioCtrl.text.trim(),
         'city':         _cityCtrl.text.trim(),
         'quartier':     _quartierCtrl.text.trim(),
+        'date_birth':   _dateBirth == null ? null : _formatDate(_dateBirth!),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +153,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       _field(context, controller: _bioCtrl, label: 'Bio',
                           icon: PhosphorIcons.textAlignLeft(),
                           maxLines: 3),
+                      _dateField(context),
                     ]),
                     const SizedBox(height: 16),
                     _buildSection(context, 'LOCALISATION', [
@@ -287,6 +307,46 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           border: InputBorder.none,
           isDense: true,
           contentPadding: EdgeInsets.zero,
+        ),
+      ),
+    );
+  }
+
+  Widget _dateField(BuildContext context) {
+    final hasDate = _dateBirth != null;
+    return Semantics(
+      button: true,
+      label: 'Date de naissance',
+      child: GestureDetector(
+        onTap: _pickDate,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(PhosphorIcons.cake(), color: context.tpInkMute, size: 18),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Date de naissance',
+                        style: TextStyle(fontSize: 13, color: context.tpInkSub)),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasDate ? _formatDate(_dateBirth!) : 'Non renseignée',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: hasDate ? context.tpInk : context.tpInkMute,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
+            ],
+          ),
         ),
       ),
     );

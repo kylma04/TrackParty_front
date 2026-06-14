@@ -70,6 +70,8 @@ class NotificationModel {
   }
 
   bool get isInvitation => notificationType == 'invitation';
+  bool get isReviewRequest =>
+      notificationType == 'review_request' || notificationType == 'checkin_review';
   String? get invitationId => payload['invitation_id'] as String?;
   String? get eventId => payload['event_id'] as String?;
   String? get roomId => payload['room_id'] as String?;

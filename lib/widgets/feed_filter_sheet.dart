@@ -2,24 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../core/models/custom_category.dart';
 import '../core/providers/event_provider.dart';
 import '../theme/colors.dart';
+import '../theme/gradients.dart';
 import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
-import 'tp_chip.dart';
 
 Future<void> showFeedFilterSheet(BuildContext context) {
+  final media = MediaQuery.of(context);
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    // Empêche la feuille de passer sous la barre d'état (heure / batterie)
+    useSafeArea: true,
+    // Plafonne la hauteur à 80 % de l'écran
+    constraints: BoxConstraints(
+      maxHeight: media.size.height * 0.8,
+    ),
     builder: (_) => const _FeedFilterSheet(),
   );
 }
-
-const _categoryChips = ['Tout 🌟', 'Musique 🎵', 'Soirée 🎉', 'Cuisine 🍽', 'Sport ⚽', 'Art 🎨', 'Plage 🏖'];
-const _categoryValues = [null, 'musique', 'soiree', 'cuisine', 'sport', 'art', 'plage'];
 
 const _dateChips  = ['Tous ✨', 'Ce soir 🌙', 'Weekend 🎉', 'Gratuit 💸'];
 const _dateValues = ['upcoming', 'tonight', 'weekend', 'upcoming'];
@@ -35,6 +40,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
   late String  _sortBy;
   late double  _radiusKm;
   late String? _category;
+  late String? _customLabel;
   late String  _dateFilter;
   late bool    _freeOnly;
 
@@ -42,32 +48,91 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
   void initState() {
     super.initState();
     final f = ref.read(feedFiltersProvider);
-    _sortBy     = f.sortBy;
-    _radiusKm   = f.radiusKm;
-    _category   = f.category;
-    _dateFilter = f.dateFilter;
-    _freeOnly   = f.freeOnly;
+    _sortBy      = f.sortBy;
+    _radiusKm    = f.radiusKm;
+    _category    = f.category;
+    _customLabel = f.customLabel;
+    _dateFilter  = f.dateFilter;
+    _freeOnly    = f.freeOnly;
   }
 
   void _apply() {
     ref.read(feedFiltersProvider.notifier).state = FeedFilters(
-      sortBy:     _sortBy,
-      radiusKm:   _radiusKm,
-      category:   _category,
-      dateFilter: _dateFilter,
-      freeOnly:   _freeOnly,
+      sortBy:      _sortBy,
+      radiusKm:    _radiusKm,
+      category:    _category,
+      customLabel: _customLabel,
+      dateFilter:  _dateFilter,
+      freeOnly:    _freeOnly,
     );
     Navigator.of(context).pop();
   }
 
   void _reset() {
     setState(() {
-      _sortBy     = 'start_at';
-      _radiusKm   = 25;
-      _category   = null;
-      _dateFilter = 'upcoming';
-      _freeOnly   = false;
+      _sortBy      = 'start_at';
+      _radiusKm    = 25;
+      _category    = null;
+      _customLabel = null;
+      _dateFilter  = 'upcoming';
+      _freeOnly    = false;
     });
+  }
+
+  void _selectCategory({String? category, String? customLabel}) {
+    setState(() {
+      _category    = category;
+      _customLabel = customLabel;
+    });
+  }
+
+  /// Catégories affichées en grille 2 colonnes.
+  Widget _buildCategoryGrid(BuildContext context) {
+    final customCats =
+        ref.watch(customCategoriesProvider).valueOrNull ?? const <CustomCategory>[];
+
+    final chips = <Widget>[
+      _CatGridChip(
+        label: 'Tout 🌟',
+        active: _category == null && _customLabel == null,
+        onTap: () => _selectCategory(),
+      ),
+      for (final c in kStandardCategories)
+        _CatGridChip(
+          label: '${c.label} ${c.emoji}',
+          active: _category == c.slug && _customLabel == null,
+          onTap: () => _selectCategory(category: c.slug),
+        ),
+      _CatGridChip(
+        label: 'Autre ✨',
+        active: _category == 'autre' && _customLabel == null,
+        onTap: () => _selectCategory(category: 'autre'),
+      ),
+      for (final cc in customCats.take(12))
+        _CatGridChip(
+          label: '${cc.emoji} ${cc.label}',
+          active: _customLabel?.toLowerCase() == cc.label.toLowerCase(),
+          onTap: () => _selectCategory(category: 'autre', customLabel: cc.label),
+        ),
+    ];
+
+    return _grid(chips);
+  }
+
+  /// Dispose les puces en grille 2 colonnes (chaque puce remplit sa cellule).
+  Widget _grid(List<Widget> chips) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final itemWidth = (c.maxWidth - Sp.xs) / 2;
+        return Wrap(
+          spacing: Sp.xs,
+          runSpacing: Sp.xs,
+          children: chips
+              .map((chip) => SizedBox(width: itemWidth, child: chip))
+              .toList(),
+        );
+      },
+    );
   }
 
   int get _activeDateIndex {
@@ -115,6 +180,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
                     color: context.tpHair, borderRadius: BorderRadius.circular(2)),
               ),
             ),
+            const SizedBox(height: Sp.md),
 
             // Header
             Row(children: [
@@ -131,42 +197,33 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
                 ),
               ),
             ]),
-            const SizedBox(height: Sp.lg),
+            const SizedBox(height: Sp.md),
 
             // Catégorie
             Text('Catégorie',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: Sp.xs,
-              runSpacing: Sp.xs,
-              children: List.generate(_categoryChips.length, (i) => TpFilterChip(
-                label: _categoryChips[i],
-                active: _category == _categoryValues[i],
-                onTap: () => setState(() => _category = _categoryValues[i]),
-              )),
-            ),
-            const SizedBox(height: Sp.lg),
+            const SizedBox(height: 8),
+            _buildCategoryGrid(context),
+            const SizedBox(height: Sp.md),
 
             // Période
             Text('Période',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: Sp.xs,
-              runSpacing: Sp.xs,
-              children: List.generate(_dateChips.length, (i) => TpFilterChip(
-                label: _dateChips[i],
-                active: i == _activeDateIndex,
-                onTap: () => _selectDate(i),
-              )),
-            ),
-            const SizedBox(height: Sp.lg),
+            const SizedBox(height: 8),
+            _grid([
+              for (var i = 0; i < _dateChips.length; i++)
+                _CatGridChip(
+                  label: _dateChips[i],
+                  active: i == _activeDateIndex,
+                  onTap: () => _selectDate(i),
+                ),
+            ]),
+            const SizedBox(height: Sp.md),
 
             // Trier par
             Text('Trier par',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInkSub)),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             _SortOption(
               icon: PhosphorIcons.calendarBlank(),
               label: 'Date',
@@ -194,7 +251,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
               onTap: () => setState(() => _sortBy = 'distance'),
             ),
 
-            const SizedBox(height: Sp.lg),
+            const SizedBox(height: Sp.md),
 
             // Rayon
             Row(children: [
@@ -233,7 +290,7 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
               Text('100 km', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkMute)),
             ]),
 
-            const SizedBox(height: Sp.lg),
+            const SizedBox(height: Sp.md),
 
             // Apply
             SizedBox(
@@ -251,6 +308,62 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Puce de catégorie qui remplit sa cellule (grille 2 colonnes) et ellipse
+/// les libellés trop longs.
+class _CatGridChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _CatGridChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      selected: active,
+      child: GestureDetector(
+        onTap: () { Haptics.selection(); onTap(); },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: active
+              ? BoxDecoration(
+                  gradient: trackpartyGradient,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x407C3AED), blurRadius: 12, offset: Offset(0, 4)),
+                  ],
+                )
+              : BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  border: Border.all(color: context.tpHair),
+                ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: active ? Colors.white : context.tpInkSub,
+            ),
+          ),
         ),
       ),
     );

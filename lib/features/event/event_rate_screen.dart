@@ -80,7 +80,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
       );
       if (!mounted) return;
       setState(() => _btnState = TpButtonState.idle);
-      context.pop();
+      context.pop('submitted');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci pour ton avis ! 🙏')));
     } on ApiException catch (e) {
@@ -90,6 +90,20 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _btnState = TpButtonState.idle);
+    }
+  }
+
+  Future<void> _declineReminders() async {
+    try {
+      await ref.read(eventServiceProvider).declineReview(widget.eventId);
+      if (!mounted) return;
+      context.pop('declined');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ok, on ne te le rappellera plus.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur. Réessaie plus tard.')));
     }
   }
 
@@ -343,6 +357,21 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                   fullWidth: true,
                   state: _btnState,
                   onPressed: _submit,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Sp.lg, 12, Sp.lg, 0),
+                child: Center(
+                  child: Semantics(
+                    button: true,
+                    label: 'Ne plus me le rappeler',
+                    child: GestureDetector(
+                      onTap: _declineReminders,
+                      child: Text('Ne plus me le rappeler',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkSub)),
+                    ),
+                  ),
                 ),
               ),
             ],

@@ -147,7 +147,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                         children: [
                           Row(
                             children: [
-                              TpBadge.category(event.category),
+                              TpBadge.eventCategory(
+                                category: event.category,
+                                label: event.displayCategoryName,
+                                emoji: event.displayEmoji,
+                              ),
                               const SizedBox(width: Sp.sm),
                               if (event.contributionType != 'free')
                                 TpBadge.contrib(_contribLabel(event.contributionType)),
@@ -787,7 +791,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                         child: Transform.translate(
                           offset: const Offset(0, -28),
                           child: _MinimapPin(
-                            emoji: _categoryEmoji(event.category),
+                            emoji: event.displayEmoji,
                           ),
                         ),
                       ),
@@ -1160,15 +1164,6 @@ String _contribLabel(String type) => switch (type) {
   'nature' => 'En nature',
   'money' => 'Payant',
   _ => 'Gratuit',
-};
-
-String _categoryEmoji(String category) => switch (category) {
-  'soiree' => '🎉',
-  'concert' => '🎵',
-  'sport' => '⚽',
-  'art' => '🎨',
-  'plage' => '🏖',
-  _ => '✨',
 };
 
 // ── Hero button ───────────────────────────────────────────────────────────────

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/models/notification_model.dart';
 import '../../core/providers/notification_provider.dart';
+import '../../core/services/event_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -26,13 +28,66 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   static const _filters = ['Tout', 'Events', 'Messages', 'Social'];
   static const _filterKeys = ['all', 'events', 'messages', 'social'];
 
+  final _scrollCtrl = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
     // Always fetch fresh data when the screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationsProvider.notifier).refresh();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final pos = _scrollCtrl.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
+      ref.read(notificationsProvider.notifier).loadMore();
+    }
+  }
+
+  Future<void> _confirmClearAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.tpCard,
+        title: Text('Tout supprimer ?',
+            style: TextStyle(fontWeight: FontWeight.w900, color: ctx.tpInk)),
+        content: Text(
+          'Toutes tes notifications seront définitivement supprimées.',
+          style: TextStyle(color: ctx.tpInkSub),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Annuler', style: TextStyle(color: ctx.tpInkSub, fontWeight: FontWeight.w800)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer',
+                style: TextStyle(color: kError, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(notificationsProvider.notifier).clearAll();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erreur lors de la suppression.')),
+        );
+      }
+    }
   }
 
   List<NotificationModel> _filtered(List<NotificationModel> all) {
@@ -62,8 +117,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 loading: () => SkList(
                     count: 7, builder: (_) => const SkRowItem(avatarSize: 44)),
                 error: (error, stack) => _buildError(context),
-                data: (all) {
-                  final notifs = _filtered(all);
+                data: (page) {
+                  final notifs = _filtered(page.items);
                   if (notifs.isEmpty) return _buildEmpty(context);
 
                   final today   = notifs.where((n) => _isToday(n.createdAt)).toList();
@@ -73,10 +128,28 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     color: kPrimary,
                     onRefresh: () => ref.read(notificationsProvider.notifier).refresh(),
                     child: ListView(
+                      controller: _scrollCtrl,
                       padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80),
                       children: [
                         if (today.isNotEmpty)   _buildSection(context, "Aujourd'hui", today),
                         if (earlier.isNotEmpty) _buildSection(context, 'Plus tôt', earlier),
+                        if (page.isLoadingMore)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                                child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary)),
+                          )
+                        else if (!page.hasMore)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: Text('Tu as tout vu 🎉',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: context.tpInkMute)),
+                            ),
+                          ),
                       ],
                     ),
                   );
@@ -89,8 +162,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, AsyncValue<List<NotificationModel>> notifsAsync) {
-    final unread = notifsAsync.valueOrNull?.where((n) => !n.isRead).length ?? 0;
+  Widget _buildHeader(BuildContext context, AsyncValue<NotifPage> notifsAsync) {
+    final items = notifsAsync.valueOrNull?.items ?? const [];
+    final unread = items.where((n) => !n.isRead).length;
+    final hasAny = items.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 8),
       child: Row(
@@ -132,6 +207,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ),
               ),
             ),
+          if (hasAny) ...[
+            const SizedBox(width: 8),
+            Semantics(
+              button: true,
+              label: 'Tout supprimer',
+              child: GestureDetector(
+                onTap: _confirmClearAll,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                      color: context.tpCard,
+                      borderRadius: BorderRadius.circular(Radii.tag),
+                      boxShadow: Shadows.sm),
+                  child: Icon(PhosphorIcons.trash(), color: kError, size: 16),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -186,9 +280,34 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(
-            children: notifs.map((n) => _NotifRow(
-              notif: n,
-              onMarkRead: () => ref.read(notificationsProvider.notifier).markRead(n.id),
+            children: notifs.map((n) => Dismissible(
+              key: ValueKey(n.id),
+              direction: DismissDirection.endToStart,
+              onDismissed: (_) async {
+                try {
+                  await ref.read(notificationsProvider.notifier).deleteOne(n.id);
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Erreur lors de la suppression.')),
+                    );
+                  }
+                }
+              },
+              background: Container(
+                alignment: Alignment.centerRight,
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.only(right: 20),
+                decoration: BoxDecoration(
+                  color: kError.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(Radii.lg),
+                ),
+                child: Icon(PhosphorIcons.trash(), color: kError, size: 20),
+              ),
+              child: _NotifRow(
+                notif: n,
+                onMarkRead: () => ref.read(notificationsProvider.notifier).markRead(n.id),
+              ),
             )).toList(),
           ),
         ),
@@ -268,10 +387,36 @@ class _NotifRow extends StatefulWidget {
 
 class _NotifRowState extends State<_NotifRow> {
   bool _responded = false;
+  String? _reviewOutcome; // null | 'rated' | 'declined'
 
   bool get _isGroup =>
       widget.notif.notificationType == 'new_message' &&
       widget.notif.payload.containsKey('room_id');
+
+  Widget _reviewStatusLabel(BuildContext context, String outcome) {
+    final rated = outcome == 'rated';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          rated
+              ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill)
+              : PhosphorIcons.bellSlash(),
+          size: 14,
+          color: rated ? kSuccess : context.tpInkMute,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          rated ? 'Avis envoyé' : 'Tu as refusé de noter',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: rated ? kSuccess : context.tpInkMute,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -349,6 +494,23 @@ class _NotifRowState extends State<_NotifRow> {
                         widget.onMarkRead();
                       },
                     ),
+                  ],
+                  if (notif.isReviewRequest && notif.eventId != null) ...[
+                    const SizedBox(height: 8),
+                    if (_reviewOutcome == null)
+                      _ReviewRequestActions(
+                        eventId: notif.eventId!,
+                        onRated: () {
+                          setState(() => _reviewOutcome = 'rated');
+                          widget.onMarkRead();
+                        },
+                        onDeclined: () {
+                          setState(() => _reviewOutcome = 'declined');
+                          widget.onMarkRead();
+                        },
+                      )
+                    else
+                      _reviewStatusLabel(context, _reviewOutcome!),
                   ],
                 ],
               ),
@@ -440,6 +602,97 @@ class _InvitationActionsState extends ConsumerState<_InvitationActions> {
               border: Border.all(color: context.tpHair),
             ),
             child: Text('Refuser',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+// ── Actions rappel d'avis ─────────────────────────────────────────────────────
+
+class _ReviewRequestActions extends ConsumerStatefulWidget {
+  final String eventId;
+  final VoidCallback onRated;
+  final VoidCallback onDeclined;
+
+  const _ReviewRequestActions({
+    required this.eventId,
+    required this.onRated,
+    required this.onDeclined,
+  });
+
+  @override
+  ConsumerState<_ReviewRequestActions> createState() => _ReviewRequestActionsState();
+}
+
+class _ReviewRequestActionsState extends ConsumerState<_ReviewRequestActions> {
+  bool _loading = false;
+
+  Future<void> _openRate() async {
+    final result = await context.push('/event/${widget.eventId}/rate');
+    if (!mounted) return;
+    if (result == 'submitted') {
+      widget.onRated();
+    } else if (result == 'declined') {
+      widget.onDeclined();
+    }
+  }
+
+  Future<void> _decline() async {
+    setState(() => _loading = true);
+    try {
+      await ref.read(eventServiceProvider).declineReview(widget.eventId);
+      widget.onDeclined();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erreur. Réessaie plus tard.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox(height: 28,
+          child: Center(child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2)));
+    }
+    return Row(children: [
+      Semantics(
+        button: true,
+        label: 'Noter l\'événement',
+        child: GestureDetector(
+          onTap: _openRate,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: trackpartyGradient,
+              borderRadius: BorderRadius.circular(Radii.tag),
+            ),
+            child: const Text('Noter',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+          ),
+        ),
+      ),
+      const SizedBox(width: 6),
+      Semantics(
+        button: true,
+        label: 'Ne plus me rappeler',
+        child: GestureDetector(
+          onTap: _decline,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: context.tpCard,
+              borderRadius: BorderRadius.circular(Radii.tag),
+              border: Border.all(color: context.tpHair),
+            ),
+            child: Text('Ne plus me rappeler',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
           ),
         ),

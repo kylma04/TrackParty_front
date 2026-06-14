@@ -9,6 +9,13 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(ref.read(dioProvider));
 });
 
+/// Une page de notifications renvoyée par l'API paginée.
+class PaginatedNotifications {
+  final List<NotificationModel> results;
+  final bool hasMore;
+  const PaginatedNotifications({required this.results, required this.hasMore});
+}
+
 class NotificationService {
   final Dio _dio;
   NotificationService(this._dio);
@@ -21,12 +28,25 @@ class NotificationService {
     }
   }
 
-  Future<List<NotificationModel>> getNotifications() => _call(() async {
-        final res = await _dio.get('notifications/');
+  Future<PaginatedNotifications> getNotifications({int page = 1}) => _call(() async {
+        final res = await _dio.get('notifications/', queryParameters: {'page': page});
         final data = res.data;
-        final List<dynamic> list =
-            data is Map ? (data['results'] as List<dynamic>) : (data as List<dynamic>);
-        return list.map((e) => NotificationModel.fromJson(e as Map<String, dynamic>)).toList();
+        if (data is Map) {
+          final list = (data['results'] as List<dynamic>);
+          return PaginatedNotifications(
+            results: list
+                .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
+                .toList(),
+            hasMore: data['next'] != null,
+          );
+        }
+        final list = data as List<dynamic>;
+        return PaginatedNotifications(
+          results: list
+              .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          hasMore: false,
+        );
       });
 
   Future<int> getUnreadCount() => _call(() async {
@@ -40,5 +60,13 @@ class NotificationService {
 
   Future<void> markRead(String id) => _call(() async {
         await _dio.patch('notifications/$id/read/');
+      });
+
+  Future<void> deleteNotification(String id) => _call(() async {
+        await _dio.delete('notifications/$id/');
+      });
+
+  Future<void> clearAll() => _call(() async {
+        await _dio.delete('notifications/clear-all/');
       });
 }

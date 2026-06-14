@@ -33,6 +33,24 @@ class TpBadge extends StatelessWidget {
     );
   }
 
+  /// Badge de catégorie d'événement : reprend le style de la catégorie de base
+  /// mais affiche le libellé et l'emoji fournis (utile pour les catégories
+  /// personnalisées « autre » où label/emoji sont saisis par le promoteur).
+  factory TpBadge.eventCategory({
+    required String category,
+    required String label,
+    required String emoji,
+  }) {
+    final styles = _categoryStyles[category.toLowerCase()] ??
+        (bg: const Color(0xFFFFF3E0), text: kWarning, emoji: emoji);
+    return TpBadge(
+      label: label,
+      textColor: styles.text,
+      backgroundColor: styles.bg,
+      emoji: emoji,
+    );
+  }
+
   factory TpBadge.contrib(String type) {
     return switch (type.toLowerCase()) {
       'gratuit' => const TpBadge(

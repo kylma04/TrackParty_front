@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../models/custom_category.dart';
 import '../models/event_model.dart';
 import '../services/event_service.dart';
 
@@ -7,6 +8,7 @@ import '../services/event_service.dart';
 
 class FeedFilters {
   final String? category;
+  final String? customLabel; // catégorie personnalisée précise (si sélectionnée)
   final String dateFilter;
   final bool freeOnly;
   final String sortBy;     // 'start_at' | '-participants_count' | 'distance'
@@ -14,6 +16,7 @@ class FeedFilters {
 
   const FeedFilters({
     this.category,
+    this.customLabel,
     this.dateFilter = 'upcoming',
     this.freeOnly = false,
     this.sortBy = 'start_at',
@@ -22,12 +25,14 @@ class FeedFilters {
 
   FeedFilters copyWith({
     Object? category = _sentinel,
+    Object? customLabel = _sentinel,
     String? dateFilter,
     bool? freeOnly,
     String? sortBy,
     double? radiusKm,
   }) => FeedFilters(
         category: category == _sentinel ? this.category : category as String?,
+        customLabel: customLabel == _sentinel ? this.customLabel : customLabel as String?,
         dateFilter: dateFilter ?? this.dateFilter,
         freeOnly: freeOnly ?? this.freeOnly,
         sortBy: sortBy ?? this.sortBy,
@@ -35,12 +40,18 @@ class FeedFilters {
       );
 
   bool get hasActiveFilters =>
-      category != null || freeOnly || dateFilter != 'upcoming' || sortBy != 'start_at' || radiusKm != 25;
+      category != null || customLabel != null || freeOnly ||
+      dateFilter != 'upcoming' || sortBy != 'start_at' || radiusKm != 25;
 
   static const _sentinel = Object();
 }
 
 final feedFiltersProvider = StateProvider<FeedFilters>((ref) => const FeedFilters());
+
+/// Catégories personnalisées existantes (pour générer des puces de filtre).
+final customCategoriesProvider = FutureProvider<List<CustomCategory>>((ref) {
+  return ref.read(eventServiceProvider).getCustomCategories();
+});
 
 // ── Page paginée ──────────────────────────────────────────────────────────────
 
@@ -109,6 +120,7 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
     final result  = await service.getFeed(
       filter: filters.dateFilter,
       category: filters.category,
+      customCategory: filters.customLabel,
       contribution: filters.freeOnly ? 'free' : null,
       lat: loc?.latitude,
       lng: loc?.longitude,
@@ -142,6 +154,7 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
       final result   = await ref.read(eventServiceProvider).getFeed(
         filter: filters.dateFilter,
         category: filters.category,
+      customCategory: filters.customLabel,
         contribution: filters.freeOnly ? 'free' : null,
         lat: loc?.latitude,
         lng: loc?.longitude,
@@ -179,6 +192,7 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
     final result  = await service.getFeed(
       filter: filters.dateFilter,
       category: filters.category,
+      customCategory: filters.customLabel,
       contribution: filters.freeOnly ? 'free' : null,
       ordering: filters.sortBy,
       page: page,
@@ -207,6 +221,7 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
       final result   = await ref.read(eventServiceProvider).getFeed(
         filter: filters.dateFilter,
         category: filters.category,
+      customCategory: filters.customLabel,
         contribution: filters.freeOnly ? 'free' : null,
         ordering: filters.sortBy,
         page: nextPage,

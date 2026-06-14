@@ -13,7 +13,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/env.dart';
+import '../../core/models/custom_category.dart';
 import '../../core/models/event_model.dart';
+import '../../core/providers/event_provider.dart';
 import '../../core/services/event_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -73,6 +75,31 @@ const _cats = {
 };
 
 _Cat _catFor(String? cat) => _cats[cat] ?? _cats['autre']!;
+
+// ── Specs de marqueurs (avant écartement) ───────────────────────────────────────
+
+class _MarkerSpec {
+  final String id;
+  final LatLng base;
+  final BitmapDescriptor icon;
+  final Offset anchor;
+  final int zIndex;
+  final VoidCallback? onTap;
+  const _MarkerSpec({
+    required this.id,
+    required this.base,
+    required this.icon,
+    required this.anchor,
+    required this.zIndex,
+    this.onTap,
+  });
+}
+
+class _PositionedMarker {
+  final _MarkerSpec spec;
+  final LatLng position;
+  const _PositionedMarker(this.spec, this.position);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -149,9 +176,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   String?                           _selectedId;
   bool                              _listMode    = false;
   int                               _filterIndex = 0;
+  String?                           _category;     // catégorie standard ou 'autre'
+  String?                           _customLabel;  // catégorie personnalisée précise
+  bool                              _filtersVisible = false; // chips de filtres affichés ?
   LatLng?                           _userPos;
   BitmapDescriptor?                 _positionIcon;
   Map<String, BitmapDescriptor>     _markerIcons = {};
+
+  // Zoom courant de la carte (sert à écarter les marqueurs superposés)
+  double _zoom = 13.5;
+
+  // Marqueurs distants de moins de ce seuil = « même lieu » → écartés en éventail
+  static const double _coincidentThresholdMeters = 15.0;
+  // Rayon d'écartement à l'écran (px), ~ la taille d'un marqueur
+  static const double _spreadPixelRadius = 30.0;
 
   // Recherche
   final _searchCtrl  = TextEditingController();
@@ -362,6 +400,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final result = await service.getFeed(
         filter: filter,
         contribution: contribution,
+        category: _category,
+        customCategory: _customLabel,
         lat: lat,
         lng: lng,
         radius: radius,
@@ -386,6 +426,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _setFilter(int index) {
     setState(() { _filterIndex = index; _selectedId = null; });
+    _loadEvents();
+  }
+
+  void _selectCategory({String? category, String? customLabel}) {
+    setState(() {
+      _category    = category;
+      _customLabel = customLabel;
+      _selectedId  = null;
+    });
     _loadEvents();
   }
 
@@ -443,8 +492,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final icons = <String, BitmapDescriptor>{};
     for (final e in events) {
       final cat = _catFor(e.category);
-      icons['${e.id}_n'] = await _buildEventMarker(cat.emoji, cat.color, selected: false);
-      icons['${e.id}_s'] = await _buildEventMarker(cat.emoji, cat.color, selected: true);
+      // Priorité à l'emoji personnalisé (catégorie « autre »), sinon emoji de la catégorie
+      final emoji = e.displayEmoji;
+      icons['${e.id}_n'] = await _buildEventMarker(emoji, cat.color, selected: false);
+      icons['${e.id}_s'] = await _buildEventMarker(emoji, cat.color, selected: true);
     }
     if (mounted) setState(() => _markerIcons = icons);
   }
@@ -501,10 +552,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   // ── Markers set ────────────────────────────────────────────────────────────
 
   Set<Marker> get _markers {
-    final set = <Marker>{};
-
+    // Mode itinéraire : destination + position uniquement (pas d'écartement)
     if (_itineraryMode) {
-      // Mode itinéraire : marker de destination uniquement
+      final set = <Marker>{};
       if (_destination != null) {
         set.add(Marker(
           markerId: const MarkerId('_destination'),
@@ -514,30 +564,100 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           zIndexInt: 1,
         ));
       }
-    } else {
-      for (final e in _filteredEvents) {
-        final sel = _selectedId == e.id;
+      if (_userPos != null && _positionIcon != null) {
         set.add(Marker(
-          markerId: MarkerId(e.id),
-          position: LatLng(e.latitude!, e.longitude!),
-          icon: _markerIcons['${e.id}_${sel ? 's' : 'n'}'] ?? BitmapDescriptor.defaultMarker,
-          anchor: Offset(0.5, sel ? 0.87 : 0.84),
-          zIndexInt: sel ? 1 : 0,
-          onTap: () => setState(() => _selectedId = e.id),
+          markerId: const MarkerId('_me'),
+          position: _userPos!,
+          icon: _positionIcon!,
+          anchor: const Offset(0.5, 0.896),
+          zIndexInt: 10,
+        ));
+      }
+      return set;
+    }
+
+    // Mode normal : on rassemble events + position, puis on écarte ceux qui
+    // partagent (quasi) la même localisation pour qu'ils s'affichent côte à côte.
+    final specs = <_MarkerSpec>[];
+    for (final e in _filteredEvents) {
+      final sel = _selectedId == e.id;
+      specs.add(_MarkerSpec(
+        id: e.id,
+        base: LatLng(e.latitude!, e.longitude!),
+        icon: _markerIcons['${e.id}_${sel ? 's' : 'n'}'] ?? BitmapDescriptor.defaultMarker,
+        anchor: Offset(0.5, sel ? 0.87 : 0.84),
+        zIndex: sel ? 1 : 0,
+        onTap: () => setState(() => _selectedId = e.id),
+      ));
+    }
+    if (_userPos != null && _positionIcon != null) {
+      specs.add(_MarkerSpec(
+        id: '_me',
+        base: _userPos!,
+        icon: _positionIcon!,
+        anchor: const Offset(0.5, 0.896),
+        zIndex: 10,
+      ));
+    }
+
+    return _applySpread(specs)
+        .map((p) => Marker(
+              markerId: MarkerId(p.spec.id),
+              position: p.position,
+              icon: p.spec.icon,
+              anchor: p.spec.anchor,
+              zIndexInt: p.spec.zIndex,
+              onTap: p.spec.onTap,
+            ))
+        .toSet();
+  }
+
+  /// Mètres au sol par pixel écran, au zoom et à la latitude courants
+  /// (formule Web Mercator). Sert à garder un écartement constant à l'écran.
+  double _metersPerPixel(double lat) =>
+      156543.03392 * cos(lat * pi / 180) / pow(2, _zoom);
+
+  /// Regroupe les marqueurs « au même endroit » (< [_coincidentThresholdMeters])
+  /// et dispose chaque groupe de >1 en éventail circulaire autour du vrai point.
+  List<_PositionedMarker> _applySpread(List<_MarkerSpec> specs) {
+    final out  = <_PositionedMarker>[];
+    final used = List<bool>.filled(specs.length, false);
+
+    for (var i = 0; i < specs.length; i++) {
+      if (used[i]) continue;
+      final group = <_MarkerSpec>[specs[i]];
+      used[i] = true;
+      for (var j = i + 1; j < specs.length; j++) {
+        if (used[j]) continue;
+        final d = _kmBetween(
+              specs[i].base.latitude, specs[i].base.longitude,
+              specs[j].base.latitude, specs[j].base.longitude,
+            ) * 1000;
+        if (d <= _coincidentThresholdMeters) {
+          group.add(specs[j]);
+          used[j] = true;
+        }
+      }
+
+      if (group.length == 1) {
+        out.add(_PositionedMarker(group.first, group.first.base));
+        continue;
+      }
+
+      // Écartement en cercle autour du point commun (i=0 → droite, puis sens horaire)
+      final center  = group.first.base;
+      final offsetM = _spreadPixelRadius * _metersPerPixel(center.latitude);
+      for (var k = 0; k < group.length; k++) {
+        final angle = 2 * pi * k / group.length;
+        final dLat  = (offsetM * sin(angle)) / 111320.0;
+        final dLng  = (offsetM * cos(angle)) / (111320.0 * cos(center.latitude * pi / 180));
+        out.add(_PositionedMarker(
+          group[k],
+          LatLng(center.latitude + dLat, center.longitude + dLng),
         ));
       }
     }
-
-    if (_userPos != null && _positionIcon != null) {
-      set.add(Marker(
-        markerId: const MarkerId('_me'),
-        position: _userPos!,
-        icon: _positionIcon!,
-        anchor: const Offset(0.5, 0.896),
-        zIndexInt: 10,
-      ));
-    }
-    return set;
+    return out;
   }
 
   Set<Polyline> get _polylines {
@@ -600,10 +720,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
           if (_loading)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 170,
-              left: 0, right: 0,
-              child: const Center(child: _LoadingChip()),
+            const Positioned.fill(
+              child: Center(child: _LoadingChip()),
             ),
           if (!_loading && _error != null)
             Positioned(
@@ -802,6 +920,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _ctrl = ctrl;
         if (_itineraryMode) _fitItinerary();
       },
+      onCameraMove: (pos) => _zoom = pos.zoom,
+      // Recalcule l'écartement avec le zoom final une fois la caméra stabilisée
+      onCameraIdle: () { if (mounted) setState(() {}); },
       markers: _markers,
       polylines: _polylines,
       onTap: (_) => setState(() => _selectedId = null),
@@ -906,7 +1027,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       textInputAction: TextInputAction.search,
                     ),
                   ),
-                  if (_searchQuery.isNotEmpty)
+                  if (_searchQuery.isNotEmpty) ...[
                     Semantics(
                       button: true,
                       label: 'Effacer la recherche',
@@ -918,16 +1039,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         },
                         child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 18),
                       ),
-                    )
-                  else
-                    Container(
-                      width: 32, height: 32,
-                      decoration: BoxDecoration(
-                        gradient: trackpartyGradient,
-                        borderRadius: BorderRadius.circular(Radii.tag),
-                      ),
-                      child: Icon(PhosphorIcons.slidersHorizontal(), color: Colors.white, size: 16),
                     ),
+                    const SizedBox(width: 10),
+                  ],
+                  // Bouton activateur des filtres (toggle)
+                  Semantics(
+                    button: true,
+                    label: 'Filtres',
+                    selected: _filtersVisible,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _filtersVisible = !_filtersVisible),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 32, height: 32,
+                        decoration: BoxDecoration(
+                          gradient: _filtersVisible ? trackpartyGradient : null,
+                          color: _filtersVisible ? null : context.tpBg,
+                          borderRadius: BorderRadius.circular(Radii.tag),
+                          border: _filtersVisible ? null : Border.all(color: context.tpHair),
+                        ),
+                        child: Icon(PhosphorIcons.slidersHorizontal(),
+                            color: _filtersVisible ? Colors.white : context.tpInkSub, size: 16),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -978,9 +1113,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           text: '${_filteredEvents.length}',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: kPrimary),
                         ),
-                        TextSpan(
+                        const TextSpan(
                           text: ' events',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary),
                         ),
                       ],
                     ),
@@ -989,49 +1124,122 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
           ),
 
-          // ── Chips filtres ───────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-              child: Row(
-                children: List.generate(_chips.length, (i) {
-                  final active = i == _filterIndex;
-                  return Semantics(
-                    button: true,
-                    label: _chips[i],
-                    selected: active,
-                    child: GestureDetector(
-                      onTap: () => _setFilter(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        margin: const EdgeInsets.only(right: Sp.sm),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          gradient: active ? trackpartyGradient : null,
-                          color: active ? null : context.tpCard,
-                          borderRadius: BorderRadius.circular(Radii.md),
-                          border: active ? null : Border.all(color: context.tpHair),
-                          boxShadow: active
-                              ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
-                              : Shadows.sm,
-                        ),
-                        child: Text(
-                          _chips[i],
-                          style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w800,
-                            color: active ? Colors.white : context.tpInkSub,
+          // ── Filtres (affichés via le bouton de la barre de recherche) ───
+          if (_filtersVisible) ...[
+            // Chips filtres rapides
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+                child: Row(
+                  children: List.generate(_chips.length, (i) {
+                    final active = i == _filterIndex;
+                    return Semantics(
+                      button: true,
+                      label: _chips[i],
+                      selected: active,
+                      child: GestureDetector(
+                        onTap: () => _setFilter(i),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.only(right: Sp.sm),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: active ? trackpartyGradient : null,
+                            color: active ? null : context.tpCard,
+                            borderRadius: BorderRadius.circular(Radii.md),
+                            border: active ? null : Border.all(color: context.tpHair),
+                            boxShadow: active
+                                ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+                                : Shadows.sm,
+                          ),
+                          child: Text(
+                            _chips[i],
+                            style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w800,
+                              color: active ? Colors.white : context.tpInkSub,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
-          ),
+
+            // Chips catégories
+            _buildCategoryRow(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryRow() {
+    final customCats =
+        ref.watch(customCategoriesProvider).valueOrNull ?? const <CustomCategory>[];
+
+    final chips = <({String label, bool active, VoidCallback onTap})>[
+      (label: 'Tout 🌟', active: _category == null && _customLabel == null,
+          onTap: () => _selectCategory()),
+      for (final c in kStandardCategories)
+        (label: '${c.label} ${c.emoji}',
+            active: _category == c.slug && _customLabel == null,
+            onTap: () => _selectCategory(category: c.slug)),
+      (label: 'Autre ✨', active: _category == 'autre' && _customLabel == null,
+          onTap: () => _selectCategory(category: 'autre')),
+      for (final cc in customCats.take(12))
+        (label: '${cc.emoji} ${cc.label}',
+            active: _customLabel?.toLowerCase() == cc.label.toLowerCase(),
+            onTap: () => _selectCategory(category: 'autre', customLabel: cc.label)),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+        child: Row(
+          children: chips
+              .map((c) => Padding(
+                    padding: const EdgeInsets.only(right: Sp.sm),
+                    child: _categoryChip(c.label, c.active, c.onTap),
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _categoryChip(String label, bool active, VoidCallback onTap) {
+    return Semantics(
+      button: true,
+      label: label,
+      selected: active,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: active ? trackpartyGradient : null,
+            color: active ? null : context.tpCard,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: active ? null : Border.all(color: context.tpHair),
+            boxShadow: active
+                ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+                : Shadows.sm,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w800,
+              color: active ? Colors.white : context.tpInkSub,
+            ),
+          ),
+        ),
       ),
     );
   }

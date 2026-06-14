@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
+import '../models/custom_category.dart';
 import '../models/event_model.dart';
 
 final eventServiceProvider = Provider<EventService>((ref) {
@@ -14,6 +15,7 @@ class EventService {
 
   Future<PaginatedEvents> getFeed({
     String? category,
+    String? customCategory,
     String? filter,
     String? contribution,
     double? lat,
@@ -25,6 +27,7 @@ class EventService {
     try {
       final params = <String, dynamic>{'page': page};
       if (category != null) params['category'] = category;
+      if (customCategory != null) params['custom_category'] = customCategory;
       if (filter != null) params['filter'] = filter;
       if (contribution != null) params['contribution'] = contribution;
       if (lat != null) params['lat'] = lat;
@@ -34,6 +37,19 @@ class EventService {
 
       final res = await _dio.get('events/', queryParameters: params);
       return PaginatedEvents.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Catégories personnalisées existantes, triées par popularité.
+  Future<List<CustomCategory>> getCustomCategories() async {
+    try {
+      final res = await _dio.get('events/custom-categories/');
+      final list = res.data as List<dynamic>;
+      return list
+          .map((e) => CustomCategory.fromJson(e as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -125,6 +141,15 @@ class EventService {
         'is_public': isPublic,
         'tags': tags,
       });
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// L'utilisateur refuse les rappels d'avis pour cet événement.
+  Future<void> declineReview(String eventId) async {
+    try {
+      await _dio.post('events/$eventId/review/decline/');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
