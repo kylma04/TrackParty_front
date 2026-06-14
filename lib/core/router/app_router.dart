@@ -41,6 +41,7 @@ import '../../features/profile/saved_events_screen.dart';
 import '../../features/ticket/event_waitlist_screen.dart';
 import '../providers/auth_provider.dart';
 import 'main_shell.dart';
+import '../../features/profile/identity_verification_screen.dart';
 
 // ── Router provider ───────────────────────────────────────────────────────────
 
@@ -239,6 +240,7 @@ final _routes = [
     },
   ),
   GoRoute(path: '/me/edit', pageBuilder: (_, s) => _slide(s, const EditProfileScreen())),
+  GoRoute(path: '/identity-verification', pageBuilder: (_, s) => _slide(s, const IdentityVerificationScreen()),),
   GoRoute(
     path: '/promoter/:id',
     pageBuilder: (_, s) => _slide(s, PromoterProfileScreen(id: s.pathParameters['id']!)),

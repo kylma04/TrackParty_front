@@ -61,6 +61,28 @@ class AuthService {
         return UserModel.fromJson(resp.data as Map<String, dynamic>);
       });
 
+  Future<Map<String, dynamic>> getIdentityVerification() => _call(() async {
+      final resp = await _dio.get('auth/me/verification/');
+      return resp.data as Map<String, dynamic>;
+    });
+
+  Future<Map<String, dynamic>> submitIdentityVerification({
+    required String documentType,
+    required String frontImageUrl,
+    String? backImageUrl,
+    required String selfieImageUrl,
+  }) =>
+      _call(() async {
+        final resp = await _dio.post('auth/me/verification/', data: {
+          'document_type': documentType,
+          'front_image_url': frontImageUrl,
+          if (backImageUrl != null && backImageUrl.isNotEmpty)
+            'back_image_url': backImageUrl,
+          'selfie_image_url': selfieImageUrl,
+        });
+        return resp.data as Map<String, dynamic>;
+      });
+
   Future<void> requestPasswordReset(String email) => _call(() async {
         await _dio.post('auth/password-reset/', data: {'email': email});
       });

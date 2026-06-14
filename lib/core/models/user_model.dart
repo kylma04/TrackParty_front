@@ -40,6 +40,7 @@ class UserModel {
   final String quartier;
   final bool isPromoter;
   final bool isVerified;
+  final String? identityVerificationStatus;
   final PromoterProfileModel? promoterProfile;
   final DateTime createdAt;
 
@@ -55,6 +56,7 @@ class UserModel {
     required this.quartier,
     required this.isPromoter,
     required this.isVerified,
+    this.identityVerificationStatus,
     this.promoterProfile,
     required this.createdAt,
   });
@@ -73,6 +75,7 @@ class UserModel {
         quartier: (j['quartier'] as String?) ?? '',
         isPromoter: j['is_promoter'] as bool,
         isVerified: j['is_verified'] as bool,
+        identityVerificationStatus: j['identity_verification_status'] as String?,
         promoterProfile: j['promoter_profile'] != null
             ? PromoterProfileModel.fromJson(j['promoter_profile'] as Map<String, dynamic>)
             : null,
@@ -89,6 +92,7 @@ class UserModel {
     String? quartier,
     bool? isPromoter,
     bool? isVerified,
+    String? identityVerificationStatus,
   }) =>
       UserModel(
         id: id,
@@ -102,6 +106,7 @@ class UserModel {
         quartier: quartier ?? this.quartier,
         isPromoter: isPromoter ?? this.isPromoter,
         isVerified: isVerified ?? this.isVerified,
+        identityVerificationStatus: identityVerificationStatus ?? this.identityVerificationStatus,
         promoterProfile: promoterProfile,
         createdAt: createdAt,
       );

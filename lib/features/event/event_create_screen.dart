@@ -388,6 +388,21 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   // ── Publish ───────────────────────────────────────────────────────────────
 
   Future<void> _publish() async {
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final user = authState is AuthAuthenticated ? authState.user : null;
+
+    if (!widget.isEditing && user?.identityVerificationStatus != 'approved') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vous devez vérifier votre identité avant de créer un événement.',
+          ),
+          backgroundColor: kError,
+        ),
+      );
+      context.push('/identity-verification');
+      return;
+    }
     setState(() => _publishState = TpButtonState.loading);
 
     try {
