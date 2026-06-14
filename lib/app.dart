@@ -69,13 +69,15 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
 
   void _setupFcmListeners() {
     // Foreground: app is open, message arrives → refresh the in-app list silently
-    FirebaseMessaging.onMessage.listen((_) {
+    FirebaseMessaging.onMessage.listen((message) {
       ref.invalidate(notificationsProvider);
+      _maybeRefreshUser(message);
     });
 
     // Background: user taps a notification from the system tray → navigate + refresh
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       ref.invalidate(notificationsProvider);
+      _maybeRefreshUser(message);
       _navigateFromMessage(message);
     });
 
@@ -83,11 +85,25 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     FirebaseMessaging.instance.getInitialMessage().then((message) {
       if (message == null) return;
       ref.invalidate(notificationsProvider);
+      _maybeRefreshUser(message);
       // Use addPostFrameCallback to ensure the router is ready
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigateFromMessage(message);
       });
     });
+  }
+
+  /// Resynchronise l'utilisateur en live quand une notification le concernant
+  /// arrive (ex. décision de vérification d'identité par l'admin OU par n8n).
+  /// Les écrans qui observent `authNotifierProvider` (profil, vérification) se
+  /// mettent alors à jour immédiatement, sans quitter l'app.
+  void _maybeRefreshUser(RemoteMessage message) {
+    final data = message.data;
+    final type = (data['type'] ?? '').toString();
+    final category = (data['category'] ?? '').toString();
+    if (category == 'identity' || type.startsWith('identity_')) {
+      ref.read(authNotifierProvider.notifier).refreshUser();
+    }
   }
 
   void _setupDeepLinks() async {

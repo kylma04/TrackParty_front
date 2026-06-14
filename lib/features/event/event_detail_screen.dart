@@ -154,7 +154,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               ),
                               const SizedBox(width: Sp.sm),
                               if (event.contributionType != 'free')
-                                TpBadge.contrib(_contribLabel(event.contributionType)),
+                                TpBadge.contrib(
+                                  _contribLabel(event.contributionType),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -790,9 +792,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       Center(
                         child: Transform.translate(
                           offset: const Offset(0, -28),
-                          child: _MinimapPin(
-                            emoji: event.displayEmoji,
-                          ),
+                          child: _MinimapPin(emoji: event.displayEmoji),
                         ),
                       ),
                       Positioned(
@@ -1152,11 +1152,19 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   String _relativeDate(DateTime dt) {
-    final diff = dt.difference(DateTime.now());
-    if (diff.isNegative) return 'Terminé';
-    if (diff.inDays == 0) return 'Ce soir';
-    if (diff.inDays == 1) return 'Demain';
-    return 'Dans ${diff.inDays} jours';
+    final now = DateTime.now();
+    if (dt.isBefore(now)) return 'Terminé';
+
+    // Comparaison en jours CALENDAIRES (pas en tranches de 24 h).
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDay = DateTime(dt.year, dt.month, dt.day);
+    final days = eventDay.difference(today).inDays;
+
+    if (days == 0) return dt.hour >= 18 ? 'Ce soir' : "Aujourd'hui";
+    if (days == 1) return 'Demain';
+    if (days < 7) return 'Dans $days jours';
+    if (days < 14) return 'Dans une semaine';
+    return 'Dans ${days ~/ 7} semaines';
   }
 }
 
