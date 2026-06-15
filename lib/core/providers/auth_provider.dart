@@ -26,20 +26,27 @@ class AuthAuthenticated extends AuthState {
   });
 
   AuthAuthenticated copyWithUser(UserModel user) => AuthAuthenticated(
-        user: user,
-        accessToken: accessToken,
-        refreshToken: refreshToken,
-      );
+    user: user,
+    accessToken: accessToken,
+    refreshToken: refreshToken,
+  );
 }
 
 class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }
 
+/// Compte bloqué par la modération → l'utilisateur reste sur l'écran dédié.
+class AuthBlocked extends AuthState {
+  final String message;
+  const AuthBlocked(this.message);
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
-final authNotifierProvider =
-    AsyncNotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
+  AuthNotifier.new,
+);
 
 class AuthNotifier extends AsyncNotifier<AuthState> {
   AuthService get _service => ref.read(authServiceProvider);
@@ -50,6 +57,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     // Called before any await to ensure the listener is always registered.
     ref.listen<int>(forceLogoutSignalProvider, (prev, next) {
       state = const AsyncValue.data(AuthUnauthenticated());
+    });
+
+    // Compte bloqué (détecté par l'intercepteur Dio sur une requête en session).
+    ref.listen<String?>(accountBlockedProvider, (prev, next) {
+      if (next != null) state = AsyncValue.data(AuthBlocked(next));
     });
 
     final stored = await TokenStorage.load();
@@ -63,17 +75,30 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         accessToken: stored.access,
         refreshToken: stored.refresh,
       );
+    } on ApiException catch (e) {
+      // Compte bloqué au démarrage (déjà connecté) → écran dédié.
+      await TokenStorage.clear();
+      if (e.code == 'account_blocked') return AuthBlocked(e.message);
+      return const AuthUnauthenticated();
     } catch (_) {
       await TokenStorage.clear();
       return const AuthUnauthenticated();
     }
   }
 
+  /// Bascule immédiatement sur l'écran « compte bloqué » (ex. refus au login).
+  void markBlocked(String message) {
+    TokenStorage.clear();
+    state = AsyncValue.data(AuthBlocked(message));
+  }
+
   // ── Email/password ──────────────────────────────────────────────────────────
 
   Future<void> login(String email, String password) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _applyResponse(_service.login(email, password)));
+    state = await AsyncValue.guard(
+      () => _applyResponse(_service.login(email, password)),
+    );
   }
 
   /// Inscription : vérification d'email obligatoire. Aucun token n'est délivré ;
@@ -88,8 +113,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     state = const AsyncValue.loading();
     try {
       final registeredEmail = await _service.register(
-        email: email, 
-        displayName: displayName, 
+        email: email,
+        displayName: displayName,
         password: password,
         dateBirth: dateBirth,
       );
@@ -118,11 +143,13 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     final current = state.valueOrNull;
     if (current is! AuthAuthenticated) return;
     final updated = await _service.getMe();
-    state = AsyncValue.data(AuthAuthenticated(
-      user: updated,
-      accessToken: current.accessToken,
-      refreshToken: current.refreshToken,
-    ));
+    state = AsyncValue.data(
+      AuthAuthenticated(
+        user: updated,
+        accessToken: current.accessToken,
+        refreshToken: current.refreshToken,
+      ),
+    );
   }
 
   Future<void> logout() async {
@@ -145,29 +172,38 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   Future<void> googleLogin(String idToken) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _applyResponse(_service.googleAuth(idToken)));
+    state = await AsyncValue.guard(
+      () => _applyResponse(_service.googleAuth(idToken)),
+    );
   }
 
   Future<void> appleLogin(String idToken, {String? displayName}) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(
-      () => _applyResponse(_service.appleAuth(idToken, displayName: displayName)),
+      () =>
+          _applyResponse(_service.appleAuth(idToken, displayName: displayName)),
     );
   }
 
   Future<void> facebookLogin(String accessToken) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _applyResponse(_service.facebookAuth(accessToken)));
+    state = await AsyncValue.guard(
+      () => _applyResponse(_service.facebookAuth(accessToken)),
+    );
   }
 
   Future<void> snapchatLogin(String accessToken) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _applyResponse(_service.snapchatAuth(accessToken)));
+    state = await AsyncValue.guard(
+      () => _applyResponse(_service.snapchatAuth(accessToken)),
+    );
   }
 
   Future<void> instagramLogin(String accessToken) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _applyResponse(_service.instagramAuth(accessToken)));
+    state = await AsyncValue.guard(
+      () => _applyResponse(_service.instagramAuth(accessToken)),
+    );
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -198,17 +234,17 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         sound: true,
       );
       debugPrint('📱 FCM: Permission status: ${settings.authorizationStatus}');
-      
+
       final token = await messaging.getToken();
       if (token == null) {
         debugPrint('📱 FCM: Token is null, cannot register');
         return;
       }
-      
+
       debugPrint('📱 FCM: Token obtained, sending to backend...');
       await _service.registerFcmToken(token);
       debugPrint('📱 FCM: Registration successful');
-      
+
       // Keep token fresh when FCM rotates it
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
         debugPrint('📱 FCM: Token refreshed, updating backend...');

@@ -56,7 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final email = _emailCtrl.text.trim();
-    final pass  = _passCtrl.text;
+    final pass = _passCtrl.text;
     await ref.read(authNotifierProvider.notifier).login(email, pass);
     // Sauvegarder pour la prochaine connexion biométrique
     final bio = ref.read(biometricServiceProvider);
@@ -66,7 +66,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _biometricLogin() async {
-    final bio      = ref.read(biometricServiceProvider);
+    final bio = ref.read(biometricServiceProvider);
     final provider = await bio.getProvider();
     if (provider == null) return;
 
@@ -78,7 +78,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } else {
       final creds = await bio.getCredentials();
       if (creds == null) return;
-      await ref.read(authNotifierProvider.notifier).login(creds.email, creds.password);
+      await ref
+          .read(authNotifierProvider.notifier)
+          .login(creds.email, creds.password);
     }
   }
 
@@ -88,7 +90,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final googleSignIn = GoogleSignIn(serverClientId: Env.googleWebClientId);
       final account = await googleSignIn.signInSilently();
       if (account == null || !mounted) return;
-      final auth    = await account.authentication;
+      final auth = await account.authentication;
       final idToken = auth.idToken;
       if (idToken == null) return;
       await ref.read(authNotifierProvider.notifier).googleLogin(idToken);
@@ -105,9 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     try {
-      final googleSignIn = GoogleSignIn(
-        serverClientId: Env.googleWebClientId,
-      );
+      final googleSignIn = GoogleSignIn(serverClientId: Env.googleWebClientId);
       final account = await googleSignIn.signIn();
       if (account == null || !mounted) return;
       final auth = await account.authentication;
@@ -122,7 +122,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted && await bio.canAuthenticate()) await bio.saveGoogleLogin();
     } on Exception catch (e) {
       if (!mounted) return;
-      final msg = e.toString().contains('canceled') || e.toString().contains('cancelled')
+      final msg =
+          e.toString().contains('canceled') ||
+              e.toString().contains('cancelled')
           ? 'Connexion Google annulée.'
           : 'Connexion Google échouée — vérifie la configuration.';
       _showError(msg);
@@ -149,11 +151,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final idToken = credential.identityToken;
       if (idToken == null || !mounted) return;
 
-      final displayName = [credential.givenName, credential.familyName]
-          .where((s) => s != null && s.isNotEmpty)
-          .join(' ');
+      final displayName = [
+        credential.givenName,
+        credential.familyName,
+      ].where((s) => s != null && s.isNotEmpty).join(' ');
 
-      await ref.read(authNotifierProvider.notifier).appleLogin(
+      await ref
+          .read(authNotifierProvider.notifier)
+          .appleLogin(
             idToken,
             displayName: displayName.isNotEmpty ? displayName : null,
           );
@@ -175,6 +180,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.listen(authNotifierProvider, (_, next) {
       if (next.hasError) {
         final err = next.error;
+        // Compte bloqué par la modération → écran « compte suspendu ».
+        if (err is ApiException && err.code == 'account_blocked') {
+          ref.read(authNotifierProvider.notifier).markBlocked(err.message);
+          return;
+        }
         // Compte non vérifié : on dirige vers l'écran de vérification d'email,
         // en transmettant le mot de passe (extra) pour un re-login direct.
         if (err is ApiException && err.code == 'email_not_verified') {
@@ -185,7 +195,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
           return;
         }
-        final msg = err is ApiException ? err.message : 'Une erreur est survenue.';
+        final msg = err is ApiException
+            ? err.message
+            : 'Une erreur est survenue.';
         _showError(msg);
       }
     });
@@ -208,13 +220,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Text(
                   'Bon retour 👋',
                   style: TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.w900,
-                      letterSpacing: -0.8, color: context.tpInk),
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.8,
+                    color: context.tpInk,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Connecte-toi pour rejoindre la fête',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.tpInkSub,
+                  ),
                 ),
                 const SizedBox(height: Sp.xl),
                 TpField(
@@ -222,7 +241,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   prefixIcon: PhosphorIcons.envelope(),
                   keyboardType: TextInputType.emailAddress,
                   controller: _emailCtrl,
-                  validator: (v) => v == null || !v.contains('@') ? 'Email invalide' : null,
+                  validator: (v) =>
+                      v == null || !v.contains('@') ? 'Email invalide' : null,
                 ),
                 const SizedBox(height: Sp.md),
                 TpField(
@@ -233,12 +253,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscure ? PhosphorIcons.eye() : PhosphorIcons.eyeSlash(),
-                      color: context.tpInkMute, size: 20,
+                      color: context.tpInkMute,
+                      size: 20,
                     ),
                     onPressed: () => setState(() => _obscure = !_obscure),
                     tooltip: _obscure ? 'Afficher' : 'Masquer',
                   ),
-                  validator: (v) => v == null || v.length < 6 ? 'Mot de passe trop court' : null,
+                  validator: (v) => v == null || v.length < 6
+                      ? 'Mot de passe trop court'
+                      : null,
                 ),
                 const SizedBox(height: Sp.sm),
                 Align(
@@ -250,8 +273,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       onTap: () => context.push('/forgot'),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(vertical: 4),
-                        child: Text('Mot de passe oublié ?',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+                        child: Text(
+                          'Mot de passe oublié ?',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: kPrimary,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -264,15 +293,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onPressed: isLoading ? null : _submit,
                 ),
                 const SizedBox(height: Sp.lg),
-                Row(children: [
-                  Expanded(child: Divider(color: context.tpHair)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Sp.sm),
-                    child: Text('OU CONTINUER AVEC',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute)),
-                  ),
-                  Expanded(child: Divider(color: context.tpHair)),
-                ]),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: context.tpHair)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: Sp.sm),
+                      child: Text(
+                        'OU CONTINUER AVEC',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: context.tpInkMute,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: context.tpHair)),
+                  ],
+                ),
                 const SizedBox(height: Sp.lg),
                 if (isAndroid)
                   _SocialBtn(
@@ -280,7 +317,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     svgAsset: 'assets/icons/google_logo.svg',
                     onTap: isLoading ? null : _googleLogin,
                     badge: Env.googleConfigured ? null : '⚙️',
-                    badgeTooltip: Env.googleConfigured ? null : 'Non configuré — voir OBLIGATOIRE.md',
+                    badgeTooltip: Env.googleConfigured
+                        ? null
+                        : 'Non configuré — voir OBLIGATOIRE.md',
                   )
                 else ...[
                   _SocialBtn(
@@ -295,7 +334,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     svgAsset: 'assets/icons/google_logo.svg',
                     onTap: isLoading ? null : _googleLogin,
                     badge: Env.googleConfigured ? null : '⚙️',
-                    badgeTooltip: Env.googleConfigured ? null : 'Non configuré — voir OBLIGATOIRE.md',
+                    badgeTooltip: Env.googleConfigured
+                        ? null
+                        : 'Non configuré — voir OBLIGATOIRE.md',
                   ),
                 ],
                 const SizedBox(height: Sp.xl),
@@ -307,11 +348,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: RichText(
                       text: TextSpan(
                         text: 'Pas encore inscrit ? ',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: context.tpInkSub,
+                        ),
                         children: const [
                           TextSpan(
                             text: 'Créer un compte',
-                            style: TextStyle(color: kPrimary, fontWeight: FontWeight.w800),
+                            style: TextStyle(
+                              color: kPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ],
                       ),
@@ -373,8 +421,14 @@ class _SocialBtn extends StatelessWidget {
           children: [
             icon,
             const SizedBox(width: 10),
-            Text(label,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInk)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.tpInk,
+              ),
+            ),
             if (badge != null) ...[
               const SizedBox(width: 4),
               Text(badge!, style: const TextStyle(fontSize: 12)),
@@ -391,13 +445,8 @@ class _SocialBtn extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: !isDisabled,
-      label: isDisabled
-          ? '$label — ${badgeTooltip ?? 'indisponible'}'
-          : label,
-      child: GestureDetector(
-        onTap: isDisabled ? null : onTap,
-        child: btn,
-      ),
+      label: isDisabled ? '$label — ${badgeTooltip ?? 'indisponible'}' : label,
+      child: GestureDetector(onTap: isDisabled ? null : onTap, child: btn),
     );
   }
 }

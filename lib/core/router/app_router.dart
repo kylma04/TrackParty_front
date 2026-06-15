@@ -8,6 +8,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/signup_screen.dart';
 import '../../features/auth/verify_email_screen.dart';
 import '../../features/auth/forgot_password_screen.dart';
+import '../../features/auth/blocked_screen.dart';
 import '../../features/feed/feed_screen.dart';
 import '../../features/map/map_screen.dart';
 import '../../features/chat/chat_list_screen.dart';
@@ -37,6 +38,12 @@ import '../models/event_model.dart';
 import '../../features/event/event_participants_screen.dart';
 import '../../features/event/event_rate_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/settings/help_screen.dart';
+import '../../features/settings/privacy_screen.dart';
+import '../../features/settings/blocked_users_screen.dart';
+import '../../features/support/support_tickets_screen.dart';
+import '../../features/support/new_support_ticket_screen.dart';
+import '../../features/support/support_thread_screen.dart';
 import '../../features/profile/saved_events_screen.dart';
 import '../../features/ticket/event_waitlist_screen.dart';
 import '../providers/auth_provider.dart';
@@ -62,10 +69,10 @@ CustomTransitionPage<T> _slide<T>(GoRouterState state, Widget child) =>
       key: state.pageKey,
       child: child,
       transitionsBuilder: (_, animation, __, child) => SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(1.0, 0.0),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+        position: Tween<Offset>(begin: const Offset(1.0, 0.0), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
         child: child,
       ),
     );
@@ -85,12 +92,25 @@ final _routes = [
       password: state.extra as String?,
     ),
   ),
-  GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordScreen()),
+  GoRoute(
+    path: '/forgot',
+    builder: (_, s) => ForgotPasswordScreen(prefilledEmail: s.extra as String?),
+  ),
+  GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
 
   // ── Notifications ──────────────────────────────────────────────────────────
-  GoRoute(path: '/notifications', pageBuilder: (_, s) => _slide(s, const NotificationsScreen())),
-  GoRoute(path: '/invitations',  pageBuilder: (_, s) => _slide(s, const InvitationsScreen())),
-  GoRoute(path: '/call/incoming', builder: (_, _) => const IncomingCallScreen()),
+  GoRoute(
+    path: '/notifications',
+    pageBuilder: (_, s) => _slide(s, const NotificationsScreen()),
+  ),
+  GoRoute(
+    path: '/invitations',
+    pageBuilder: (_, s) => _slide(s, const InvitationsScreen()),
+  ),
+  GoRoute(
+    path: '/call/incoming',
+    builder: (_, _) => const IncomingCallScreen(),
+  ),
   GoRoute(
     path: '/call/outgoing',
     builder: (_, s) {
@@ -131,11 +151,13 @@ final _routes = [
   ),
   GoRoute(
     path: '/event/:id',
-    pageBuilder: (_, s) => _slide(s, EventDetailScreen(id: s.pathParameters['id']!)),
+    pageBuilder: (_, s) =>
+        _slide(s, EventDetailScreen(id: s.pathParameters['id']!)),
   ),
   GoRoute(
     path: '/event/:id/participants',
-    builder: (_, s) => EventParticipantsScreen(eventId: s.pathParameters['id']!),
+    builder: (_, s) =>
+        EventParticipantsScreen(eventId: s.pathParameters['id']!),
   ),
   GoRoute(
     path: '/event/:id/rate',
@@ -153,7 +175,8 @@ final _routes = [
   ),
   GoRoute(
     path: '/ticket/:eventId',
-    pageBuilder: (_, s) => _slide(s, TicketScreen(eventId: s.pathParameters['eventId']!)),
+    pageBuilder: (_, s) =>
+        _slide(s, TicketScreen(eventId: s.pathParameters['eventId']!)),
   ),
   GoRoute(
     path: '/my-tickets',
@@ -219,16 +242,49 @@ final _routes = [
   ),
   GoRoute(
     path: '/chat/:roomId',
-    pageBuilder: (_, s) => _slide(s, ChatThreadScreen(roomId: s.pathParameters['roomId']!)),
+    pageBuilder: (_, s) =>
+        _slide(s, ChatThreadScreen(roomId: s.pathParameters['roomId']!)),
   ),
   GoRoute(
     path: '/community/:promoterId',
-    builder: (_, s) => CommunityChatScreen(promoterId: s.pathParameters['promoterId']!),
+    builder: (_, s) =>
+        CommunityChatScreen(promoterId: s.pathParameters['promoterId']!),
   ),
 
   // ── Profiles ──────────────────────────────────────────────────────────────
-  GoRoute(path: '/settings',     pageBuilder: (_, s) => _slide(s, const SettingsScreen())),
-  GoRoute(path: '/saved-events', pageBuilder: (_, s) => _slide(s, const SavedEventsScreen())),
+  GoRoute(
+    path: '/settings',
+    pageBuilder: (_, s) => _slide(s, const SettingsScreen()),
+  ),
+  GoRoute(
+    path: '/help',
+    pageBuilder: (_, s) => _slide(s, const HelpScreen()),
+  ),
+  GoRoute(
+    path: '/privacy',
+    pageBuilder: (_, s) => _slide(s, const PrivacyScreen()),
+  ),
+  GoRoute(
+    path: '/blocked-users',
+    pageBuilder: (_, s) => _slide(s, const BlockedUsersScreen()),
+  ),
+  GoRoute(
+    path: '/support',
+    pageBuilder: (_, s) => _slide(s, const SupportTicketsScreen()),
+  ),
+  GoRoute(
+    path: '/support/new',
+    pageBuilder: (_, s) => _slide(s, const NewSupportTicketScreen()),
+  ),
+  GoRoute(
+    path: '/support/:id',
+    pageBuilder: (_, s) =>
+        _slide(s, SupportThreadScreen(id: s.pathParameters['id']!)),
+  ),
+  GoRoute(
+    path: '/saved-events',
+    pageBuilder: (_, s) => _slide(s, const SavedEventsScreen()),
+  ),
   GoRoute(
     path: '/event/:id/waitlist',
     builder: (_, s) {
@@ -239,11 +295,18 @@ final _routes = [
       );
     },
   ),
-  GoRoute(path: '/me/edit', pageBuilder: (_, s) => _slide(s, const EditProfileScreen())),
-  GoRoute(path: '/identity-verification', pageBuilder: (_, s) => _slide(s, const IdentityVerificationScreen()),),
+  GoRoute(
+    path: '/me/edit',
+    pageBuilder: (_, s) => _slide(s, const EditProfileScreen()),
+  ),
+  GoRoute(
+    path: '/identity-verification',
+    pageBuilder: (_, s) => _slide(s, const IdentityVerificationScreen()),
+  ),
   GoRoute(
     path: '/promoter/:id',
-    pageBuilder: (_, s) => _slide(s, PromoterProfileScreen(id: s.pathParameters['id']!)),
+    pageBuilder: (_, s) =>
+        _slide(s, PromoterProfileScreen(id: s.pathParameters['id']!)),
   ),
   GoRoute(
     path: '/promoter/:id/reviews',
@@ -259,15 +322,15 @@ final _routes = [
         path: '/map',
         builder: (_, state) {
           final q = state.uri.queryParameters;
-          final lat   = double.tryParse(q['eventLat']   ?? '');
-          final lng   = double.tryParse(q['eventLng']   ?? '');
+          final lat = double.tryParse(q['eventLat'] ?? '');
+          final lng = double.tryParse(q['eventLng'] ?? '');
           final title = q['eventTitle'];
-          final id    = q['eventId'];
+          final id = q['eventId'];
           return MapScreen(
-            destinationLat:   lat,
-            destinationLng:   lng,
+            destinationLat: lat,
+            destinationLng: lng,
             destinationTitle: title,
-            destinationId:    id,
+            destinationId: id,
           );
         },
       ),
@@ -279,13 +342,23 @@ final _routes = [
 
 // ── RouterNotifier — drives GoRouter refreshes on auth state change ───────────
 
-const _publicRoutes = ['/splash', '/onboarding', '/login', '/signup', '/verify-email', '/forgot'];
+const _publicRoutes = [
+  '/splash',
+  '/onboarding',
+  '/login',
+  '/signup',
+  '/verify-email',
+  '/forgot',
+];
 
 class RouterNotifier extends ChangeNotifier {
   final Ref _ref;
 
   RouterNotifier(this._ref) {
-    _ref.listen<AsyncValue<AuthState>>(authNotifierProvider, (_, _) => notifyListeners());
+    _ref.listen<AsyncValue<AuthState>>(
+      authNotifierProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
@@ -299,6 +372,11 @@ class RouterNotifier extends ChangeNotifier {
     final loc = state.matchedLocation;
     final isPublic = _publicRoutes.any((r) => loc.startsWith(r));
 
+    // Compte bloqué par la modération : confiné à l'écran dédié.
+    if (auth is AuthBlocked) {
+      return loc == '/blocked' ? null : '/blocked';
+    }
+
     if (!isAuthenticated && !isPublic) return '/login';
 
     if (auth is AuthAuthenticated) {
@@ -308,7 +386,10 @@ class RouterNotifier extends ChangeNotifier {
         return '/verify-email';
       }
       // Once verified (or if already verified), redirect away from auth screens
-      if (loc == '/login' || loc == '/signup' || loc == '/onboarding' || loc == '/verify-email') {
+      if (loc == '/login' ||
+          loc == '/signup' ||
+          loc == '/onboarding' ||
+          loc == '/verify-email') {
         if (isVerified) return '/feed';
       }
     }

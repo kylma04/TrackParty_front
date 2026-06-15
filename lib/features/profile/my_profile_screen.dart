@@ -5,6 +5,7 @@ import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/co_organizer_provider.dart';
 import '../../core/providers/event_provider.dart';
+import '../../core/services/support_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
@@ -29,6 +30,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
     // Statut de vérification à jour dès l'affichage du profil.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(authNotifierProvider.notifier).refreshUser();
+      ref.invalidate(supportUnreadProvider);
     });
   }
 
@@ -43,6 +45,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
     // Au retour au premier plan, on resynchronise l'utilisateur (statut vérif, etc.).
     if (state == AppLifecycleState.resumed) {
       ref.read(authNotifierProvider.notifier).refreshUser();
+      ref.invalidate(supportUnreadProvider);
     }
   }
 
@@ -66,6 +69,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
               _buildSavedEvents(context),
               _buildCoOrgaInvitations(context),
               _buildDocuments(context, user),
+              _buildSupport(context),
               _buildLogout(context),
               const SizedBox(height: 12),
               Text(
@@ -893,6 +897,133 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                       ),
                     ),
                     const SizedBox(width: 6),
+                    Icon(
+                      PhosphorIcons.caretRight(),
+                      color: context.tpInkMute,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Aide & support ────────────────────────────────────────────────────────────
+  Widget _buildSupport(BuildContext context) {
+    final unread = ref.watch(supportUnreadProvider).valueOrNull ?? 0;
+    final hasUnread = unread > 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 18, Sp.md, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'AIDE',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: context.tpInkSub,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Semantics(
+            button: true,
+            label: 'Aide et support',
+            child: GestureDetector(
+              // S'il y a des réponses en attente, on va droit aux demandes.
+              onTap: () => context.push(hasUnread ? '/support' : '/help'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.lg),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0D1B1A2E),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: kTertiary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(Radii.md),
+                          ),
+                          child: Icon(
+                            PhosphorIcons.lifebuoy(),
+                            color: kTertiary,
+                            size: 20,
+                          ),
+                        ),
+                        if (hasUnread)
+                          Positioned(
+                            right: -5,
+                            top: -5,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: unread > 9 ? 4 : 0),
+                              constraints: const BoxConstraints(minWidth: 18),
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: kError,
+                                borderRadius: BorderRadius.circular(9),
+                                border:
+                                    Border.all(color: context.tpCard, width: 2),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                unread > 9 ? '9+' : '$unread',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Aide & support',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: context.tpInk,
+                            ),
+                          ),
+                          Text(
+                            hasUnread
+                                ? '$unread réponse${unread > 1 ? 's' : ''} du support en attente'
+                                : 'FAQ, contact, mes demandes',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: hasUnread ? kError : context.tpInkSub,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     Icon(
                       PhosphorIcons.caretRight(),
                       color: context.tpInkMute,

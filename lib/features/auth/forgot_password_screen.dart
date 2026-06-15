@@ -17,7 +17,11 @@ import '../../widgets/tp_button.dart';
 import '../../widgets/tp_field.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  /// Si fourni (utilisateur connecté changeant son mot de passe), l'écran saute
+  /// l'étape de saisie d'email et envoie directement le code à cette adresse.
+  final String? prefilledEmail;
+
+  const ForgotPasswordScreen({super.key, this.prefilledEmail});
 
   @override
   ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -25,6 +29,7 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   int _step    = 0; // 0=email, 1=code, 2=nouveau mot de passe
+  int _minStep = 0; // 1 quand l'email est pré-rempli (pas de retour vers l'étape email)
   int _timerKey = 0; // incrémenté à chaque renvoi pour relancer le countdown
 
   final _emailCtrl    = TextEditingController();
@@ -36,6 +41,27 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   bool _obscure     = true;
   bool _codeExpired = false;
   String? _error;
+
+  bool get _fromSettings => (widget.prefilledEmail?.trim() ?? '').isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    final pre = widget.prefilledEmail?.trim() ?? '';
+    if (pre.isNotEmpty) {
+      // Utilisateur connecté : on connaît déjà son email → envoi immédiat du code.
+      _emailCtrl.text = pre;
+      _step = 1;
+      _minStep = 1;
+      unawaited(
+        ref.read(authServiceProvider).requestPasswordReset(pre).catchError((_) {
+          if (mounted) {
+            setState(() => _error = 'Problème d\'envoi. Appuie sur "Renvoyer le code".');
+          }
+        }),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -93,7 +119,17 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         code: _codeCtrl.text.trim(),
         newPassword: password,
       );
-      if (mounted) context.go('/login');
+      if (!mounted) return;
+      if (_fromSettings) {
+        // Déjà connecté : on revient aux paramètres avec une confirmation.
+        final messenger = ScaffoldMessenger.of(context);
+        context.pop();
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Mot de passe modifié.')),
+        );
+      } else {
+        context.go('/login');
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.message; });
     }
@@ -108,7 +144,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         leading: _step > 0
             ? IconButton(
                 icon: Icon(PhosphorIcons.arrowLeft(), color: context.tpInk),
-                onPressed: () => setState(() { _step--; _error = null; }),
+                onPressed: () {
+                  if (_step > _minStep) {
+                    setState(() { _step--; _error = null; });
+                  } else {
+                    context.pop();
+                  }
+                },
               )
             : null,
       ),

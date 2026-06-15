@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/services/biometric_service.dart';
+import '../../core/services/support_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
@@ -64,6 +66,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final authState = ref.watch(authNotifierProvider).valueOrNull;
+    final userEmail = authState is AuthAuthenticated ? authState.user.email : null;
+    final supportUnread = ref.watch(supportUnreadProvider).valueOrNull ?? 0;
 
     return Scaffold(
       backgroundColor: context.tpBg,
@@ -174,9 +179,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: PhosphorIcons.lock(),
                     iconColor: kViolet,
                     label: 'Changer le mot de passe',
-                    sub: '',
+                    sub: userEmail ?? '',
                     isLast: true,
-                    onTap: () => context.push('/forgot'),
+                    onTap: () => context.push('/forgot', extra: userEmail),
                   ),
                 ]),
                 const SizedBox(height: 20),
@@ -189,16 +194,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: PhosphorIcons.mapPin(),
                     iconColor: kInfo,
                     label: 'Localisation',
-                    sub: 'Utilisée pour afficher les events proches',
+                    sub: 'Gérer l\'autorisation de localisation',
                     isLast: false,
+                    onTap: () => Geolocator.openAppSettings(),
                   ),
                   _SettingRow(
                     icon: PhosphorIcons.prohibit(),
                     iconColor: kError,
                     label: 'Utilisateurs bloqués',
                     sub: 'Gérer les blocages',
+                    isLast: false,
+                    onTap: () => context.push('/blocked-users'),
+                  ),
+                  _SettingRow(
+                    icon: PhosphorIcons.shieldCheck(),
+                    iconColor: kSuccess,
+                    label: 'Politique de confidentialité',
+                    sub: 'Comment tes données sont utilisées',
                     isLast: true,
-                    onTap: () {},
+                    onTap: () => context.push('/privacy'),
                   ),
                 ]),
                 const SizedBox(height: 20),
@@ -213,15 +227,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     label: 'Aide & support',
                     sub: 'FAQ, contact',
                     isLast: false,
-                    onTap: () {},
-                  ),
-                  _SettingRow(
-                    icon: PhosphorIcons.shieldCheck(),
-                    iconColor: kSuccess,
-                    label: 'Politique de confidentialité',
-                    sub: '',
-                    isLast: false,
-                    onTap: () {},
+                    badge: supportUnread,
+                    onTap: () => context.push('/help'),
                   ),
                   _SettingRow(
                     icon: PhosphorIcons.info(),
@@ -394,6 +401,7 @@ class _SettingRow extends StatelessWidget {
   final bool? toggleValue;
   final void Function(bool)? onToggle;
   final VoidCallback? onTap;
+  final int badge;
 
   const _SettingRow({
     required this.icon,
@@ -405,6 +413,7 @@ class _SettingRow extends StatelessWidget {
     this.toggleValue,
     this.onToggle,
     this.onTap,
+    this.badge = 0,
   });
 
   @override
@@ -419,12 +428,41 @@ class _SettingRow extends StatelessWidget {
           decoration: BoxDecoration(
               border: isLast ? null : Border(bottom: BorderSide(color: context.tpHair))),
           child: Row(children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(Radii.tag)),
-              child: Icon(icon, color: iconColor, size: 18),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(Radii.tag)),
+                  child: Icon(icon, color: iconColor, size: 18),
+                ),
+                if (badge > 0)
+                  Positioned(
+                    right: -5,
+                    top: -5,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: badge > 9 ? 4 : 0),
+                      constraints: const BoxConstraints(minWidth: 17),
+                      height: 17,
+                      decoration: BoxDecoration(
+                        color: kError,
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(color: context.tpCard, width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        badge > 9 ? '9+' : '$badge',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            height: 1),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

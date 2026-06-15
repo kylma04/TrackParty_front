@@ -8,6 +8,10 @@ import '../services/token_storage.dart';
 // a circular dependency (dioProvider → authService → dioProvider).
 final forceLogoutSignalProvider = StateProvider<int>((ref) => 0);
 
+// Renseigné par l'intercepteur quand une requête renvoie {code: 'account_blocked'}.
+// AuthNotifier l'écoute pour rediriger vers l'écran « compte bloqué ».
+final accountBlockedProvider = StateProvider<String?>((ref) => null);
+
 final dioProvider = Provider<Dio>((ref) => _buildDio(ref));
 
 Dio _buildDio(Ref ref) {
@@ -30,6 +34,19 @@ Dio _buildDio(Ref ref) {
         handler.next(options);
       },
       onError: (error, handler) async {
+        // Compte bloqué par la modération (sur 401 OU 403) : on coupe tout,
+        // surtout PAS de refresh (sinon boucle infinie).
+        final data = error.response?.data;
+        final code = data is Map ? data['code'] as String? : null;
+        if (code == 'account_blocked') {
+          await TokenStorage.clear();
+          final msg =
+              (data is Map ? data['detail'] as String? : null) ??
+              'Ton compte a été bloqué.';
+          ref.read(accountBlockedProvider.notifier).state = msg;
+          return handler.next(error);
+        }
+
         if (error.response?.statusCode != 401) {
           return handler.next(error);
         }
@@ -46,7 +63,7 @@ Dio _buildDio(Ref ref) {
             'auth/token/refresh/',
             data: {'refresh': refreshToken},
           );
-          final newAccess  = resp.data['access']  as String;
+          final newAccess = resp.data['access'] as String;
           final newRefresh = resp.data['refresh'] as String;
           await TokenStorage.save(access: newAccess, refresh: newRefresh);
 

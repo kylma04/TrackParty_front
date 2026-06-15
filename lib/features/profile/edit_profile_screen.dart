@@ -29,19 +29,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   DateTime? _dateBirth;
 
-  bool _loading       = false;
+  bool _loading = false;
   bool _avatarLoading = false;
 
   @override
   void initState() {
     super.initState();
     final user = _currentUser;
-    _nameCtrl     = TextEditingController(text: user?.displayName ?? '');
-    _phoneCtrl    = TextEditingController(text: user?.phone ?? '');
-    _bioCtrl      = TextEditingController(text: user?.bio ?? '');
-    _cityCtrl     = TextEditingController(text: user?.city ?? '');
+    _nameCtrl = TextEditingController(text: user?.displayName ?? '');
+    _phoneCtrl = TextEditingController(text: user?.phone ?? '');
+    _bioCtrl = TextEditingController(text: user?.bio ?? '');
+    _cityCtrl = TextEditingController(text: user?.city ?? '');
     _quartierCtrl = TextEditingController(text: user?.quartier ?? '');
-    _dateBirth    = user?.dateBirth;
+    _dateBirth = user?.dateBirth;
   }
 
   @override
@@ -63,9 +63,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     if (_avatarLoading) return;
     setState(() => _avatarLoading = true);
     try {
-      final url = await ref.read(cloudinaryServiceProvider).pickAndUpload(folder: 'avatars');
+      final url = await ref
+          .read(cloudinaryServiceProvider)
+          .pickAndUpload(folder: 'avatars');
       if (url != null && mounted) {
-        await ref.read(authNotifierProvider.notifier).updateProfile({'avatar_cloud_url': url});
+        await ref.read(authNotifierProvider.notifier).updateProfile({
+          'avatar_cloud_url': url,
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -99,23 +103,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     try {
       await ref.read(authNotifierProvider.notifier).updateProfile({
         'display_name': _nameCtrl.text.trim(),
-        'phone':        _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        'bio':          _bioCtrl.text.trim(),
-        'city':         _cityCtrl.text.trim(),
-        'quartier':     _quartierCtrl.text.trim(),
-        'date_birth':   _dateBirth == null ? null : _formatDate(_dateBirth!),
+        'phone': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        'bio': _bioCtrl.text.trim(),
+        'city': _cityCtrl.text.trim(),
+        'quartier': _quartierCtrl.text.trim(),
+        'date_birth': _dateBirth == null ? null : _formatDate(_dateBirth!),
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil mis à jour !')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profil mis à jour !')));
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : ${e.toString()}')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -135,7 +139,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                  Sp.md, Sp.md, Sp.md, MediaQuery.of(context).padding.bottom + 24),
+                Sp.md,
+                Sp.md,
+                Sp.md,
+                MediaQuery.of(context).padding.bottom + 24,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -144,23 +152,44 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     _buildAvatarSection(context, me),
                     const SizedBox(height: 24),
                     _buildSection(context, 'INFORMATIONS', [
-                      _field(context, controller: _nameCtrl, label: 'Nom affiché',
-                          icon: PhosphorIcons.user(),
-                          validator: (v) => (v?.trim().isEmpty ?? true) ? 'Requis' : null),
-                      _field(context, controller: _phoneCtrl, label: 'Téléphone (optionnel)',
-                          icon: PhosphorIcons.phone(),
-                          keyboardType: TextInputType.phone),
-                      _field(context, controller: _bioCtrl, label: 'Bio',
-                          icon: PhosphorIcons.textAlignLeft(),
-                          maxLines: 3),
+                      _field(
+                        context,
+                        controller: _nameCtrl,
+                        label: 'Nom affiché',
+                        icon: PhosphorIcons.user(),
+                        validator: (v) =>
+                            (v?.trim().isEmpty ?? true) ? 'Requis' : null,
+                      ),
+                      _field(
+                        context,
+                        controller: _phoneCtrl,
+                        label: 'Téléphone (optionnel)',
+                        icon: PhosphorIcons.phone(),
+                        keyboardType: TextInputType.phone,
+                      ),
+                      _field(
+                        context,
+                        controller: _bioCtrl,
+                        label: 'Bio',
+                        icon: PhosphorIcons.textAlignLeft(),
+                        maxLines: 3,
+                      ),
                       _dateField(context),
                     ]),
                     const SizedBox(height: 16),
                     _buildSection(context, 'LOCALISATION', [
-                      _field(context, controller: _cityCtrl, label: 'Ville',
-                          icon: PhosphorIcons.city()),
-                      _field(context, controller: _quartierCtrl, label: 'Quartier',
-                          icon: PhosphorIcons.mapPin()),
+                      _field(
+                        context,
+                        controller: _cityCtrl,
+                        label: 'Ville',
+                        icon: PhosphorIcons.city(),
+                      ),
+                      _field(
+                        context,
+                        controller: _quartierCtrl,
+                        label: 'Quartier',
+                        icon: PhosphorIcons.mapPin(),
+                      ),
                     ]),
                     const SizedBox(height: 24),
                   ],
@@ -185,37 +214,68 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         child: Row(
           children: [
             Semantics(
-              button: true, label: 'Retour',
+              button: true,
+              label: 'Retour',
               child: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
-                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-              ),
+                onTap: () => context.pop(),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(Radii.md),
+                  ),
+                  child: Icon(
+                    PhosphorIcons.caretLeft(),
+                    color: context.tpInk,
+                    size: 18,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            Text('Modifier le profil',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900,
-                  color: context.tpInk, letterSpacing: -0.3)),
+            Text(
+              'Modifier le profil',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: context.tpInk,
+                letterSpacing: -0.3,
+              ),
+            ),
             const Spacer(),
             if (_loading)
               const SizedBox(
-                  width: 20, height: 20,
-                  child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2))
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: kPrimary,
+                  strokeWidth: 2,
+                ),
+              )
             else
               Semantics(
-                button: true, label: 'Sauvegarder le profil',
+                button: true,
+                label: 'Sauvegarder le profil',
                 child: GestureDetector(
-                onTap: _save,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                      gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.tag)),
-                  child: const Text('Sauvegarder',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
-                ),
+                  onTap: _save,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: trackpartyGradient,
+                      borderRadius: BorderRadius.circular(Radii.tag),
+                    ),
+                    child: const Text(
+                      'Sauvegarder',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -233,7 +293,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           onTap: _avatarLoading ? null : _pickAvatar,
           child: Stack(
             children: [
-              TpAvatar(name: me?.displayName ?? '?', imageUrl: me?.avatarUrl, size: 80),
+              TpAvatar(
+                name: me?.displayName ?? '?',
+                imageUrl: me?.avatarUrl,
+                size: 80,
+              ),
               if (_avatarLoading)
                 Positioned.fill(
                   child: Container(
@@ -243,20 +307,31 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                     alignment: Alignment.center,
                     child: const SizedBox(
-                      width: 24, height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     ),
                   ),
                 ),
               Positioned(
-                bottom: 0, right: 0,
+                bottom: 0,
+                right: 0,
                 child: Container(
-                  width: 28, height: 28,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: context.tpBg, width: 2)),
-                  child: Icon(PhosphorIcons.camera(), color: Colors.white, size: 14),
+                    gradient: trackpartyGradient,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: context.tpBg, width: 2),
+                  ),
+                  child: Icon(
+                    PhosphorIcons.camera(),
+                    color: Colors.white,
+                    size: 14,
+                  ),
                 ),
               ),
             ],
@@ -266,17 +341,29 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
-  Widget _buildSection(BuildContext context, String title, List<Widget> fields) {
+  Widget _buildSection(
+    BuildContext context,
+    String title,
+    List<Widget> fields,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-              color: context.tpInkSub, letterSpacing: 0.5)),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            color: context.tpInkSub,
+            letterSpacing: 0.5,
+          ),
+        ),
         const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
-              color: context.tpCard, borderRadius: BorderRadius.circular(Radii.lg)),
+            color: context.tpCard,
+            borderRadius: BorderRadius.circular(Radii.lg),
+          ),
           child: Column(children: fields),
         ),
       ],
@@ -299,7 +386,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         validator: validator,
         keyboardType: keyboardType,
         maxLines: maxLines,
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: context.tpInk,
+        ),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(fontSize: 13, color: context.tpInkSub),
@@ -324,14 +415,26 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             children: [
-              Icon(PhosphorIcons.cake(), color: context.tpInkMute, size: 18),
-              const SizedBox(width: 12),
+              // Boîte de 48 px centrée pour aligner l'icône sur le prefixIcon
+              // Material des autres champs.
+              SizedBox(
+                width: 48,
+                child: Center(
+                  child: Icon(
+                    PhosphorIcons.cake(),
+                    color: context.tpInkMute,
+                    size: 18,
+                  ),
+                ),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Date de naissance',
-                        style: TextStyle(fontSize: 13, color: context.tpInkSub)),
+                    Text(
+                      'Date de naissance',
+                      style: TextStyle(fontSize: 13, color: context.tpInkSub),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       hasDate ? _formatDate(_dateBirth!) : 'Non renseignée',
@@ -344,12 +447,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   ],
                 ),
               ),
-              Icon(PhosphorIcons.caretRight(), color: context.tpInkMute, size: 16),
+              Icon(
+                PhosphorIcons.caretRight(),
+                color: context.tpInkMute,
+                size: 16,
+              ),
             ],
           ),
         ),
       ),
     );
   }
-
 }

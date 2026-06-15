@@ -425,7 +425,13 @@ class _NotifRowState extends State<_NotifRow> {
       button: !notif.isRead,
       label: notif.isRead ? null : 'Marquer comme lu',
       child: GestureDetector(
-      onTap: notif.isRead ? null : widget.onMarkRead,
+      onTap: () {
+        if (!notif.isRead) widget.onMarkRead();
+        if (notif.notificationType == 'support_reply') {
+          final id = notif.payload['ticket_id'];
+          if (id != null) context.push('/support/$id');
+        }
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.all(12),

@@ -12,7 +12,6 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
-import '../../widgets/tp_chip.dart';
 
 class IdentityVerificationScreen extends ConsumerStatefulWidget {
   const IdentityVerificationScreen({super.key});
@@ -40,13 +39,87 @@ class _IdentityVerificationScreenState
   }
 
   Future<void> _pick(void Function(String) assign) async {
+    final source = await _chooseSource();
+    if (source == null || !mounted) return;
     final url = await ref
         .read(cloudinaryServiceProvider)
-        .pickAndUpload(
-          source: ImageSource.camera,
-          folder: 'identity_verifications',
-        );
+        .pickAndUpload(source: source, folder: 'identity_verifications');
     if (url != null && mounted) setState(() => assign(url));
+  }
+
+  /// Laisse choisir entre l'appareil photo et la galerie.
+  Future<ImageSource?> _chooseSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: ctx.tpCard,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(Radii.sheet),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: ctx.tpHair,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _sourceTile(
+                ctx,
+                PhosphorIcons.camera(),
+                'Prendre une photo',
+                ImageSource.camera,
+              ),
+              _sourceTile(
+                ctx,
+                PhosphorIcons.image(),
+                'Choisir dans la galerie',
+                ImageSource.gallery,
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sourceTile(
+    BuildContext ctx,
+    IconData icon,
+    String label,
+    ImageSource source,
+  ) {
+    return ListTile(
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: kPrimary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(Radii.md),
+        ),
+        child: Icon(icon, color: kPrimary, size: 22),
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+          color: ctx.tpInk,
+        ),
+      ),
+      onTap: () => Navigator.pop(ctx, source),
+    );
   }
 
   Future<void> _submit() async {
@@ -113,29 +186,48 @@ class _IdentityVerificationScreenState
             const SizedBox(height: Sp.lg),
             _sectionLabel(context, 'TYPE DE DOCUMENT'),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: Sp.sm,
-              runSpacing: Sp.sm,
-              children: [
-                TpFilterChip(
-                  label: 'Carte d\'identité',
-                  emoji: '🪪',
-                  active: _documentType == 'cni',
-                  onTap: () => setState(() => _documentType = 'cni'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: context.tpCard,
+                borderRadius: BorderRadius.circular(Radii.lg),
+                border: Border.all(color: context.tpHair, width: 1.2),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _documentType,
+                  isExpanded: true,
+                  icon: Icon(
+                    PhosphorIcons.caretDown(),
+                    color: context.tpInkMute,
+                    size: 18,
+                  ),
+                  dropdownColor: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.tpInk,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'cni',
+                      child: Text('🪪  Carte d\'identité'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'passport',
+                      child: Text('🛂  Passeport'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'driver_license',
+                      child: Text('🚗  Permis de conduire'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _documentType = v);
+                  },
                 ),
-                TpFilterChip(
-                  label: 'Passeport',
-                  emoji: '🛂',
-                  active: _documentType == 'passport',
-                  onTap: () => setState(() => _documentType = 'passport'),
-                ),
-                TpFilterChip(
-                  label: 'Permis',
-                  emoji: '🚗',
-                  active: _documentType == 'driver_license',
-                  onTap: () => setState(() => _documentType = 'driver_license'),
-                ),
-              ],
+              ),
             ),
 
             const SizedBox(height: Sp.lg),
