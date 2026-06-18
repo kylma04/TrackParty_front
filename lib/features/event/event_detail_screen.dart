@@ -23,6 +23,7 @@ import '../../widgets/event_share_sheet.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_badge.dart';
 import '../../widgets/tp_button.dart';
+import '../../widgets/tp_confirm_sheet.dart';
 import '../../widgets/tp_photo.dart';
 import '../../widgets/tp_skeleton.dart';
 import '../../widgets/tp_toast.dart';
@@ -121,6 +122,34 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   EventModel get event => widget.event;
+
+  Future<void> _confirmDeleteEvent() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await TpConfirmSheet.show(
+      context,
+      title: 'Supprimer cet événement ?',
+      body: 'Cette action est irréversible. L\'événement « ${event.title} » et '
+          'ses billets seront définitivement supprimés. Les participants '
+          'confirmés seront prévenus.',
+      confirmLabel: 'Supprimer',
+      icon: PhosphorIcons.trash(),
+    );
+    if (!confirmed) return;
+    try {
+      await ref.read(eventServiceProvider).deleteEvent(event.id);
+      // Rafraîchir les feeds pour que l'événement disparaisse immédiatement.
+      ref.invalidate(nearbyEventsFeedProvider);
+      ref.invalidate(trendingEventsFeedProvider);
+      ref.invalidate(myEventStatsProvider);
+      if (!mounted) return;
+      context.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Événement supprimé.')),
+      );
+    } catch (e) {
+      if (mounted) TpToast.error(context, 'Échec de la suppression.');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -295,6 +324,14 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                                   '/event/${event.id}/clone',
                                   extra: event,
                                 ),
+                              ),
+                              const SizedBox(height: 8),
+                              _HeroBtn(
+                                icon: PhosphorIcons.trash(),
+                                semanticLabel: 'Supprimer l\'événement',
+                                backgroundColor:
+                                    kError.withValues(alpha: 0.9),
+                                onTap: _confirmDeleteEvent,
                               ),
                               const SizedBox(height: 8),
                             ],

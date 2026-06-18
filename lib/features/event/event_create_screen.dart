@@ -12,6 +12,7 @@ import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
 import '../../core/models/event_model.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/event_provider.dart';
 import '../../core/services/cloudinary_service.dart';
 import '../../core/services/co_organizer_service.dart';
 import '../../core/services/event_service.dart';
@@ -556,6 +557,15 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             await coOrgSvc.invite(event.id, coOrg.id);
           } catch (_) {}
         }
+      }
+
+      // Rafraîchir les listes pour que l'événement apparaisse/se mette à jour
+      // sans actualisation manuelle (feed + compteurs profil + détail).
+      ref.invalidate(nearbyEventsFeedProvider);
+      ref.invalidate(trendingEventsFeedProvider);
+      ref.invalidate(myEventStatsProvider);
+      if (widget.isEditing) {
+        ref.invalidate(eventDetailProvider(event.id));
       }
 
       if (mounted) {

@@ -45,6 +45,7 @@ import '../../features/support/support_tickets_screen.dart';
 import '../../features/support/new_support_ticket_screen.dart';
 import '../../features/support/support_thread_screen.dart';
 import '../../features/profile/saved_events_screen.dart';
+import '../../features/profile/my_events_screen.dart';
 import '../../features/ticket/event_waitlist_screen.dart';
 import '../providers/auth_provider.dart';
 import 'main_shell.dart';
@@ -284,6 +285,15 @@ final _routes = [
   GoRoute(
     path: '/saved-events',
     pageBuilder: (_, s) => _slide(s, const SavedEventsScreen()),
+  ),
+  GoRoute(
+    path: '/my-events',
+    pageBuilder: (_, s) => _slide(
+      s,
+      MyEventsScreen(
+        initialTab: s.uri.queryParameters['tab'] ?? 'participating',
+      ),
+    ),
   ),
   GoRoute(
     path: '/event/:id/waitlist',

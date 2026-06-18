@@ -308,6 +308,13 @@ final myEventStatsProvider = FutureProvider<Map<String, int>>((ref) async {
   return service.getMyEventStats();
 });
 
+/// Listes « Mes événements » par type :
+/// organizing | organized | participating | participated
+final myEventsProvider =
+    FutureProvider.autoDispose.family<List<EventModel>, String>((ref, type) {
+  return ref.read(eventServiceProvider).getMyEvents(type);
+});
+
 // ── Dashboard statistiques d'un événement (organisateur) ─────────────────────
 
 final eventStatsProvider =

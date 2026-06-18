@@ -90,6 +90,27 @@ class EventService {
     }
   }
 
+  Future<void> deleteEvent(String id) async {
+    try {
+      await _dio.delete('events/$id/');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// `type` : organizing | organized | participating | participated
+  Future<List<EventModel>> getMyEvents(String type) async {
+    try {
+      final res = await _dio.get('events/mine/', queryParameters: {'type': type});
+      final list = res.data as List<dynamic>;
+      return list
+          .map((e) => EventModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   Future<void> participate(
     String eventId, {
     String? contributionItemId,

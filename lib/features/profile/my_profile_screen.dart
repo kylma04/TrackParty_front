@@ -409,6 +409,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                     count: '${stats['organized_upcoming'] ?? 0}',
                     color: kPrimary,
                     active: true,
+                    onTap: () => context.push('/my-events?tab=organizing'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -419,6 +420,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                     count: '${stats['confirmed_participations'] ?? 0}',
                     color: kSecondary,
                     active: false,
+                    onTap: () => context.push('/my-events?tab=participating'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -429,6 +431,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                     count: '${stats['past_events'] ?? 0}',
                     color: kAccent,
                     active: false,
+                    onTap: () => context.push('/my-events?tab=participated'),
                   ),
                 ),
               ],
@@ -1155,16 +1158,20 @@ class _ActionTile extends StatelessWidget {
   final String icon, label, count;
   final Color color;
   final bool active;
+  final VoidCallback? onTap;
   const _ActionTile({
     required this.icon,
     required this.label,
     required this.count,
     required this.color,
     required this.active,
+    this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
     padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
     decoration: BoxDecoration(
       color: active ? color : context.tpCard,
@@ -1211,6 +1218,7 @@ class _ActionTile extends StatelessWidget {
           ),
         ),
       ],
+    ),
     ),
   );
 }
