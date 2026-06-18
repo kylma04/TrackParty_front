@@ -224,4 +224,39 @@ class EventService {
       throw ApiException.fromDioException(e);
     }
   }
+
+  Future<void> requestPrivateJoin(String eventId) async {
+    try {
+      await _dio.post('events/$eventId/join-request/');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<List<PrivateJoinRequestModel>> getPrivateJoinRequests(String eventId) async {
+    try {
+      final res = await _dio.get('events/$eventId/join-requests/');
+      final list = res.data as List<dynamic>;
+      return list
+          .map((j) => PrivateJoinRequestModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  Future<void> respondPrivateJoinRequest(
+    String eventId,
+    String requestId, {
+    required bool accept,
+  }) async {
+    try {
+      await _dio.patch(
+        'events/$eventId/join-requests/$requestId/respond/',
+        data: {'accept': accept},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

@@ -176,6 +176,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   String?                           _selectedId;
   bool                              _listMode    = false;
   int                               _filterIndex = 0;
+  String?                           _visibilityFilter = 'all';
   String?                           _category;     // catégorie standard ou 'autre'
   String?                           _customLabel;  // catégorie personnalisée précise
   bool                              _filtersVisible = false; // chips de filtres affichés ?
@@ -243,9 +244,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   /// Events filtrés par la recherche texte (en plus des chips de filtre).
   List<EventModel> get _filteredEvents {
-    if (_searchQuery.isEmpty) return _events;
-    final q = _searchQuery.toLowerCase().trim();
-    return _events.where((e) =>
+      var events = _events;
+
+      if (_visibilityFilter == 'public') {
+        events = events.where((e) => e.visibility == 'public').toList();
+      } else if (_visibilityFilter == 'private') {
+        events = events.where((e) => e.visibility == 'private').toList();
+      }
+
+      if (_searchQuery.isEmpty) return events;
+
+      final q = _searchQuery.toLowerCase().trim();
+      return events.where((e) =>
       e.title.toLowerCase().contains(q) ||
       e.city.toLowerCase().contains(q) ||
       e.quartier.toLowerCase().contains(q) ||
@@ -493,7 +503,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     for (final e in events) {
       final cat = _catFor(e.category);
       // Priorité à l'emoji personnalisé (catégorie « autre »), sinon emoji de la catégorie
-      final emoji = e.displayEmoji;
+      final emoji = e.isLocked
+        ? '🔒'
+        : e.displayEmoji;
       icons['${e.id}_n'] = await _buildEventMarker(emoji, cat.color, selected: false);
       icons['${e.id}_s'] = await _buildEventMarker(emoji, cat.color, selected: true);
     }
@@ -1126,6 +1138,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
           // ── Filtres (affichés via le bouton de la barre de recherche) ───
           if (_filtersVisible) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+                child: Row(
+                  children: [
+                    _visibilityChip('Tous', 'all'),
+                    _visibilityChip('Publics', 'public'),
+                    _visibilityChip('Privés', 'private'),
+                  ],
+                ),
+              ),
+            ),
             // Chips filtres rapides
             Padding(
               padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
@@ -1243,6 +1269,43 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
     );
   }
+
+  Widget _visibilityChip(String label, String value) {
+  final active = _visibilityFilter == value;
+
+  return Padding(
+    padding: const EdgeInsets.only(right: Sp.sm),
+    child: GestureDetector(
+      onTap: () {
+        setState(() {
+          _visibilityFilter = value;
+          _selectedId = null;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: active ? trackpartyGradient : null,
+          color: active ? null : context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: active ? null : Border.all(color: context.tpHair),
+          boxShadow: active
+              ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+              : Shadows.sm,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: active ? Colors.white : context.tpInkSub,
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
   // ── GPS + Zoom ─────────────────────────────────────────────────────────────
 
@@ -1559,6 +1622,7 @@ class _MapListRow extends StatelessWidget {
     final cat = _catFor(event.category);
     final max = event.maxParticipants ?? 0;
     final pct = max > 0 ? event.participantsCount / max : 0.0;
+    final locked = event.visibility == 'private' && event.isLocked;
 
     return Semantics(
       button: true,
@@ -1576,39 +1640,63 @@ class _MapListRow extends StatelessWidget {
           children: [
             Stack(
               children: [
-                Container(
-                  width: 76, height: 76,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(Radii.button),
-                    image: event.coverImageUrl != null
-                        ? DecorationImage(
-                            image: CachedNetworkImageProvider(event.coverImageUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                    gradient: event.coverImageUrl == null
-                        ? LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [cat.color, cat.color.withValues(alpha: 0.55)],
-                          )
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(Radii.button),
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      image: event.coverImageUrl != null
+                          ? DecorationImage(
+                              image: CachedNetworkImageProvider(event.coverImageUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                      gradient: event.coverImageUrl == null
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [cat.color, cat.color.withValues(alpha: 0.55)],
+                            )
+                          : null,
+                    ),
+                    alignment: event.coverImageUrl == null ? Alignment.center : null,
+                    child: event.coverImageUrl == null
+                        ? Text(cat.emoji, style: const TextStyle(fontSize: 30))
                         : null,
                   ),
-                  alignment: event.coverImageUrl == null ? Alignment.center : null,
-                  child: event.coverImageUrl == null
-                      ? Text(cat.emoji, style: const TextStyle(fontSize: 30))
-                      : null,
                 ),
+
+                if (locked)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(Radii.button),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.lock, color: Colors.white, size: 28),
+                      ),
+                    ),
+                  ),
+
                 Positioned(
-                  top: 4, left: 4,
+                  top: 4,
+                  left: 4,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: cat.color,
+                      color: locked ? kWarning : cat.color,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(cat.emoji,
-                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                    child: Text(
+                      locked ? '🔒' : cat.emoji,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1618,7 +1706,7 @@ class _MapListRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(event.title,
+                  Text(locked ? 'Événement privé' : event.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
                         color: context.tpInk, letterSpacing: -0.3)),
@@ -1626,7 +1714,7 @@ class _MapListRow extends StatelessWidget {
                   Row(
                     children: [
                       Flexible(
-                        child: Text('par ${event.organizerName}',
+                        child: Text(locked ? 'Organisateur masqué' : 'par ${event.organizerName}',
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
                               color: context.tpInkSub)),
@@ -1647,9 +1735,30 @@ class _MapListRow extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('📍 $distance · ${_fmtDateShort(event.startAt)}',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                        color: context.tpInkSub)),
+                  Text(
+                    locked
+                        ? '📍 Informations masquées'
+                        : '📍 $distance · ${_fmtDateShort(event.startAt)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: context.tpInkSub,
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    event.visibility == 'private'
+                        ? (event.isLocked ? '🔒 Privé verrouillé' : '🔒 Privé')
+                        : '🌍 Public',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: event.visibility == 'private' ? kWarning : kSuccess,
+                    ),
+                  ),
+
                   const SizedBox(height: 6),
                   if (max > 0)
                     Row(

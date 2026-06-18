@@ -389,6 +389,7 @@ class _QuickActions extends StatelessWidget {
         onTap: () => context.push('/event/$eventId/co-organizers', extra: {'title': eventTitle}),
       ),
       if (stats.waitlistCount > 0) ...[
+        
         const SizedBox(height: 10),
         _ActionRow(
           icon: PhosphorIcons.clock(),
@@ -398,6 +399,18 @@ class _QuickActions extends StatelessWidget {
           onTap: () => context.push('/event/$eventId/waitlist', extra: {'title': eventTitle}),
         ),
       ],
+      const SizedBox(height: 10),
+
+      _ActionRow(
+        icon: PhosphorIcons.lock(),
+        iconColor: kWarning,
+        label: 'Demandes privées',
+        subtitle: 'Gérer les demandes de participation',
+        onTap: () => context.push(
+          '/event/$eventId/private-requests',
+          extra: {'title': eventTitle},
+        ),
+      ),
     ]);
   }
 }

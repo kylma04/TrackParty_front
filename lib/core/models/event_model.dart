@@ -108,6 +108,9 @@ class EventModel {
   final UserModel? organizer;
   final List<ContributionItemModel> contributionItems;
   final UserParticipation? userParticipation;
+  final bool showPrivateEventPublicly;
+  final bool isLocked;
+  final String? myJoinRequestStatus; // null | 'pending' | 'accepted' | 'rejected'
   final DateTime? createdAt;
 
   const EventModel({
@@ -150,6 +153,9 @@ class EventModel {
     this.organizer,
     this.contributionItems = const [],
     this.userParticipation,
+    this.showPrivateEventPublicly = false,
+    this.isLocked = false,
+    this.myJoinRequestStatus,
     this.createdAt,
   });
 
@@ -189,10 +195,17 @@ class EventModel {
         canScan: j['can_scan'] as bool? ?? false,
         isCoOrganizer: j['is_co_organizer'] as bool? ?? false,
         isSaved: j['is_saved'] as bool? ?? false,
+        showPrivateEventPublicly:
+          j['show_private_event_publicly'] as bool? ?? false,
+
+        isLocked:
+          j['is_locked'] as bool? ?? false,
+        myJoinRequestStatus: j['my_join_request_status'] as String?,
         coOrganizers: (j['co_organizers'] as List<dynamic>?)
                 ?.map((e) => CoOrganizerUser.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+          
         organizer: j['organizer'] != null
             ? UserModel.fromJson(j['organizer'] as Map<String, dynamic>)
             : null,
@@ -244,6 +257,7 @@ class EventModel {
     bool? isFull,
     bool? isWaitlisted,
     int? waitlistPosition,
+    String? myJoinRequestStatus,
     bool? isSaved,
   }) => EventModel(
         id: id,
@@ -282,6 +296,9 @@ class EventModel {
         organizer: organizer,
         contributionItems: contributionItems,
         userParticipation: userParticipation ?? this.userParticipation,
+        showPrivateEventPublicly: showPrivateEventPublicly,
+        isLocked: isLocked,
+        myJoinRequestStatus: myJoinRequestStatus ?? this.myJoinRequestStatus,
         createdAt: createdAt,
       );
 }
@@ -405,4 +422,44 @@ class EventStats {
   double get checkinRate => participantsCount > 0
       ? checkinsCount / participantsCount
       : 0;
+}
+
+class PrivateJoinRequestModel {
+  final String id;
+  final String eventId;
+  final String eventTitle;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+
+  const PrivateJoinRequestModel({
+    required this.id,
+    required this.eventId,
+    required this.eventTitle,
+    required this.userId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.status,
+    required this.createdAt,
+    this.reviewedAt,
+  });
+
+  factory PrivateJoinRequestModel.fromJson(Map<String, dynamic> j) {
+    return PrivateJoinRequestModel(
+      id: j['id'] as String,
+      eventId: j['event_id'] as String,
+      eventTitle: j['event_title'] as String,
+      userId: j['user_id'] as String,
+      userName: j['user_name'] as String,
+      userAvatarUrl: j['user_avatar_url'] as String?,
+      status: j['status'] as String,
+      createdAt: DateTime.parse(j['created_at'] as String),
+      reviewedAt: j['reviewed_at'] != null
+          ? DateTime.parse(j['reviewed_at'] as String)
+          : null,
+    );
+  }
 }
