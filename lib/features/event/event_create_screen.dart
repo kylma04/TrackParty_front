@@ -59,6 +59,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String? _customCategoryEmoji;
   String _visibility = 'public';
   String _contribMode = 'gratuit';
+  bool _showPrivateEventPublicly = false;
   int _capacity = 80;
   int? _minAge;
 
@@ -102,6 +103,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       _customCategoryLabel = ev.customCategoryLabel;
       _customCategoryEmoji = ev.customCategoryEmoji;
       _visibility = ev.visibility;
+      _showPrivateEventPublicly = ev.showPrivateEventPublicly;
       // 'nature' a fusionné dans 'monetaire' (sécurité si une donnée ancienne traîne).
       _contribMode = ev.contributionType == 'nature'
           ? 'monetaire'
@@ -518,6 +520,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         'city': _city,
         'quartier': _quartier,
         'visibility': _visibility,
+        'show_private_event_publicly':
+          _visibility == 'private' ? _showPrivateEventPublicly : false,
         'contribution_type': _contribMode,
         'max_participants': _capacity,
         if (_minAge != null) 'min_age': _minAge,
@@ -541,7 +545,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   .toList()
             : <Map<String, dynamic>>[],
       };
-
+      print('EVENT CREATE DATA: $data');
       final svc = ref.read(eventServiceProvider);
       final EventModel event;
       if (widget.isEditing) {
@@ -1199,7 +1203,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                 title: 'Public',
                 sub: 'Visible sur la carte',
                 active: _visibility == 'public',
-                onTap: () => setState(() => _visibility = 'public'),
+                onTap: () => setState(() {
+                  _visibility = 'public';
+                  _showPrivateEventPublicly = false;
+                }),
               ),
             ),
             const SizedBox(width: 8),
@@ -1214,6 +1221,23 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             ),
           ],
         ),
+        if (_visibility == 'private') ...[
+          const SizedBox(height: 12),
+          SwitchListTile(
+            title: const Text(
+              'Rendre l’événement visible publiquement'
+            ),
+            subtitle: const Text(
+              'Les détails resteront protégés pour les personnes non invitée'
+            ),
+            value: _showPrivateEventPublicly,
+            onChanged: (value) {
+              setState(() {
+                _showPrivateEventPublicly = value;
+              });
+            },
+          ),
+        ]
       ],
     );
   }

@@ -37,6 +37,7 @@ import '../../features/event/event_create_screen.dart';
 import '../models/event_model.dart';
 import '../../features/event/event_participants_screen.dart';
 import '../../features/event/event_rate_screen.dart';
+import '../../features/event/private_join_requests_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/help_screen.dart';
 import '../../features/settings/privacy_screen.dart';
@@ -155,6 +156,7 @@ final _routes = [
     pageBuilder: (_, s) =>
         _slide(s, EventDetailScreen(id: s.pathParameters['id']!)),
   ),
+  
   GoRoute(
     path: '/event/:id/participants',
     builder: (_, s) =>
@@ -214,6 +216,18 @@ final _routes = [
       );
     },
   ),
+
+  GoRoute(
+    path: '/event/:id/private-requests',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return PrivateJoinRequestsScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+
   GoRoute(
     path: '/event/:id/co-organizers',
     builder: (_, s) {

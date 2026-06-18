@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 
+
 import '../../core/models/event_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/event_provider.dart';
@@ -523,6 +524,7 @@ class _EventCard extends StatelessWidget {
       'monetaire' => '💰 Payant',
       _ => '✨ Gratuit',
     };
+    final locked = event.visibility == 'private' && event.isLocked;
 
     return Container(
       width: 220,
@@ -550,6 +552,7 @@ class _EventCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
+                
                   Hero(
                     tag: 'event_cover_${event.id}',
                     child: event.coverImageUrl != null
@@ -558,8 +561,7 @@ class _EventCard extends StatelessWidget {
                               imageUrl: event.coverImageUrl!,
                               fit: BoxFit.cover,
                               width: double.infinity,
-                              errorWidget: (ctx, url, err) =>
-                                  _GradientPlaceholder(),
+                              errorWidget: (ctx, url, err) => _GradientPlaceholder(),
                               placeholder: (ctx, url) => _GradientPlaceholder(),
                             ),
                           )
@@ -575,6 +577,21 @@ class _EventCard extends StatelessWidget {
                     right: 10,
                     child: _OverlayPill(contribLabel),
                   ),
+                  if (locked)
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.35),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.lock,
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (event.isFull)
                     Positioned.fill(
                       child: DecoratedBox(
@@ -604,7 +621,7 @@ class _EventCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  event.title,
+                  event.title,  //locked ? 'Événement privé' : event.title,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
@@ -647,7 +664,7 @@ class _EventCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        event.city.isNotEmpty ? event.city : event.addressLabel,
+                        event.quartier, //event.city.isNotEmpty ? event.city : event.addressLabel,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -688,7 +705,7 @@ class _EventCard extends StatelessWidget {
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
-                            event.organizerName,
+                            event.organizerName, //locked ? 'Organisateur masqué' : event.organizerName,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,

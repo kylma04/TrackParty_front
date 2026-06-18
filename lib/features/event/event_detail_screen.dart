@@ -16,6 +16,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
+
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
@@ -122,6 +123,15 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   EventModel get event => widget.event;
+  bool get _locked {
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final userId = authState is AuthAuthenticated ? authState.user.id : null;
+
+    final isOrganizer = userId != null && event.organizerId == userId;
+    final isCoOrganizer = event.isCoOrganizer;
+
+    return event.isLocked && !isOrganizer && !isCoOrganizer;
+  }
 
   Future<void> _confirmDeleteEvent() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -157,6 +167,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       260.0,
       420.0,
     );
+    
+
+      
     return Scaffold(
       backgroundColor: context.tpBg,
       body: Stack(
@@ -181,7 +194,29 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                                 label: event.displayCategoryName,
                                 emoji: event.displayEmoji,
                               ),
+
                               const SizedBox(width: Sp.sm),
+
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: event.visibility == 'private'
+                                      ? Colors.orange.withValues(alpha: 0.15)
+                                      : Colors.green.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  event.visibility == 'private'
+                                      ? '🔒 Privé'
+                                      : '🌍 Public',
+                                ),
+                              ),
+
+                              const SizedBox(width: Sp.sm),
+
                               if (event.contributionType != 'gratuit')
                                 TpBadge.contrib(
                                   _contribLabel(event.contributionType),
@@ -219,6 +254,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 ),
                 _buildInfoGrid(context),
                 _buildOrganizerTools(context),
+                if (_locked) _buildPrivateLockedNotice(context),
                 _buildDescription(context),
                 if (event.contributionItems.isNotEmpty)
                   _buildContributions(context),
@@ -235,6 +271,28 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             child: _buildBottomCta(context),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPrivateLockedNotice(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kWarning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(Radii.lg),
+          border: Border.all(color: kWarning.withValues(alpha: 0.35)),
+        ),
+        child: const Text(
+          'Cet événement est privé. Pour participer, envoyez une demande à l’organisateur.',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
     );
   }
@@ -1074,6 +1132,75 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     }
 
     final isDisabled = cancelled || past;
+
+    if (_locked) {
+      final status = event.myJoinRequestStatus;
+
+      final String ctaLabel;
+      final IconData ctaIcon;
+      final bool ctaDisabled;
+
+      if (status == 'pending') {
+        ctaLabel = 'Demande envoyée — en attente';
+        ctaIcon = PhosphorIcons.clockCountdown();
+        ctaDisabled = true;
+      } else if (status == 'rejected') {
+        ctaLabel = 'Demande refusée — Renvoyer';
+        ctaIcon = PhosphorIcons.arrowCounterClockwise();
+        ctaDisabled = false;
+      } else {
+        ctaLabel = 'Envoyer une demande de participation';
+        ctaIcon = PhosphorIcons.paperPlaneTilt();
+        ctaDisabled = false;
+      }
+
+      return Container(
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1F1B1A2E),
+              blurRadius: 24,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, Sp.md),
+            child: TpButton(
+              label: ctaLabel,
+              icon: ctaIcon,
+              fullWidth: true,
+              state: ctaDisabled ? TpButtonState.disabled : TpButtonState.idle,
+              onPressed: ctaDisabled
+                  ? null
+                  : () async {
+                      try {
+                        await ref
+                            .read(eventServiceProvider)
+                            .requestPrivateJoin(event.id);
+                        if (!context.mounted) return;
+                        TpToast.success(
+                          context,
+                          'Demande envoyée à l\'organisateur.',
+                        );
+                        // Rafraîchir l'événement pour mettre à jour le statut
+                        ref.invalidate(eventDetailProvider(event.id));
+                      } catch (_) {
+                        if (!context.mounted) return;
+                        TpToast.error(
+                          context,
+                          'Impossible d\'envoyer la demande.',
+                        );
+                      }
+                    },
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
