@@ -23,13 +23,15 @@ class LocationPickerResult {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 class LocationPickerScreen extends StatefulWidget {
-  final double initialLat;
-  final double initialLng;
+  // null → aucune position imposée : la carte s'ouvre sur la position GPS de
+  // l'utilisateur (avec repli sur Abidjan si la localisation est indisponible).
+  final double? initialLat;
+  final double? initialLng;
 
   const LocationPickerScreen({
     super.key,
-    this.initialLat = 5.3484,
-    this.initialLng = -4.0168,
+    this.initialLat,
+    this.initialLng,
   });
 
   @override
@@ -37,6 +39,7 @@ class LocationPickerScreen extends StatefulWidget {
 }
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
+  static const _fallback = LatLng(5.3484, -4.0168); // Abidjan, repli
   final _ctrl = Completer<GoogleMapController>();
   late LatLng _center;
   bool _moving = false;
@@ -44,7 +47,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   void initState() {
     super.initState();
-    _center = LatLng(widget.initialLat, widget.initialLng);
+    final hasInitial = widget.initialLat != null && widget.initialLng != null;
+    _center = hasInitial
+        ? LatLng(widget.initialLat!, widget.initialLng!)
+        : _fallback;
+    // Aucune position fournie → on centre sur la position actuelle du user.
+    if (!hasInitial) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _goToMyLocation());
+    }
   }
 
   Future<void> _goToMyLocation() async {
@@ -58,6 +68,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       desiredAccuracy: LocationAccuracy.high,
     );
     final target = LatLng(pos.latitude, pos.longitude);
+    if (mounted) setState(() => _center = target);
     final map = await _ctrl.future;
     await map.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
   }

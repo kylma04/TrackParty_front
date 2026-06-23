@@ -11,6 +11,11 @@ final myTicketsProvider = FutureProvider.autoDispose<List<TicketModel>>(
   (ref) => ref.read(ticketServiceProvider).getMyTickets(),
 );
 
+final myTransferredTicketsProvider =
+    FutureProvider.autoDispose<List<SentTransferModel>>(
+  (ref) => ref.read(ticketServiceProvider).getTransferredTickets(),
+);
+
 final eventCheckinsProvider = FutureProvider.autoDispose.family<List<TicketModel>, String>(
   (ref, eventId) => ref.read(ticketServiceProvider).getCheckins(eventId),
 );

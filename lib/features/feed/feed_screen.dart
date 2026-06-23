@@ -577,6 +577,12 @@ class _EventCard extends StatelessWidget {
                     right: 10,
                     child: _OverlayPill(contribLabel),
                   ),
+                  if (event.isSponsored)
+                    const Positioned(
+                      bottom: 10,
+                      left: 10,
+                      child: _SponsoredPill(),
+                    ),
                   if (locked)
                     Positioned.fill(
                       child: DecoratedBox(
@@ -802,16 +808,27 @@ class _TrendRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  event.title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: context.tpInk,
-                    letterSpacing: -0.3,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    if (event.isSponsored) ...[
+                      const Icon(Icons.star_rounded,
+                          size: 15, color: Color(0xFFF59E0B)),
+                      const SizedBox(width: 3),
+                    ],
+                    Expanded(
+                      child: Text(
+                        event.title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: context.tpInk,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Row(
@@ -879,6 +896,43 @@ class _GradientPlaceholder extends StatelessWidget {
     );
   }
 }
+
+class _SponsoredPill extends StatelessWidget {
+  const _SponsoredPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
+        ),
+        borderRadius: BorderRadius.circular(Radii.pill),
+        boxShadow: const [
+          BoxShadow(color: Color(0x33EC4899), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 13, color: Colors.white),
+          SizedBox(width: 3),
+          Text(
+            'Sponsorisé',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _OverlayPill extends StatelessWidget {
   final String label;

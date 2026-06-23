@@ -8,6 +8,7 @@ class ContributionItemModel {
   final int quantityTaken;
   final int quantityRemaining;
   final bool isAvailable;
+  final String? categoryName; // catégorie obtenue via cette option (mode catégorie)
 
   const ContributionItemModel({
     required this.id,
@@ -17,6 +18,7 @@ class ContributionItemModel {
     required this.quantityTaken,
     required this.quantityRemaining,
     required this.isAvailable,
+    this.categoryName,
   });
 
   factory ContributionItemModel.fromJson(Map<String, dynamic> j) =>
@@ -28,6 +30,54 @@ class ContributionItemModel {
         quantityTaken: j['quantity_taken'] as int,
         quantityRemaining: j['quantity_remaining'] as int,
         isAvailable: j['is_available'] as bool,
+        categoryName: (j['ticket_category'] as Map<String, dynamic>?)?['name'] as String?,
+      );
+}
+
+/// Catégorie de billet d'un événement payant (vue publique).
+class TicketCategoryModel {
+  final String id;
+  final String name;
+  final int price;
+  final List<String> advantages;
+  final String description;
+  final String color; // hex (#RRGGBB) ou vide
+  final int order;
+  final bool onSale;
+  final int? remaining; // null si illimité OU masqué par le promoteur
+  final bool isSoldOut;
+  final bool isLowStock;
+
+  const TicketCategoryModel({
+    required this.id,
+    required this.name,
+    required this.price,
+    this.advantages = const [],
+    this.description = '',
+    this.color = '',
+    this.order = 0,
+    this.onSale = true,
+    this.remaining,
+    this.isSoldOut = false,
+    this.isLowStock = false,
+  });
+
+  factory TicketCategoryModel.fromJson(Map<String, dynamic> j) =>
+      TicketCategoryModel(
+        id: j['id'].toString(),
+        name: j['name'] as String? ?? '',
+        price: (j['price'] as num?)?.toInt() ?? 0,
+        advantages: (j['advantages'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const [],
+        description: j['description'] as String? ?? '',
+        color: j['color'] as String? ?? '',
+        order: (j['order'] as num?)?.toInt() ?? 0,
+        onSale: j['on_sale'] as bool? ?? true,
+        remaining: (j['remaining'] as num?)?.toInt(),
+        isSoldOut: j['is_sold_out'] as bool? ?? false,
+        isLowStock: j['is_low_stock'] as bool? ?? false,
       );
 }
 
@@ -96,6 +146,9 @@ class EventModel {
   final String? organizerAvatarUrl;
   final bool organizerIsPromoter;
   final bool organizerIsFollowing;
+  final String? organizerBadgeLevel; // bronze | silver | gold (popup)
+  final bool organizerIsPro;
+  final int? priceFrom; // prix de départ (null = gratuit) — popup
   final bool isPast;
   final bool isFull;
   final bool isParticipating;
@@ -104,11 +157,16 @@ class EventModel {
   final bool canScan;
   final bool isCoOrganizer;
   final bool isSaved;
+  final bool isSponsored;
   final List<CoOrganizerUser> coOrganizers;
   final UserModel? organizer;
   final List<ContributionItemModel> contributionItems;
+  final List<TicketCategoryModel> ticketCategories;
   final UserParticipation? userParticipation;
   final bool showPrivateEventPublicly;
+  final bool showTicketCounts;
+  final int maxTicketsPerUserPerEvent;
+  final int myTicketsCount;
   final bool isLocked;
   final String? myJoinRequestStatus; // null | 'pending' | 'accepted' | 'rejected'
   final DateTime? createdAt;
@@ -141,6 +199,9 @@ class EventModel {
     this.organizerAvatarUrl,
     required this.organizerIsPromoter,
     this.organizerIsFollowing = false,
+    this.organizerBadgeLevel,
+    this.organizerIsPro = false,
+    this.priceFrom,
     required this.isPast,
     required this.isFull,
     required this.isParticipating,
@@ -149,11 +210,16 @@ class EventModel {
     this.canScan = false,
     this.isCoOrganizer = false,
     this.isSaved = false,
+    this.isSponsored = false,
     this.coOrganizers = const [],
     this.organizer,
     this.contributionItems = const [],
+    this.ticketCategories = const [],
     this.userParticipation,
     this.showPrivateEventPublicly = false,
+    this.showTicketCounts = false,
+    this.maxTicketsPerUserPerEvent = 5,
+    this.myTicketsCount = 0,
     this.isLocked = false,
     this.myJoinRequestStatus,
     this.createdAt,
@@ -186,6 +252,9 @@ class EventModel {
         organizerName: j['organizer_name'] as String,
         organizerAvatarUrl: j['organizer_avatar_url'] as String?,
         organizerIsPromoter: j['organizer_is_promoter'] as bool,
+        organizerBadgeLevel: j['organizer_badge_level'] as String?,
+        organizerIsPro: j['organizer_is_pro'] as bool? ?? false,
+        priceFrom: (j['price_from'] as num?)?.toInt(),
         organizerIsFollowing: j['organizer_is_following'] as bool? ?? false,
         isPast: j['is_past'] as bool,
         isFull: j['is_full'] as bool,
@@ -195,8 +264,12 @@ class EventModel {
         canScan: j['can_scan'] as bool? ?? false,
         isCoOrganizer: j['is_co_organizer'] as bool? ?? false,
         isSaved: j['is_saved'] as bool? ?? false,
+        isSponsored: j['is_sponsored'] as bool? ?? false,
         showPrivateEventPublicly:
           j['show_private_event_publicly'] as bool? ?? false,
+        showTicketCounts: j['show_ticket_counts'] as bool? ?? false,
+        maxTicketsPerUserPerEvent: (j['max_tickets_per_user_per_event'] as num?)?.toInt() ?? 5,
+        myTicketsCount: (j['my_tickets_count'] as num?)?.toInt() ?? 0,
 
         isLocked:
           j['is_locked'] as bool? ?? false,
@@ -211,6 +284,10 @@ class EventModel {
             : null,
         contributionItems: (j['contribution_items'] as List<dynamic>?)
                 ?.map((e) => ContributionItemModel.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        ticketCategories: (j['ticket_categories'] as List<dynamic>?)
+                ?.map((e) => TicketCategoryModel.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
         userParticipation: j['user_participation'] != null
@@ -284,19 +361,27 @@ class EventModel {
         organizerName: organizerName,
         organizerAvatarUrl: organizerAvatarUrl,
         organizerIsPromoter: organizerIsPromoter,
+        organizerBadgeLevel: organizerBadgeLevel,
+        organizerIsPro: organizerIsPro,
+        priceFrom: priceFrom,
         isPast: isPast,
         isFull: isFull ?? this.isFull,
         isParticipating: isParticipating ?? this.isParticipating,
         isWaitlisted: isWaitlisted ?? this.isWaitlisted,
         waitlistPosition: waitlistPosition ?? this.waitlistPosition,
         isSaved: isSaved ?? this.isSaved,
+        isSponsored: isSponsored,
         canScan: canScan,
         isCoOrganizer: isCoOrganizer,
         coOrganizers: coOrganizers,
         organizer: organizer,
         contributionItems: contributionItems,
+        ticketCategories: ticketCategories,
         userParticipation: userParticipation ?? this.userParticipation,
         showPrivateEventPublicly: showPrivateEventPublicly,
+        showTicketCounts: showTicketCounts,
+        maxTicketsPerUserPerEvent: maxTicketsPerUserPerEvent,
+        myTicketsCount: myTicketsCount,
         isLocked: isLocked,
         myJoinRequestStatus: myJoinRequestStatus ?? this.myJoinRequestStatus,
         createdAt: createdAt,

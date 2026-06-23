@@ -98,6 +98,56 @@ class EventService {
     }
   }
 
+  /// Catégories complètes d'un event (vue organisateur, incl. capacité/code).
+  Future<List<Map<String, dynamic>>> getEventCategories(String eventId) async {
+    try {
+      final res = await _dio.get('events/$eventId/categories/');
+      return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Events boostés à proposer en popup d'ouverture (ordonnés épinglé → plus proche).
+  Future<List<EventModel>> getBoostedPopup() async {
+    try {
+      final res = await _dio.get('events/boosted-popup/');
+      return (res.data as List<dynamic>)
+          .map((e) => EventModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Boost — devis + boost actif courant pour un événement.
+  Future<Map<String, dynamic>> getBoost(String eventId) async {
+    try {
+      final res = await _dio.get('events/$eventId/boost/');
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Boost — crée une demande de boost (statut `pending_payment`).
+  /// `mode` optionnel (`pro_free` pour un jour offert Pro), `days` pour le mode au jour.
+  Future<Map<String, dynamic>> createBoost(
+    String eventId, {
+    String? mode,
+    int? days,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (mode != null) body['mode'] = mode;
+      if (days != null) body['days'] = days;
+      final res = await _dio.post('events/$eventId/boost/', data: body);
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
   /// `type` : organizing | organized | participating | participated
   Future<List<EventModel>> getMyEvents(String type) async {
     try {
