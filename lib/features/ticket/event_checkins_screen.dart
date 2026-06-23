@@ -184,7 +184,7 @@ class _CheckinTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.button),
           boxShadow: Shadows.sm),
       child: Row(children: [
-        TpAvatar(name: ticket.holderName, size: 40),
+        TpAvatar(name: ticket.holderName, imageUrl: ticket.holderAvatarUrl, size: 40),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

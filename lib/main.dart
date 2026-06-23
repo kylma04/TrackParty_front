@@ -4,12 +4,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/services/callkit_service.dart';
 
 // Must be a top-level function annotated with @pragma for background isolate
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // FCM delivers the push to the system tray when the app is terminated/background.
-  // No Riverpod access here — the provider will refresh when the user opens the app.
+  // Push d'APPEL haute priorité → écran d'appel entrant plein écran (type
+  // WhatsApp), même app en arrière-plan/tuée. Le reste rejoint le tray système.
+  final data = message.data;
+  final type = data['type'];
+  if (type == 'call_invite') {
+    await CallKitService.showIncoming(
+      callId: (data['call_id'] ?? '').toString(),
+      callType: (data['call_type'] ?? 'audio').toString(),
+      callerName: (data['caller_name'] ?? 'Appel').toString(),
+      roomId: (data['room_id'] ?? '').toString(),
+      callerId: data['caller_id']?.toString(),
+      callerAvatar: data['caller_avatar']?.toString(),
+    );
+  } else if (type == 'call_end') {
+    await CallKitService.end((data['call_id'] ?? '').toString());
+  }
 }
 
 Future<void> main() async {

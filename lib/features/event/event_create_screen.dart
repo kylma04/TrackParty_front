@@ -59,6 +59,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String? _customCategoryEmoji;
   String _visibility = 'public';
   String _contribMode = 'gratuit';
+  // Tarification d'un event payant : 'single' (prix unique) ou 'category' (par catégorie).
+  String _priceMode = 'single';
+  // Contribution en nature acceptée en plus du prix (items à apporter).
+  bool _natureEnabled = false;
+  // Toggle unique : afficher publiquement les compteurs de places.
+  bool _showTicketCounts = false;
   bool _showPrivateEventPublicly = false;
   int _capacity = 80;
   int? _minAge;
@@ -71,6 +77,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String _quartier = '';
   double _lat = 5.3484;
   double _lng = -4.0168;
+  // false tant que l'utilisateur n'a pas choisi de lieu réel : la carte
+  // s'ouvre alors sur sa position GPS (et non sur le défaut Abidjan).
+  bool _locationSet = false;
 
   TpButtonState _publishState = TpButtonState.idle;
 
@@ -80,6 +89,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   final List<UserSearchResult> _pendingCoOrgs = [];
 
   final List<_Item> _items = [];
+  final List<_CatDraft> _ticketCategories = [];
 
   static const _categories = [
     ('musique', '🎵', 'Musique', kSecondary),
@@ -92,10 +102,39 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
+  /// Nouvel événement : on positionne le lieu par défaut sur la position GPS de
+  /// l'utilisateur (au lieu du défaut Abidjan). Sans effet en mode édition.
+  Future<void> _setDefaultLocationFromGps() async {
+    try {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      if (mounted) {
+        setState(() {
+          _lat = pos.latitude;
+          _lng = pos.longitude;
+          _locationSet = true;
+        });
+      }
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
     final ev = widget.initialEvent;
+    if (ev == null) {
+      _setDefaultLocationFromGps();
+    }
     if (ev != null) {
       _titleCtrl.text = widget.isClone ? 'Copie de ${ev.title}' : ev.title;
       _descCtrl.text = ev.description ?? '';
@@ -104,6 +143,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       _customCategoryEmoji = ev.customCategoryEmoji;
       _visibility = ev.visibility;
       _showPrivateEventPublicly = ev.showPrivateEventPublicly;
+      _showTicketCounts = ev.showTicketCounts;
       // 'nature' a fusionné dans 'monetaire' (sécurité si une donnée ancienne traîne).
       _contribMode = ev.contributionType == 'nature'
           ? 'monetaire'
@@ -126,15 +166,64 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       _quartier = ev.quartier;
       _lat = ev.latitude ?? 5.3484;
       _lng = ev.longitude ?? -4.0168;
+      _locationSet = ev.latitude != null && ev.longitude != null;
       _coverUrl = ev.coverImageUrl;
       if (ev.contributionItems.isNotEmpty) {
         _items.clear();
         _items.addAll(
           ev.contributionItems.map(
-            (i) => _Item(emoji: i.emoji, label: i.name, qty: i.quantityTotal),
+            (i) => _Item(
+              emoji: i.emoji,
+              label: i.name,
+              qty: i.quantityTotal,
+              categoryName: i.categoryName,
+            ),
           ),
         );
+        _natureEnabled = true;
       }
+      // Tarification : par catégorie si des catégories existent, sinon prix unique.
+      _priceMode = ev.ticketCategories.isNotEmpty ? 'category' : 'single';
+      if (ev.ticketCategories.isNotEmpty) {
+        // Préchargement immédiat depuis la vue publique (sans capacité)…
+        _ticketCategories.clear();
+        _ticketCategories.addAll(
+          ev.ticketCategories.map(
+            (c) => _CatDraft(
+              name: c.name,
+              price: c.price,
+              advantages: List<String>.from(c.advantages),
+              color: c.color,
+            ),
+          ),
+        );
+        // …puis affinage avec les champs complets (capacité, places restantes).
+        _loadFullCategories(ev.id);
+      }
+    }
+  }
+
+  Future<void> _loadFullCategories(String eventId) async {
+    try {
+      final raw = await ref.read(eventServiceProvider).getEventCategories(eventId);
+      if (!mounted || raw.isEmpty) return;
+      setState(() {
+        _ticketCategories
+          ..clear()
+          ..addAll(raw.map((c) => _CatDraft(
+                name: c['name'] as String? ?? '',
+                price: (c['price'] as num?)?.toInt() ?? 0,
+                capacity: (c['capacity'] as num?)?.toInt(),
+                advantages: (c['advantages'] as List<dynamic>?)
+                        ?.map((e) => e.toString())
+                        .toList() ??
+                    const [],
+                color: c['color'] as String? ?? '',
+                showRemaining: c['show_remaining'] as bool? ?? true,
+              )));
+      });
+    } catch (_) {
+      // On garde le préchargement public en cas d'échec.
     }
   }
 
@@ -169,9 +258,37 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     if (step == 1) {
       if (_startAt == null) return 'Choisis une date et heure.';
       if (_contribMode == 'monetaire') {
-        final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
-        if (amount <= 0 && _items.isEmpty) {
-          return 'Ajoute un prix ou au moins un item de contribution en nature.';
+        if (_priceMode == 'category') {
+          if (_ticketCategories.isEmpty) {
+            return 'Ajoute au moins une catégorie de billet.';
+          }
+          // Garde-fou : chaque catégorie doit avoir un nombre de places défini.
+          final uncapped = _ticketCategories
+              .where((c) => c.capacity == null || c.capacity! <= 0)
+              .toList();
+          if (uncapped.isNotEmpty) {
+            final n = uncapped.first.name.trim();
+            return 'Définis le nombre de places de chaque catégorie'
+                '${n.isEmpty ? '' : ' (« $n »)'}.';
+          }
+        } else {
+          final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
+          final natureOk = _natureEnabled && _items.isNotEmpty;
+          if (amount <= 0 && !natureOk) {
+            return 'Indique un prix unique ou ajoute une contribution en nature.';
+          }
+        }
+        if (_natureEnabled && _items.isEmpty) {
+          return 'Ajoute au moins un item à apporter, ou décoche la contribution en nature.';
+        }
+        // En mode catégorie, chaque option nature doit cibler une catégorie.
+        if (_natureEnabled && _priceMode == 'category') {
+          final noCat = _items
+              .where((i) => i.categoryName == null || i.categoryName!.isEmpty)
+              .toList();
+          if (noCat.isNotEmpty) {
+            return 'Associe chaque option en nature à une catégorie (« ${noCat.first.label} »).';
+          }
         }
       }
     }
@@ -217,10 +334,18 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       case 'gratuit':
         return '💸 Gratuit';
       case 'monetaire':
-        final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
         final parts = <String>[];
-        if (amount > 0) parts.add('$amount FCFA');
-        if (_items.isNotEmpty) parts.add('${_items.length} en nature');
+        if (_priceMode == 'category') {
+          if (_ticketCategories.isNotEmpty) {
+            parts.add('${_ticketCategories.length} catégorie${_ticketCategories.length > 1 ? 's' : ''}');
+          }
+        } else {
+          final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
+          if (amount > 0) parts.add('$amount FCFA');
+        }
+        if (_natureEnabled && _items.isNotEmpty) {
+          parts.add('${_items.length} en nature');
+        }
         return '💰 Payant${parts.isNotEmpty ? ' · ${parts.join(' / ')}' : ''}';
       default:
         return _contribMode;
@@ -354,6 +479,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                                 setState(() {
                                   _lat = pos.latitude;
                                   _lng = pos.longitude;
+                                  _locationSet = true;
                                 });
                             }
                           } catch (_) {}
@@ -370,12 +496,15 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                           final result = await context
                               .push<LocationPickerResult>(
                                 '/location-picker',
-                                extra: {'lat': _lat, 'lng': _lng},
+                                extra: _locationSet
+                                    ? {'lat': _lat, 'lng': _lng}
+                                    : const <String, dynamic>{},
                               );
                           if (result != null && mounted) {
                             setState(() {
                               _lat = result.lat;
                               _lng = result.lng;
+                              _locationSet = true;
                             });
                             if (ctx.mounted) setSheet(() {});
                           }
@@ -522,27 +651,35 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         'visibility': _visibility,
         'show_private_event_publicly':
           _visibility == 'private' ? _showPrivateEventPublicly : false,
+        'show_ticket_counts': _showTicketCounts,
         'contribution_type': _contribMode,
-        'max_participants': _capacity,
+        'max_participants': _effectiveCapacity,
         if (_minAge != null) 'min_age': _minAge,
         if (_coverUrl != null) 'cover_cloud_url': _coverUrl,
         if (_category == 'autre' && _customCategoryLabel != null) ...{
           'custom_category_label': _customCategoryLabel,
           'custom_category_emoji': _customCategoryEmoji ?? '✨',
         },
-        'contribution_amount': _contribMode == 'monetaire'
+        'contribution_amount':
+            (_contribMode == 'monetaire' && _priceMode == 'single')
             ? int.tryParse(_amountCtrl.text.trim())
             : null,
-        'contribution_items': _contribMode == 'monetaire'
+        'contribution_items':
+            (_contribMode == 'monetaire' && _natureEnabled)
             ? _items
                   .map(
                     (i) => {
                       'name': i.label,
                       'emoji': i.emoji,
                       'quantity_total': i.qty,
+                      if (i.categoryName != null) 'category_name': i.categoryName,
                     },
                   )
                   .toList()
+            : <Map<String, dynamic>>[],
+        'ticket_categories':
+            (_contribMode == 'monetaire' && _priceMode == 'category')
+            ? _ticketCategories.asMap().entries.map((e) => e.value.toJson(e.key)).toList()
             : <Map<String, dynamic>>[],
       };
       print('EVENT CREATE DATA: $data');
@@ -619,7 +756,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       quartier: _quartier,
       visibility: _visibility,
       contribMode: _contribMode,
-      capacity: _capacity,
+      capacity: _effectiveCapacity ?? 0,
       organizerName: me?.displayName ?? 'Moi',
       organizerAvatarUrl: me?.avatarUrl,
     );
@@ -1145,7 +1282,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             _buildPaidOptions(context),
           ],
           const SizedBox(height: 14),
-          _buildCapacity(context),
+          if (_isCategoryPricing)
+            _buildDerivedCapacityNote(context)
+          else
+            _buildCapacity(context),
+          const SizedBox(height: 14),
+          _buildShowCountsToggle(context),
           const SizedBox(height: 14),
           _buildMinAge(context),
           const SizedBox(height: 14),
@@ -1266,7 +1408,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               child: _ModeCard(
                 emoji: '💰',
                 title: 'Payant',
-                sub: 'Prix et/ou nature',
+                sub: 'Prix unique ou catégories',
                 active: _contribMode == 'monetaire',
                 onTap: () => setState(() => _contribMode = 'monetaire'),
               ),
@@ -1283,44 +1425,201 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CreateField(
-          label: 'Prix par participant (FCFA)',
-          child: TextField(
-            controller: _amountCtrl,
-            keyboardType: TextInputType.number,
-            onChanged: (_) => setState(() {}),
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: context.tpInk,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Ex. 5000 — laisse vide si nature uniquement',
-              hintStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: context.tpInkMute,
+        // ── Choix de tarification : prix unique OU par catégorie ──────────────
+        const _SectionLabel('Tarification'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _ModeCard(
+                emoji: '🎟️',
+                title: 'Prix unique',
+                sub: 'Un seul tarif',
+                active: _priceMode == 'single',
+                onTap: () => setState(() => _priceMode = 'single'),
               ),
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ModeCard(
+                emoji: '🏷️',
+                title: 'Par catégorie',
+                sub: 'Standard, VIP…',
+                active: _priceMode == 'category',
+                onTap: () => setState(() => _priceMode = 'category'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
-        const _SectionLabel('Contribution en nature (optionnel)'),
-        const SizedBox(height: 4),
-        Text(
-          'Le participant pourra choisir de payer ou d\'apporter un de ces items.',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: context.tpInkMute,
+
+        // ── Champ prix unique OU section catégories ───────────────────────────
+        if (_priceMode == 'single')
+          _CreateField(
+            label: 'Prix du billet (FCFA)',
+            child: TextField(
+              controller: _amountCtrl,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {}),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: context.tpInk,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Ex. 5000',
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: context.tpInkMute,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          )
+        else
+          _buildCategoriesSection(context),
+
+        const SizedBox(height: 18),
+
+        // ── Contribution en nature : case à cocher qui révèle les items ───────
+        _buildNatureToggle(context),
+        if (_natureEnabled) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Le participant pourra apporter un de ces items au lieu (ou en plus) de payer.',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: context.tpInkMute,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildItemsList(context),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildShowCountsToggle(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: _showTicketCounts,
+      label: 'Afficher les nombres de places',
+      child: GestureDetector(
+        onTap: () => setState(() => _showTicketCounts = !_showTicketCounts),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: context.tpCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _showTicketCounts
+                  ? kPrimary
+                  : context.tpInkMute.withValues(alpha: 0.18),
+              width: _showTicketCounts ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Text('👁️', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Afficher les nombres de places',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: context.tpInk,
+                      ),
+                    ),
+                    Text(
+                      'Billets restants et places prises visibles par tous',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.tpInkSub,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                _showTicketCounts
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                color: _showTicketCounts ? kPrimary : context.tpInkMute,
+                size: 24,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
-        _buildItemsList(context),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildNatureToggle(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: _natureEnabled,
+      label: 'Accepter une contribution en nature',
+      child: GestureDetector(
+        onTap: () => setState(() => _natureEnabled = !_natureEnabled),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: context.tpCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _natureEnabled
+                  ? kPrimary
+                  : context.tpInkMute.withValues(alpha: 0.18),
+              width: _natureEnabled ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Text('🥗', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Contribution en nature',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: context.tpInk,
+                      ),
+                    ),
+                    Text(
+                      'Proposer une liste d\'items à apporter',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.tpInkSub,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                _natureEnabled
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                color: _natureEnabled ? kPrimary : context.tpInkMute,
+                size: 24,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1412,6 +1711,11 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => _ItemSheet(
         initial: editIndex != null ? _items[editIndex] : null,
+        categoryMode: _priceMode == 'category',
+        categories: _ticketCategories
+            .map((c) => c.name.trim())
+            .where((n) => n.isNotEmpty)
+            .toList(),
         onSave: (item) {
           setState(() {
             if (editIndex != null)
@@ -1427,7 +1731,150 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     );
   }
 
+  // ── Catégories de billets ─────────────────────────────────────────────────
+
+  Widget _buildCategoriesSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const _SectionLabel('Catégories de billets'),
+            Semantics(
+              button: true,
+              label: 'Ajouter une catégorie',
+              child: GestureDetector(
+                onTap: () => _openCategorySheet(),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: trackpartyGradient,
+                    borderRadius: BorderRadius.circular(Radii.tag),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(PhosphorIcons.plus(), color: Colors.white, size: 12),
+                    const SizedBox(width: 4),
+                    const Text('Catégorie',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                  ]),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Ex. VIP1 2 000 · VIP2 5 000 — chaque catégorie a son prix, ses places et ses avantages.',
+          style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute),
+        ),
+        const SizedBox(height: 10),
+        if (_ticketCategories.isEmpty)
+          Text(
+            'Aucune catégorie pour l’instant. Ajoutes-en une, ou laisse un prix simple ci-dessous.',
+            style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: context.tpInkSub),
+          )
+        else
+          ..._ticketCategories.asMap().entries.map((e) => _CatRow(
+                draft: e.value,
+                onTap: () => _openCategorySheet(editIndex: e.key),
+                onRemove: () =>
+                    setState(() => _ticketCategories.removeAt(e.key)),
+              )),
+      ],
+    );
+  }
+
+  void _openCategorySheet({int? editIndex}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CategorySheet(
+        initial: editIndex != null ? _ticketCategories[editIndex] : null,
+        onSave: (cat) {
+          setState(() {
+            if (editIndex != null) {
+              _ticketCategories[editIndex] = cat;
+            } else {
+              _ticketCategories.add(cat);
+            }
+          });
+        },
+        onDelete: editIndex != null
+            ? () => setState(() => _ticketCategories.removeAt(editIndex))
+            : null,
+      ),
+    );
+  }
+
   // ── Capacité ──────────────────────────────────────────────────────────────
+
+  /// En tarification par catégorie, la capacité globale est dérivée de la somme
+  /// des places de chaque catégorie (donc le champ manuel est masqué).
+  bool get _isCategoryPricing =>
+      _contribMode == 'monetaire' && _priceMode == 'category';
+
+  /// Somme des places des catégories payantes ; null si une catégorie est
+  /// illimitée (ou si aucune) → capacité illimitée.
+  int? get _paidCapacity {
+    if (_ticketCategories.isEmpty) return null;
+    if (_ticketCategories.any((c) => c.capacity == null)) return null;
+    return _ticketCategories.fold<int>(0, (s, c) => s + (c.capacity ?? 0));
+  }
+
+  /// Places en nature (additives) : 1 unité = 1 place, somme des options.
+  int get _naturePlaces => (_contribMode == 'monetaire' && _natureEnabled)
+      ? _items.fold<int>(0, (s, i) => s + i.qty)
+      : 0;
+
+  /// Capacité effective = places payantes + places en nature (additives).
+  /// En mode catégorie, le payant = somme des catégories ; sinon = saisie manuelle.
+  int? get _effectiveCapacity {
+    if (_isCategoryPricing) {
+      final paid = _paidCapacity;
+      if (paid == null) return null; // une catégorie illimitée → illimité
+      return paid + _naturePlaces;
+    }
+    return _capacity + _naturePlaces;
+  }
+
+  Widget _buildDerivedCapacityNote(BuildContext context) {
+    final cap = _effectiveCapacity;
+    final nature = _naturePlaces;
+    final detail = nature > 0
+        ? 'catégories + $nature en nature'
+        : 'somme de tes catégories de billets';
+    return _CreateField(
+      label: 'Capacité maximale',
+      child: Row(
+        children: [
+          Icon(PhosphorIcons.users(), color: context.tpInkSub, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              cap == null
+                  ? 'Illimitée — définie par tes catégories de billets'
+                  : '$cap places — $detail',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: context.tpInkSub,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildCapacity(BuildContext context) {
     return _CreateField(
@@ -1854,7 +2301,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                 _RecapRow(
                   icon: PhosphorIcons.users(),
                   label: 'Capacité max',
-                  value: '$_capacity participants',
+                  value: _effectiveCapacity == null
+                      ? 'Illimitée'
+                      : '$_effectiveCapacity participants',
                 ),
                 if (_pendingCoOrgs.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -2418,7 +2867,15 @@ class _ItemSheet extends StatefulWidget {
   final _Item? initial;
   final void Function(_Item) onSave;
   final VoidCallback? onDelete;
-  const _ItemSheet({this.initial, required this.onSave, this.onDelete});
+  final List<String> categories; // noms des catégories (mode par catégorie)
+  final bool categoryMode;
+  const _ItemSheet({
+    this.initial,
+    required this.onSave,
+    this.onDelete,
+    this.categories = const [],
+    this.categoryMode = false,
+  });
   @override
   State<_ItemSheet> createState() => _ItemSheetState();
 }
@@ -2426,7 +2883,9 @@ class _ItemSheet extends StatefulWidget {
 class _ItemSheetState extends State<_ItemSheet> {
   late final TextEditingController _emojiCtrl;
   late final TextEditingController _labelCtrl;
+  late final TextEditingController _qtyCtrl;
   late int _qty;
+  String? _selectedCategory;
   final FocusNode _emojiFocus = FocusNode();
   final FocusNode _labelFocus = FocusNode();
 
@@ -2436,12 +2895,20 @@ class _ItemSheetState extends State<_ItemSheet> {
     _emojiCtrl = TextEditingController(text: widget.initial?.emoji ?? '');
     _labelCtrl = TextEditingController(text: widget.initial?.label ?? '');
     _qty = widget.initial?.qty ?? 5;
+    _qtyCtrl = TextEditingController(text: '$_qty');
+    final init = widget.initial?.categoryName;
+    _selectedCategory = (init != null && widget.categories.contains(init))
+        ? init
+        : (widget.categoryMode && widget.categories.isNotEmpty
+            ? widget.categories.first
+            : null);
   }
 
   @override
   void dispose() {
     _emojiCtrl.dispose();
     _labelCtrl.dispose();
+    _qtyCtrl.dispose();
     _emojiFocus.dispose();
     _labelFocus.dispose();
     super.dispose();
@@ -2452,14 +2919,25 @@ class _ItemSheetState extends State<_ItemSheet> {
     return t.isEmpty ? '❓' : t;
   }
 
-  void _setQty(int v) => setState(() => _qty = v.clamp(1, 9999));
+  void _setQty(int v) => setState(() {
+        _qty = v.clamp(1, 9999);
+        _qtyCtrl.text = '$_qty';
+        _qtyCtrl.selection =
+            TextSelection.collapsed(offset: _qtyCtrl.text.length);
+      });
 
   void _save() {
     final label = _labelCtrl.text.trim();
     final emoji = _emojiCtrl.text.trim();
     if (label.isEmpty) return;
+    if (widget.categoryMode && _selectedCategory == null) return;
     widget.onSave(
-      _Item(emoji: emoji.isEmpty ? '🎁' : emoji, label: label, qty: _qty),
+      _Item(
+        emoji: emoji.isEmpty ? '🎁' : emoji,
+        label: label,
+        qty: _qty,
+        categoryName: widget.categoryMode ? _selectedCategory : null,
+      ),
     );
     Navigator.pop(context);
   }
@@ -2663,9 +3141,54 @@ class _ItemSheetState extends State<_ItemSheet> {
                   ),
                 ),
               ),
+              if (widget.categoryMode) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'CATÉGORIE OBTENUE',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: context.tpInkSub,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: BoxDecoration(
+                    color: context.tpBg,
+                    borderRadius: BorderRadius.circular(Radii.md),
+                    border: Border.all(color: context.tpHair),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButton<String>(
+                    value: _selectedCategory,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    dropdownColor: context.tpCard,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: context.tpInk,
+                    ),
+                    items: widget.categories
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedCategory = v),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Venir avec cet item donne un billet de cette catégorie.',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: context.tpInkMute,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Text(
-                'QUANTITÉ MAX',
+                'PLACES EN NATURE',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
@@ -2689,16 +3212,25 @@ class _ItemSheetState extends State<_ItemSheet> {
                       onTap: () => _setQty(_qty - 1),
                     ),
                     Expanded(
-                      child: Center(
-                        child: Text(
-                          '$_qty',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: context.tpInk,
-                            letterSpacing: -0.5,
-                          ),
+                      child: TextField(
+                        controller: _qtyCtrl,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: context.tpInk,
+                          letterSpacing: -0.5,
                         ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (v) {
+                          final n = int.tryParse(v);
+                          if (n != null) _qty = n.clamp(1, 9999);
+                        },
                       ),
                     ),
                     _QtyBtn(
@@ -3094,8 +3626,392 @@ class _ModeCard extends StatelessWidget {
 class _Item {
   final String emoji;
   final String label;
-  final int qty;
-  const _Item({required this.emoji, required this.label, required this.qty});
+  final int qty; // nombre de places en nature pour cette option (1 unité = 1 place)
+  final String? categoryName; // catégorie rattachée (mode par catégorie)
+  const _Item({
+    required this.emoji,
+    required this.label,
+    required this.qty,
+    this.categoryName,
+  });
+}
+
+// ── Catégories de billets : brouillon, ligne, et éditeur ──────────────────────
+
+const _catPalette = [
+  '#4F46E5', '#7C3AED', '#EC4899', '#F97316',
+  '#22A865', '#06B6D4', '#F59E0B', '#8B5CF6',
+  '#EF4444', '#FACC15',
+];
+
+Color _hexColor(String c, [Color fallback = kPrimary]) {
+  if (c.length == 7 && c.startsWith('#')) {
+    final v = int.tryParse(c.substring(1), radix: 16);
+    if (v != null) return Color(0xFF000000 | v);
+  }
+  return fallback;
+}
+
+class _CatDraft {
+  String name;
+  int price;
+  int? capacity;
+  List<String> advantages;
+  String color;
+  bool showRemaining;
+  _CatDraft({
+    required this.name,
+    required this.price,
+    this.capacity,
+    this.advantages = const [],
+    this.color = '',
+    this.showRemaining = true,
+  });
+
+  Map<String, dynamic> toJson(int order) => {
+        'name': name,
+        'price': price,
+        if (capacity != null) 'capacity': capacity,
+        'advantages': advantages,
+        if (color.isNotEmpty) 'color': color,
+        'show_remaining': showRemaining,
+        'order': order,
+      };
+}
+
+class _CatRow extends StatelessWidget {
+  final _CatDraft draft;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+  const _CatRow(
+      {required this.draft, required this.onTap, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = [
+      '${draft.price} FCFA',
+      if (draft.capacity != null) '${draft.capacity} places',
+      if (draft.advantages.isNotEmpty)
+        '${draft.advantages.length} avantage${draft.advantages.length > 1 ? 's' : ''}',
+    ].join(' · ');
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.lg),
+          border: Border.all(color: context.tpHair),
+        ),
+        child: Row(children: [
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(
+                color: _hexColor(draft.color), shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(draft.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: context.tpInk)),
+              Text(sub,
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: context.tpInkSub)),
+            ]),
+          ),
+          GestureDetector(
+            onTap: onRemove,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(PhosphorIcons.trash(), color: kError, size: 18),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _CategorySheet extends StatefulWidget {
+  final _CatDraft? initial;
+  final void Function(_CatDraft) onSave;
+  final VoidCallback? onDelete;
+  const _CategorySheet(
+      {this.initial, required this.onSave, this.onDelete});
+
+  @override
+  State<_CategorySheet> createState() => _CategorySheetState();
+}
+
+class _CategorySheetState extends State<_CategorySheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _priceCtrl;
+  late final TextEditingController _capacityCtrl;
+  final _advCtrl = TextEditingController();
+  late List<String> _advantages;
+  late String _color;
+  late bool _showRemaining;
+
+  @override
+  void initState() {
+    super.initState();
+    final i = widget.initial;
+    _nameCtrl = TextEditingController(text: i?.name ?? '');
+    _priceCtrl = TextEditingController(text: i != null ? i.price.toString() : '');
+    _capacityCtrl = TextEditingController(text: i?.capacity?.toString() ?? '');
+    _advantages = List<String>.from(i?.advantages ?? const []);
+    _color = (i != null && i.color.isNotEmpty) ? i.color : _catPalette.first;
+    _showRemaining = i?.showRemaining ?? true;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _priceCtrl.dispose();
+    _capacityCtrl.dispose();
+    _advCtrl.dispose();
+    super.dispose();
+  }
+
+  void _addAdvantage() {
+    final t = _advCtrl.text.trim();
+    if (t.isEmpty) return;
+    setState(() {
+      _advantages.add(t);
+      _advCtrl.clear();
+    });
+  }
+
+  void _save() {
+    final name = _nameCtrl.text.trim();
+    final price = int.tryParse(_priceCtrl.text.trim());
+    if (name.isEmpty || price == null || price < 0) return;
+    widget.onSave(_CatDraft(
+      name: name,
+      price: price,
+      capacity: int.tryParse(_capacityCtrl.text.trim()),
+      advantages: _advantages,
+      color: _color,
+      showRemaining: _showRemaining,
+    ));
+    Navigator.pop(context);
+  }
+
+  InputDecoration _dec(BuildContext c, String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w600, color: c.tpInkMute),
+        filled: true,
+        fillColor: c.tpCard,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(Radii.button),
+            borderSide: BorderSide.none),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final inputStyle = TextStyle(
+        fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInk);
+    final labelStyle = TextStyle(
+        fontSize: 12.5, fontWeight: FontWeight.w800, color: context.tpInkSub);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.tpBg,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
+        ),
+        padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: context.tpHair,
+                        borderRadius: BorderRadius.circular(2))),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                  widget.initial == null
+                      ? 'Nouvelle catégorie'
+                      : 'Modifier la catégorie',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: context.tpInk)),
+              const SizedBox(height: 16),
+              Text('Nom (libre)', style: labelStyle),
+              const SizedBox(height: 6),
+              TextField(
+                  controller: _nameCtrl,
+                  decoration: _dec(context, 'Ex. VIP1, Carré Or…'),
+                  style: inputStyle),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Prix (FCFA)', style: labelStyle),
+                        const SizedBox(height: 6),
+                        TextField(
+                            controller: _priceCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: _dec(context, 'Ex. 5000'),
+                            style: inputStyle),
+                      ]),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Places (vide = illimité)', style: labelStyle),
+                        const SizedBox(height: 6),
+                        TextField(
+                            controller: _capacityCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: _dec(context, 'Ex. 100'),
+                            style: inputStyle),
+                      ]),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              Text('Couleur', style: labelStyle),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: _catPalette.map((c) {
+                  final selected = _color == c;
+                  return GestureDetector(
+                    onTap: () => setState(() => _color = c),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _hexColor(c),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: selected ? context.tpInk : Colors.transparent,
+                            width: 2.5),
+                      ),
+                      child: selected
+                          ? const Icon(Icons.check, color: Colors.white, size: 16)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+              Text('Avantages', style: labelStyle),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _advCtrl,
+                    onSubmitted: (_) => _addAdvantage(),
+                    decoration: _dec(context, 'Ex. Accès backstage'),
+                    style: inputStyle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _addAdvantage,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                        gradient: trackpartyGradient,
+                        borderRadius: BorderRadius.circular(Radii.md)),
+                    child: Icon(PhosphorIcons.plus(), color: Colors.white, size: 18),
+                  ),
+                ),
+              ]),
+              if (_advantages.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                ..._advantages.asMap().entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(children: [
+                        Icon(PhosphorIcons.checkCircle(), color: kSuccess, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(e.value,
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.tpInk)),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => _advantages.removeAt(e.key)),
+                          child: Icon(PhosphorIcons.x(),
+                              color: context.tpInkMute, size: 16),
+                        ),
+                      ]),
+                    )),
+              ],
+              const SizedBox(height: 6),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Afficher les places restantes',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: context.tpInk)),
+                value: _showRemaining,
+                onChanged: (v) => setState(() => _showRemaining = v),
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                if (widget.onDelete != null) ...[
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () {
+                        widget.onDelete!();
+                        Navigator.pop(context);
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: kError.withValues(alpha: 0.10),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(Radii.button)),
+                      ),
+                      child: const Text('Supprimer',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, color: kError)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  flex: 2,
+                  child: TpButton(
+                      label: 'Enregistrer', fullWidth: true, onPressed: _save),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ItemRow extends StatelessWidget {
@@ -3151,10 +4067,12 @@ class _ItemRow extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'Appuyer pour modifier',
+                          item.categoryName != null
+                              ? '→ ${item.categoryName} · ${item.qty} place${item.qty > 1 ? 's' : ''}'
+                              : '${item.qty} place${item.qty > 1 ? 's' : ''} en nature',
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                             color: context.tpInkMute,
                           ),
                         ),

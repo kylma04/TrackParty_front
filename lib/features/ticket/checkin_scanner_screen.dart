@@ -148,38 +148,59 @@ class _ScanResult {
   final String holderName;
   final String? checkedTime;
   final String message;
+  final bool isInKind;
+  final String? categoryName;
+  final Color? categoryColor;
+  final String? natureLabel; // ex. « 🍺 5 bières »
 
   const _ScanResult({
     required this.status,
     required this.holderName,
     this.checkedTime,
     required this.message,
+    this.isInKind = false,
+    this.categoryName,
+    this.categoryColor,
+    this.natureLabel,
   });
+
+  static Color? _parseHex(String? hex) {
+    if (hex == null || hex.length != 7 || !hex.startsWith('#')) return null;
+    final v = int.tryParse(hex.substring(1), radix: 16);
+    return v == null ? null : Color(0xFF000000 | v);
+  }
+
+  static _ScanResult _ctx(CheckinResult r, _ScanStatus status,
+      {required String holder, String? time, required String message}) {
+    final nature = r.natureItemName != null
+        ? '${r.natureItemEmoji ?? '🎁'} ${r.natureItemName}'.trim()
+        : null;
+    return _ScanResult(
+      status: status,
+      holderName: holder,
+      checkedTime: time,
+      message: message,
+      isInKind: r.isInKind,
+      categoryName: r.categoryName,
+      categoryColor: _parseHex(r.categoryColor),
+      natureLabel: nature,
+    );
+  }
 
   factory _ScanResult.fromCheckin(CheckinResult r) {
     if (!r.valid) {
-      return _ScanResult(
-        status: _ScanStatus.invalid,
-        holderName: r.holderName,
-        message: r.message,
-      );
+      return _ScanResult._ctx(r, _ScanStatus.invalid,
+          holder: r.holderName, message: r.message);
     }
     if (r.alreadyChecked) {
       final timeStr = r.checkedInAt != null
           ? DateFormat('HH\'h\'mm', 'fr_FR').format(r.checkedInAt!.toLocal())
           : '?';
-      return _ScanResult(
-        status: _ScanStatus.alreadyChecked,
-        holderName: r.holderName,
-        checkedTime: timeStr,
-        message: 'Déjà scanné à $timeStr',
-      );
+      return _ScanResult._ctx(r, _ScanStatus.alreadyChecked,
+          holder: r.holderName, time: timeStr, message: 'Déjà scanné à $timeStr');
     }
-    return _ScanResult(
-      status: _ScanStatus.success,
-      holderName: r.holderName,
-      message: 'Entrée validée',
-    );
+    return _ScanResult._ctx(r, _ScanStatus.success,
+        holder: r.holderName, message: 'Entrée validée');
   }
 
   factory _ScanResult.error(String msg) => _ScanResult(
@@ -209,11 +230,26 @@ class _ResultOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isValid = result.status == _ScanStatus.success ||
+        result.status == _ScanStatus.alreadyChecked;
+    // Billet payant → cadre coloré de la catégorie autour de l'écran.
+    final showFrame =
+        !result.isInKind && result.categoryColor != null && isValid;
+    // Billet nature encore valable → afficher ce qu'il doit apporter.
+    final showNature = result.isInKind &&
+        result.natureLabel != null &&
+        result.status == _ScanStatus.success;
+
     return AnimatedOpacity(
       opacity: 1.0,
       duration: const Duration(milliseconds: 200),
       child: Container(
-        color: result.bgColor.withValues(alpha: 0.92),
+        decoration: BoxDecoration(
+          color: result.bgColor.withValues(alpha: 0.92),
+          border: showFrame
+              ? Border.all(color: result.categoryColor!, width: 16)
+              : null,
+        ),
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -231,6 +267,49 @@ class _ResultOverlay extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+
+              // Catégorie (puce, dans la couleur de la catégorie si dispo)
+              if (result.categoryName != null && isValid) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: result.categoryColor ?? Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
+                  ),
+                  child: Text('🎟️ ${result.categoryName}',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                ),
+              ],
+
+              // Nature : ce qu'il doit apporter
+              if (showNature) ...[
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(Radii.card),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1.5),
+                  ),
+                  child: Column(children: [
+                    const Text('DOIT APPORTER',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            color: Colors.white70)),
+                    const SizedBox(height: 4),
+                    Text(result.natureLabel!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                  ]),
+                ),
+              ],
+
               const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

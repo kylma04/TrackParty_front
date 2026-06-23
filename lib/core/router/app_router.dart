@@ -26,12 +26,17 @@ import '../../features/profile/reviews_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/event/event_detail_screen.dart';
 import '../../features/ticket/ticket_screen.dart';
+import '../../core/models/ticket_model.dart';
 import '../../features/ticket/my_tickets_screen.dart';
 import '../../features/ticket/checkin_scanner_screen.dart';
 import '../../features/ticket/event_checkins_screen.dart';
 import '../../features/ticket/event_staff_screen.dart';
 import '../../features/event/event_coorganizers_screen.dart';
 import '../../features/event/event_dashboard_screen.dart';
+import '../../features/event/event_boost_screen.dart';
+import '../../features/billing/plans_screen.dart';
+import '../../features/payment/payment_screen.dart';
+import '../../features/event/order_cart_screen.dart';
 import '../../features/event/co_organizer_invitations_screen.dart';
 import '../../features/event/event_create_screen.dart';
 import '../models/event_model.dart';
@@ -129,8 +134,8 @@ final _routes = [
     builder: (_, s) {
       final extra = s.extra as Map<String, dynamic>? ?? {};
       return LocationPickerScreen(
-        initialLat: (extra['lat'] as double?) ?? 5.3484,
-        initialLng: (extra['lng'] as double?) ?? -4.0168,
+        initialLat: extra['lat'] as double?,
+        initialLng: extra['lng'] as double?,
       );
     },
   ),
@@ -178,8 +183,13 @@ final _routes = [
   ),
   GoRoute(
     path: '/ticket/:eventId',
-    pageBuilder: (_, s) =>
-        _slide(s, TicketScreen(eventId: s.pathParameters['eventId']!)),
+    pageBuilder: (_, s) => _slide(
+      s,
+      TicketScreen(
+        eventId: s.pathParameters['eventId']!,
+        ticket: s.extra as TicketModel?,
+      ),
+    ),
   ),
   GoRoute(
     path: '/my-tickets',
@@ -215,6 +225,35 @@ final _routes = [
         eventTitle: extra?['title'] as String? ?? '',
       );
     },
+  ),
+
+  GoRoute(
+    path: '/event/:id/boost',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventBoostScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/pay',
+    builder: (_, s) {
+      final extra = (s.extra as Map<String, dynamic>?) ?? const {};
+      return PaymentScreen(
+        eventId: s.pathParameters['id']!,
+        categoryId: extra['categoryId'] as String? ?? '',
+        categoryName: extra['categoryName'] as String? ?? '',
+        amount: (extra['amount'] as num?)?.toInt() ?? 0,
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/participate',
+    builder: (_, s) => OrderCartScreen(event: s.extra as EventModel),
   ),
 
   GoRoute(
@@ -274,6 +313,10 @@ final _routes = [
   GoRoute(
     path: '/help',
     pageBuilder: (_, s) => _slide(s, const HelpScreen()),
+  ),
+  GoRoute(
+    path: '/plans',
+    pageBuilder: (_, s) => _slide(s, const PlansScreen()),
   ),
   GoRoute(
     path: '/privacy',

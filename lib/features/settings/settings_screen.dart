@@ -67,7 +67,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final authState = ref.watch(authNotifierProvider).valueOrNull;
-    final userEmail = authState is AuthAuthenticated ? authState.user.email : null;
+    final user = authState is AuthAuthenticated ? authState.user : null;
+    final userEmail = user?.email;
     final supportUnread = ref.watch(supportUnreadProvider).valueOrNull ?? 0;
 
     return Scaffold(
@@ -205,6 +206,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     sub: 'Gérer les blocages',
                     isLast: false,
                     onTap: () => context.push('/blocked-users'),
+                  ),
+                  _SettingRow(
+                    icon: PhosphorIcons.envelopeSimple(),
+                    iconColor: kTertiary,
+                    label: 'Invitations de promoteurs',
+                    sub: 'Recevoir les invitations d\'événements de promoteurs',
+                    isLast: false,
+                    toggle: true,
+                    toggleValue: user?.allowPromoterInvites ?? true,
+                    onToggle: (v) => ref
+                        .read(authNotifierProvider.notifier)
+                        .updateProfile({'allow_promoter_invites': v}),
                   ),
                   _SettingRow(
                     icon: PhosphorIcons.shieldCheck(),

@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
 import '../../core/models/event_model.dart';
 import '../../core/providers/auth_provider.dart';
@@ -23,6 +25,7 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/event_share_sheet.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_badge.dart';
+import '../../widgets/tp_pro_badge.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_confirm_sheet.dart';
 import '../../widgets/tp_photo.dart';
@@ -107,11 +110,38 @@ class _EventDetailContent extends ConsumerStatefulWidget {
 
 class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   late bool _following;
+  double? _distanceKm; // distance user → event (km), si la position est connue
 
   @override
   void initState() {
     super.initState();
     _following = widget.event.organizerIsFollowing;
+    _loadDistanceToEvent();
+  }
+
+  /// Calcule la distance jusqu'à l'événement à partir de la position GPS — mais
+  /// seulement si la permission est DÉJÀ accordée (on n'ouvre aucune popup à
+  /// l'ouverture du détail). Sert au marqueur « Moi » et au badge de distance.
+  Future<void> _loadDistanceToEvent() async {
+    final lat = widget.event.latitude, lng = widget.event.longitude;
+    if (lat == null || lng == null) return;
+    try {
+      final perm = await Geolocator.checkPermission();
+      if (perm != LocationPermission.always &&
+          perm != LocationPermission.whileInUse) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      final meters =
+          Geolocator.distanceBetween(pos.latitude, pos.longitude, lat, lng);
+      if (mounted) setState(() => _distanceKm = meters / 1000);
+    } catch (_) {}
+  }
+
+  String _fmtKm(double km) {
+    if (km < 1) return '${(km * 1000).round()} m';
+    return '${km.toStringAsFixed(1).replaceAll('.', ',')} km';
   }
 
   @override
@@ -256,6 +286,8 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 _buildOrganizerTools(context),
                 if (_locked) _buildPrivateLockedNotice(context),
                 _buildDescription(context),
+                if (event.ticketCategories.isNotEmpty)
+                  _buildTicketCategories(context),
                 if (event.contributionItems.isNotEmpty)
                   _buildContributions(context),
                 _buildMinimap(context),
@@ -499,6 +531,10 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           const SizedBox(width: Sp.sm),
                           TpBadge.promoter(),
                         ],
+                        if (event.organizerIsPro) ...[
+                          const SizedBox(width: 6),
+                          const TpProBadge(),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -606,9 +642,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       event.quartier,
       event.city,
     ].where((s) => s.isNotEmpty).join(', ');
-    final participantLabel = event.maxParticipants != null
-        ? '${event.participantsCount} / ${event.maxParticipants}'
-        : '${event.participantsCount} participants';
+    final participantLabel = !event.showTicketCounts
+        ? 'Participants'
+        : event.maxParticipants != null
+            ? '${event.participantsCount} / ${event.maxParticipants}'
+            : '${event.participantsCount} participants';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
@@ -663,7 +701,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   subtitle: event.contributionType != 'monetaire'
                       ? 'Entrée libre'
                       : [
-                          if (event.contributionAmount != null)
+                          // Prix de départ basé sur les catégories (à jour),
+                          // sinon prix unique legacy.
+                          if (event.priceFrom != null)
+                            'Dès ${event.priceFrom} FCFA'
+                          else if (event.contributionAmount != null)
                             '${event.contributionAmount!.toStringAsFixed(0)} FCFA',
                           if (event.contributionItems.isNotEmpty)
                             '${event.contributionItems.length} en nature',
@@ -681,8 +723,25 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final authState = ref.read(authNotifierProvider).valueOrNull;
     final userId = authState is AuthAuthenticated ? authState.user.id : null;
     final isOrganizer = userId != null && event.organizerId == userId;
-    if (!isOrganizer) return const SizedBox.shrink();
+    // Les co-organisateurs accèdent aussi au tableau de bord (participants,
+    // entrées, staff…). Le backend les autorise déjà sur ces endpoints.
+    final canManage = isOrganizer || event.isCoOrganizer;
+    if (!canManage) return const SizedBox.shrink();
 
+    // Le boost (promo payante) reste réservé à l'organisateur principal.
+    final canBoost = isOrganizer &&
+        event.status == 'published' &&
+        (event.visibility == 'public' || event.showPrivateEventPublicly);
+
+    return Column(
+      children: [
+        _buildDashboardEntry(context),
+        if (canBoost) _buildBoostEntry(context),
+      ],
+    );
+  }
+
+  Widget _buildDashboardEntry(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
       child: Semantics(
@@ -759,6 +818,77 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     );
   }
 
+  Widget _buildBoostEntry(BuildContext context) {
+    final sponsored = event.isSponsored;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: Semantics(
+        button: true,
+        label: 'Booster cet événement',
+        child: GestureDetector(
+          onTap: () => context.push(
+            '/event/${event.id}/boost',
+            extra: {'title': event.title},
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: context.tpCard,
+              borderRadius: BorderRadius.circular(Radii.lg),
+              border: Border.all(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
+                    ),
+                    borderRadius: BorderRadius.circular(Radii.md),
+                  ),
+                  child: const Icon(Icons.rocket_launch_rounded,
+                      color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sponsored ? 'Boost actif 🚀' : 'Booster mon événement',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: context.tpInk,
+                        ),
+                      ),
+                      Text(
+                        sponsored
+                            ? 'En avant dans le fil et sur la carte'
+                            : 'Plus de visibilité dans le fil et la carte →',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: context.tpInkSub,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(PhosphorIcons.caretRight(), color: context.tpInkSub, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDescription(BuildContext context) {
     final desc = event.description ?? '';
     if (desc.isEmpty) return const SizedBox.shrink();
@@ -819,7 +949,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Contributions attendues',
+            'Contributions attendues équivalent à un ticket payé',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w900,
@@ -829,6 +959,34 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
           ),
           const SizedBox(height: Sp.sm),
           ...event.contributionItems.map((item) => _ContribRow(item: item)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTicketCategories(BuildContext context) {
+    final cats = [...event.ticketCategories]
+      ..sort((a, b) => a.order.compareTo(b.order));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Billets',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: context.tpInk,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: Sp.sm),
+          // Les cartes de billets sont purement informatives (aucune action au tap).
+          ...cats.map((c) => _CategoryCard(
+                category: c,
+                showCounts: event.showTicketCounts,
+              )),
         ],
       ),
     );
@@ -893,6 +1051,43 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           child: _MinimapPin(emoji: event.displayEmoji),
                         ),
                       ),
+                      // Marqueur « ma position » (visible si le GPS est connu)
+                      if (_distanceKm != null)
+                        const Positioned(
+                          left: 22,
+                          bottom: 42,
+                          child: _MinimapMeMarker(),
+                        ),
+                      // Badge de distance réelle
+                      if (_distanceKm != null)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xE61B1A2E),
+                              borderRadius: BorderRadius.circular(Radii.pill),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(PhosphorIcons.personSimpleWalk(),
+                                    size: 12, color: Colors.white),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'à ${_fmtKm(_distanceKm!)}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       Positioned(
                         bottom: 0,
                         left: 0,
@@ -958,9 +1153,10 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
           if (participating) ...[
             Semantics(
               button: true,
-              label: 'Mon billet',
+              label: event.myTicketsCount > 1 ? 'Mes billets' : 'Mon billet',
               child: GestureDetector(
-                onTap: () => context.push('/ticket/${event.id}'),
+                onTap: () => context.push(
+                    event.myTicketsCount > 1 ? '/my-tickets' : '/ticket/${event.id}'),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -993,7 +1189,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Mon billet',
+                              event.myTicketsCount > 1
+                                  ? 'Mes billets (${event.myTicketsCount})'
+                                  : 'Mon billet',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w900,
@@ -1001,7 +1199,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               ),
                             ),
                             Text(
-                              'Voir mon QR code d\'entrée',
+                              event.myTicketsCount > 1
+                                  ? 'Voir tes QR codes d\'entrée'
+                                  : 'Voir mon QR code d\'entrée',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -1102,19 +1302,46 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final cancelled = event.status == 'cancelled';
     final fullNoSlot = event.isFull && !participating && !waitlisted;
 
-    final iconData = participating
-        ? PhosphorIcons.xCircle()
-        : waitlisted
-        ? PhosphorIcons.clockCountdown()
-        : fullNoSlot
-        ? PhosphorIcons.listPlus()
-        : PhosphorIcons.checkCircle();
+    // Event payant : acquisition de billets via le panier (jamais d'annulation
+    // au niveau de l'event ; les billets payants ne s'annulent pas).
+    final isPaid = event.contributionType == 'monetaire';
+    final maxT = event.maxTicketsPerUserPerEvent;
+    final atLimit = isPaid && event.myTicketsCount >= maxT;
+    final hasTickets = event.myTicketsCount > 0;
+
+    // Event payant par catégorie « complet » : plus aucune catégorie en vente
+    // NI option en nature disponible. (max_participants est null dans ce mode,
+    // donc event.isFull ne le détecte pas — on regarde le stock réel.)
+    final usesCategories = event.ticketCategories.isNotEmpty;
+    final paidSoldOut = isPaid && usesCategories &&
+        !event.ticketCategories.any((c) => c.price > 0 && c.onSale && !c.isSoldOut) &&
+        !event.contributionItems.any((i) => i.isAvailable);
+
+    final IconData? iconData = isPaid
+        ? ((atLimit || paidSoldOut) ? null : PhosphorIcons.ticket()) // pas d'icône → texte centré
+        : participating
+            ? PhosphorIcons.xCircle()
+            : waitlisted
+                ? PhosphorIcons.clockCountdown()
+                : fullNoSlot
+                    ? PhosphorIcons.listPlus()
+                    : PhosphorIcons.checkCircle();
 
     String label;
     if (cancelled) {
       label = 'Événement annulé';
     } else if (past) {
       label = 'Événement terminé';
+    } else if (isPaid) {
+      if (paidSoldOut) {
+        label = 'Événement complet';
+      } else if (atLimit) {
+        label = 'Déjà $maxT billets (max)';
+      } else if (hasTickets) {
+        label = 'Acheter d\'autres billets';
+      } else {
+        label = 'Je participe';
+      }
     } else if (participating) {
       label = 'Annuler ma participation';
     } else if (waitlisted) {
@@ -1124,14 +1351,16 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
           : 'En liste d\'attente · Quitter';
     } else if (fullNoSlot) {
       label = 'Rejoindre la liste d\'attente';
-    } else {
+    } else if (event.showTicketCounts) {
       final count = event.maxParticipants != null
           ? '${event.participantsCount} / ${event.maxParticipants}'
           : '${event.participantsCount}';
       label = 'Je participe — $count';
+    } else {
+      label = 'Je participe';
     }
 
-    final isDisabled = cancelled || past;
+    final isDisabled = cancelled || past || atLimit || paidSoldOut;
 
     if (_locked) {
       final status = event.myJoinRequestStatus;
@@ -1274,16 +1503,20 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   onPressed: isDisabled
                       ? null
                       : () {
-                          if (participating || waitlisted) {
-                            widget.onCancelParticipation();
+                          if (isPaid) {
+                            // Event payant : on acquiert des billets (panier).
+                            if (event.ticketCategories.isNotEmpty) {
+                              context.push('/event/${event.id}/participate',
+                                  extra: event);
+                            } else {
+                              _showContribSheet(context); // legacy prix unique ± nature
+                            }
+                          } else if (participating || waitlisted) {
+                            widget.onCancelParticipation(); // gratuit : annuler/quitter
                           } else if (fullNoSlot) {
                             widget.onJoinWaitlist();
-                          } else if (event.contributionType == 'monetaire' &&
-                              (event.contributionAmount != null ||
-                                  event.contributionItems.isNotEmpty)) {
-                            _showContribSheet(context);
                           } else {
-                            widget.onParticipate(null, 1);
+                            widget.onParticipate(null, 1); // gratuit : participer
                           }
                         },
                 ),
@@ -1456,6 +1689,120 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
+// ── Carte catégorie de billet ─────────────────────────────────────────────────
+
+class _CategoryCard extends StatelessWidget {
+  final TicketCategoryModel category;
+  final bool showCounts;
+  const _CategoryCard({required this.category, this.showCounts = false});
+
+  Color get _accent {
+    final c = category.color;
+    if (c.length == 7 && c.startsWith('#')) {
+      final v = int.tryParse(c.substring(1), radix: 16);
+      if (v != null) return Color(0xFF000000 | v);
+    }
+    return kPrimary;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Catégorie épuisée → carte grisée (avec le badge « Complet » conservé).
+    return Opacity(
+      opacity: category.isSoldOut ? 0.5 : 1,
+      child: Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(Radii.lg),
+        border: Border.all(color: context.tpHair),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              width: 8, height: 8,
+              decoration: BoxDecoration(color: _accent, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(category.name,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: context.tpInk)),
+            ),
+            Text('${category.price} FCFA',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w900, color: _accent)),
+          ]),
+          if (category.advantages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...category.advantages.map((a) => Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, right: 8),
+                        child: Container(
+                          width: 5, height: 5,
+                          decoration: BoxDecoration(
+                              color: _accent, shape: BoxShape.circle),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(a,
+                            style: TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                                color: context.tpInkSub)),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+          if (_stockLabel != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _stockColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(Radii.pill),
+              ),
+              child: Text(_stockLabel!,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: _stockColor)),
+            ),
+          ],
+        ],
+      ),
+      ),
+    );
+  }
+
+  String? get _stockLabel {
+    // « Complet » est toujours montré (info d'achat essentielle) ; les compteurs
+    // de places ne sont révélés que si le promoteur l'a activé.
+    if (category.isSoldOut) return 'Complet';
+    if (!showCounts) return null;
+    if (category.isLowStock) return 'Dernières places';
+    if (category.remaining != null) return '${category.remaining} billets restants';
+    return null;
+  }
+
+  Color get _stockColor {
+    if (category.isSoldOut) return kError;
+    if (category.isLowStock) return kAccent;
+    return kSuccess;
+  }
+}
+
 // ── Contribution row ──────────────────────────────────────────────────────────
 
 class _ContribRow extends StatelessWidget {
@@ -1469,6 +1816,8 @@ class _ContribRow extends StatelessWidget {
         : 0.0;
     return Padding(
       padding: const EdgeInsets.only(bottom: Sp.sm),
+      child: Opacity(
+      opacity: item.isAvailable ? 1 : 0.5,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -1496,7 +1845,9 @@ class _ContribRow extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}',
+                        item.isAvailable
+                            ? '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}'
+                            : 'Épuisé',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -1505,6 +1856,17 @@ class _ContribRow extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (item.categoryName != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      'Donne un billet ${item.categoryName}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: kPrimary,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(Radii.xs),
@@ -1531,6 +1893,7 @@ class _ContribRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -2002,8 +2365,12 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
       await ref
           .read(invitationServiceProvider)
           .sendInvitation(receiverId: user.id, eventId: widget.eventId);
-    } catch (_) {
-      if (mounted) setState(() => _done.remove(user.id));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _done.remove(user.id));
+      // Affiche le motif (ex. « passe au plan Pro », opt-out, blocage…).
+      final msg = e is ApiException ? e.message : 'Invitation impossible.';
+      TpToast.error(context, msg);
     }
   }
 
@@ -2299,6 +2666,56 @@ class _MinimapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
+}
+
+/// Marqueur « ma position » sur la mini-carte (point bleu façon GPS + label).
+class _MinimapMeMarker extends StatelessWidget {
+  const _MinimapMeMarker();
+
+  static const _blue = Color(0xFF3B82F6);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: const [
+              BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 2)),
+            ],
+          ),
+          child: const Text(
+            'Moi',
+            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _blue),
+          ),
+        ),
+        const SizedBox(height: 3),
+        // Halo + point
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _blue.withValues(alpha: 0.22),
+          ),
+          alignment: Alignment.center,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _blue,
+              border: Border.all(color: Colors.white, width: 2.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _MinimapPin extends StatelessWidget {

@@ -129,26 +129,6 @@ double _kmBetween(double lat1, double lng1, double lat2, double lng2) {
   return r * 2 * atan2(sqrt(a), sqrt(1 - a));
 }
 
-// ── Style carte custom ────────────────────────────────────────────────────────
-
-const _mapStyle = '''[
-  {"elementType":"geometry","stylers":[{"color":"#E8E4DC"}]},
-  {"elementType":"labels.text.fill","stylers":[{"color":"#6B6A82"}]},
-  {"elementType":"labels.text.stroke","stylers":[{"color":"#F7F7FB"}]},
-  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#A8D5E5"}]},
-  {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#5A8DA6"}]},
-  {"featureType":"road","elementType":"geometry","stylers":[{"color":"#FFFFFF"}]},
-  {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#F4EFE5"}]},
-  {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#FFFFFF"}]},
-  {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#EDE8DE"}]},
-  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#9CA3AF"}]},
-  {"featureType":"poi","elementType":"geometry","stylers":[{"color":"#C9D9C2"}]},
-  {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#C9D9C2"}]},
-  {"featureType":"poi","elementType":"labels","stylers":[{"visibility":"off"}]},
-  {"featureType":"transit","stylers":[{"visibility":"off"}]},
-  {"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#6B6A82"},{"fontWeight":"800"}]}
-]''';
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Screen
 // ═══════════════════════════════════════════════════════════════════════════
@@ -268,15 +248,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _requestLocation() async {
     try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) return;
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      if (mounted) {
-        setState(() => _userPos = LatLng(pos.latitude, pos.longitude));
-        if (!_itineraryMode && _filterIndex == 1) _loadEvents();
-      }
+      // 1) Position déjà connue → recentrage INSTANTANÉ (évite de rester sur Abidjan
+      //    le temps que le GPS précis réponde).
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) _applyUserPos(last);
+      // 2) Position précise (bornée dans le temps pour ne pas bloquer).
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      _applyUserPos(pos);
     } catch (_) {}
+  }
+
+  /// Applique la position de l'utilisateur et recentre la carte dessus.
+  void _applyUserPos(Position pos) {
+    if (!mounted) return;
+    setState(() => _userPos = LatLng(pos.latitude, pos.longitude));
+    if (!_itineraryMode) {
+      // Si la carte est prête on l'anime ; sinon `initialCameraPosition` (et
+      // onMapCreated) prendront _userPos comme cible.
+      _ctrl?.animateCamera(CameraUpdate.newLatLngZoom(_userPos!, 13.0));
+      if (_filterIndex == 1) _loadEvents();
+    }
   }
 
   Future<void> _fitItinerary() async {
@@ -927,10 +925,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         target: _userPos ?? (_destination ?? _abidjan),
         zoom: 13.5,
       ),
-      style: _mapStyle,
+      // Style Google par défaut : carte complète (routes, POI, libellés) partout.
       onMapCreated: (ctrl) {
         _ctrl = ctrl;
-        if (_itineraryMode) _fitItinerary();
+        if (_itineraryMode) {
+          _fitItinerary();
+        } else if (_userPos != null) {
+          // La position a été obtenue avant que la carte soit prête → on recentre.
+          ctrl.animateCamera(CameraUpdate.newLatLngZoom(_userPos!, 13.0));
+        }
       },
       onCameraMove: (pos) => _zoom = pos.zoom,
       // Recalcule l'écartement avec le zoom final une fois la caméra stabilisée

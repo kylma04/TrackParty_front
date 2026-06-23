@@ -5,6 +5,7 @@ import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/co_organizer_provider.dart';
 import '../../core/providers/event_provider.dart';
+import '../../core/services/billing_service.dart';
 import '../../core/services/support_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -12,6 +13,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_confirm_sheet.dart';
+import '../../widgets/tp_pro_badge.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
@@ -66,6 +68,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
               _buildMiniStats(context, user),
               _buildMyEvents(context),
               _buildMyTickets(context),
+              _buildPlans(context),
               _buildSavedEvents(context),
               _buildCoOrgaInvitations(context),
               _buildDocuments(context, user),
@@ -97,6 +100,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
       user?.city,
     ].where((s) => s != null && s.isNotEmpty).join(', ');
     final memberYear = user?.createdAt.year.toString() ?? '—';
+    final isPro = ref.watch(entitlementsProvider).valueOrNull?.isPro ?? false;
 
     return SizedBox(
       height: 220,
@@ -251,23 +255,30 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(Radii.pill),
-                        ),
-                        child: Text(
-                          '🎉 Membre depuis $memberYear',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(Radii.pill),
+                            ),
+                            child: Text(
+                              '🎉 Membre depuis $memberYear',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
-                        ),
+                          if (isPro) const TpProBadge(),
+                        ],
                       ),
                     ],
                   ),
@@ -510,6 +521,100 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                           ),
                           Text(
                             'Accède à tes QR codes d\'entrée',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: context.tpInkSub,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      PhosphorIcons.caretRight(),
+                      color: context.tpInkMute,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Offres & tarifs ─────────────────────────────────────────────────────────
+  Widget _buildPlans(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 18, Sp.md, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PROMOTEUR',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: context.tpInkSub,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Semantics(
+            button: true,
+            label: 'Offres et tarifs',
+            child: GestureDetector(
+              onTap: () => context.push('/plans'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.lg),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0D1B1A2E),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
+                        ),
+                        borderRadius: BorderRadius.circular(Radii.md),
+                      ),
+                      child: Icon(
+                        PhosphorIcons.crown(PhosphorIconsStyle.fill),
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Offres & tarifs',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: context.tpInk,
+                            ),
+                          ),
+                          Text(
+                            'Plan gratuit, plan Pro & avantages',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,

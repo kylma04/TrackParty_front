@@ -33,6 +33,28 @@ class TicketService {
             .toList();
       });
 
+  /// Billets que l'utilisateur a cédés (transférés), avec le destinataire.
+  Future<List<SentTransferModel>> getTransferredTickets() => _call(() async {
+        final res = await _dio.get('events/my-transferred-tickets/');
+        return (res.data as List<dynamic>)
+            .map((e) => SentTransferModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      });
+
+  /// Cède un billet à un autre utilisateur (le QR est régénéré côté serveur).
+  Future<TicketModel> transferTicket(String ticketId, String userId) =>
+      _call(() async {
+        final res = await _dio.post(
+          'events/tickets/$ticketId/transfer/',
+          data: {'user_id': userId},
+        );
+        return TicketModel.fromJson(res.data as Map<String, dynamic>);
+      });
+
+  /// Annule un billet EN NATURE (les billets payants ne sont pas annulables).
+  Future<void> cancelTicket(String ticketId) =>
+      _call(() => _dio.post('events/tickets/$ticketId/cancel/'));
+
   Future<CheckinResult> checkin(String eventId, String token) => _call(() async {
         final res = await _dio.post(
           'events/$eventId/checkin/',

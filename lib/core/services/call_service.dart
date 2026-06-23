@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -102,6 +103,24 @@ class CallService {
   WebSocketChannel? _sigWs;
   StreamSubscription? _sigSub;
 
+  // Lecteur de sonnerie (entrante) / tonalité de retour (sortante).
+  final AudioPlayer _ringPlayer = AudioPlayer();
+  bool _ringing = false;
+
+  Future<void> _playRing(String asset) async {
+    try {
+      _ringing = true;
+      await _ringPlayer.setReleaseMode(ReleaseMode.loop);
+      await _ringPlayer.play(AssetSource(asset), volume: 1.0);
+    } catch (_) {}
+  }
+
+  Future<void> _stopRing() async {
+    if (!_ringing) return;
+    _ringing = false;
+    try { await _ringPlayer.stop(); } catch (_) {}
+  }
+
   static const _iceConfig = {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
@@ -150,6 +169,7 @@ class CallService {
 
       _isOfferer = true;
       _startRingTimer();
+      _playRing('sounds/ringback.wav'); // tonalité « ça sonne » pour l'appelant
       await _connectSignaling(callId);
       await _setupPeerConnection();
     } catch (e) {
@@ -164,6 +184,7 @@ class CallService {
   Future<void> acceptCall() async {
     final s = state;
     if (s.status != CallStatus.incoming || s.callId == null) return;
+    await _stopRing(); // l'appelé décroche → on coupe la sonnerie
 
     try {
       final stream = await _getLocalStream(s.callType ?? 'audio');
@@ -173,8 +194,12 @@ class CallService {
       stateNotifier.value = s.copyWith(localStream: stream, speakerEnabled: isVideo);
 
       _isOfferer = false;
-      await _connectSignaling(s.callId!);
+      // IMPORTANT : la peer connection doit être PRÊTE avant de rejoindre la
+      // signalisation. Sinon, en rejoignant, le serveur prévient l'appelant
+      // (participant_joined) qui envoie son offre immédiatement — et si _pc
+      // n'existe pas encore, l'offre est perdue → l'appel ne décroche jamais.
       await _setupPeerConnection();
+      await _connectSignaling(s.callId!);
       _sendSignal({'type': 'call_accepted'});
     } catch (e) {
       await _cleanup();
@@ -264,6 +289,7 @@ class CallService {
       remoteUserName: callerName,
       remoteUserAvatarUrl: callerAvatarUrl,
     );
+    _playRing('sounds/ringtone.wav'); // sonnerie pour l'appelé
   }
 
   void cancelIncomingCall(String callId) {
@@ -338,6 +364,7 @@ class CallService {
 
     _pc!.onConnectionState = (s) {
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        _stopRing(); // connecté → plus de sonnerie/tonalité
         stateNotifier.value = state.copyWith(status: CallStatus.active);
       } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
@@ -408,6 +435,7 @@ class CallService {
     _cleaningUp = true;
 
     _ringTimer?.cancel(); _ringTimer = null;
+    await _stopRing();
 
     // Réinitialiser l'état en PREMIER → les écrans peuvent naviguer immédiatement
     stateNotifier.value = CallState.idle;

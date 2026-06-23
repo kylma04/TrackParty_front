@@ -17,6 +17,7 @@ class PromoterData {
   final int followerCount;
   final double trustScore;
   final String badgeLevel;
+  final bool isPro;
 
   const PromoterData({
     required this.id,
@@ -32,6 +33,7 @@ class PromoterData {
     required this.followerCount,
     required this.trustScore,
     required this.badgeLevel,
+    this.isPro = false,
   });
 
   factory PromoterData.fromJson(Map<String, dynamic> j) {
@@ -50,6 +52,7 @@ class PromoterData {
       followerCount: (profile['follower_count'] as num?)?.toInt() ?? 0,
       trustScore: (profile['trust_score'] as num?)?.toDouble() ?? 0.0,
       badgeLevel: (profile['badge_level'] as String?) ?? 'bronze',
+      isPro: (j['is_pro'] as bool?) ?? false,
     );
   }
 

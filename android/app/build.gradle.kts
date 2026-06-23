@@ -8,14 +8,18 @@ plugins {
 }
 
 // Parse --dart-define-from-file values passed by Flutter as base64-encoded entries.
-val dartDefines: Map<String, String> = if (project.hasProperty("dart.defines")) {
-    (project.property("dart.defines") as String)
+// IMPORTANT : la propriété passée par Flutter s'appelle « dart-defines » (tiret),
+// pas « dart.defines » — sinon la map reste vide et la clé Maps n'est pas injectée.
+val dartDefines: Map<String, String> = if (project.hasProperty("dart-defines")) {
+    (project.property("dart-defines") as String)
         .split(",")
-        .associate { entry ->
+        .filter { it.isNotBlank() }
+        .mapNotNull { entry ->
             val decoded = String(Base64.getDecoder().decode(entry))
             val idx = decoded.indexOf('=')
-            decoded.substring(0, idx) to decoded.substring(idx + 1)
+            if (idx < 0) null else decoded.substring(0, idx) to decoded.substring(idx + 1)
         }
+        .toMap()
 } else {
     emptyMap()
 }

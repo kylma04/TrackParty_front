@@ -322,6 +322,18 @@ final eventStatsProvider =
   return ref.read(eventServiceProvider).getEventStats(eventId);
 });
 
+// ── Boost ─────────────────────────────────────────────────────────────────────
+
+final eventBoostProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, eventId) {
+  return ref.read(eventServiceProvider).getBoost(eventId);
+});
+
+/// Events boostés candidats au popup d'ouverture (autoDispose : rechargé à chaque ouverture).
+final boostedPopupProvider = FutureProvider.autoDispose<List<EventModel>>((ref) {
+  return ref.read(eventServiceProvider).getBoostedPopup();
+});
+
 // ── Favoris ───────────────────────────────────────────────────────────────────
 
 final savedEventsProvider = AsyncNotifierProvider<SavedEventsNotifier, List<EventModel>>(
