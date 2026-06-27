@@ -682,7 +682,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             ? _ticketCategories.asMap().entries.map((e) => e.value.toJson(e.key)).toList()
             : <Map<String, dynamic>>[],
       };
-      print('EVENT CREATE DATA: $data');
       final svc = ref.read(eventServiceProvider);
       final EventModel event;
       if (widget.isEditing) {

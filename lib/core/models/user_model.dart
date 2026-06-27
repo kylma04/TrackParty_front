@@ -65,7 +65,10 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> j) => UserModel(
         id: j['id'] as String,
-        email: j['email'] as String,
+        // L'email n'est exposé que pour SOI (UserSerializer). Un utilisateur
+        // tiers (PublicUserSerializer : organisateur, co-org…) ne le renvoie pas
+        // → défaut vide, sinon le parsing de l'événement échouait.
+        email: (j['email'] as String?) ?? '',
         displayName: j['display_name'] as String,
         phone: j['phone'] as String?,
         avatarUrl: j['avatar_url'] as String?,

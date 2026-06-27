@@ -34,7 +34,9 @@ import '../../widgets/tp_toast.dart';
 
 class EventDetailScreen extends ConsumerStatefulWidget {
   final String id;
-  const EventDetailScreen({super.key, required this.id});
+  // Code d'invitation issu d'un lien partagé (deeplink ?invite=CODE).
+  final String? inviteCode;
+  const EventDetailScreen({super.key, required this.id, this.inviteCode});
 
   @override
   ConsumerState<EventDetailScreen> createState() => _EventDetailScreenState();
@@ -42,6 +44,36 @@ class EventDetailScreen extends ConsumerStatefulWidget {
 
 class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   bool _expanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final code = widget.inviteCode;
+    if (code != null && code.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _redeemInvite(code));
+    }
+  }
+
+  Future<void> _redeemInvite(String code) async {
+    try {
+      final res =
+          await ref.read(invitationServiceProvider).joinByLink(widget.id, code);
+      if (!mounted) return;
+      TpToast.success(
+        context,
+        res.requiresPurchase
+            ? '🎟️ Accès débloqué — choisis ta place'
+            : '🎉 Tu as rejoint l\'événement !',
+      );
+      ref.read(eventDetailProvider(widget.id).notifier).refresh();
+    } catch (e) {
+      if (!mounted) return;
+      TpToast.error(
+        context,
+        e is ApiException ? e.message : 'Lien d\'invitation invalide.',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -648,6 +680,34 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             ? '${event.participantsCount} / ${event.maxParticipants}'
             : '${event.participantsCount} participants';
 
+    // Seuls l'organisateur et les co-organisateurs peuvent ouvrir la liste des
+    // participants. Pour les autres, on retire le bouton de navigation : on garde
+    // une carte d'info (non cliquable) si les compteurs sont publics, sinon on
+    // laisse la carte « contribution » occuper toute la largeur.
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final userId = authState is AuthAuthenticated ? authState.user.id : null;
+    final isOrganizer = userId != null && event.organizerId == userId;
+    final canSeeParticipants = isOrganizer || event.isCoOrganizer;
+    final showParticipantsInfo = !canSeeParticipants && event.showTicketCounts;
+
+    final contribCard = _InfoCard(
+      icon: PhosphorIcons.gift(),
+      iconColor: kWarning,
+      title: _contribLabel(event.contributionType),
+      subtitle: event.contributionType != 'monetaire'
+          ? 'Entrée libre'
+          : [
+              // Prix de départ basé sur les catégories (à jour),
+              // sinon prix unique legacy.
+              if (event.priceFrom != null)
+                'Dès ${event.priceFrom} FCFA'
+              else if (event.contributionAmount != null)
+                '${event.contributionAmount!.toStringAsFixed(0)} FCFA',
+              if (event.contributionItems.isNotEmpty)
+                '${event.contributionItems.length} en nature',
+            ].join(' · '),
+    );
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
       child: Column(
@@ -674,46 +734,46 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             ],
           ),
           const SizedBox(height: Sp.sm),
-          Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  button: true,
-                  label: 'Voir les participants',
-                  child: GestureDetector(
-                    onTap: () =>
-                        context.push('/event/${event.id}/participants'),
-                    child: _InfoCard(
-                      icon: PhosphorIcons.users(),
-                      iconColor: kSuccess,
-                      title: participantLabel,
-                      subtitle: 'Voir participants →',
+          if (canSeeParticipants)
+            Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: 'Voir les participants',
+                    child: GestureDetector(
+                      onTap: () =>
+                          context.push('/event/${event.id}/participants'),
+                      child: _InfoCard(
+                        icon: PhosphorIcons.users(),
+                        iconColor: kSuccess,
+                        title: participantLabel,
+                        subtitle: 'Voir participants →',
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: Sp.sm),
-              Expanded(
-                child: _InfoCard(
-                  icon: PhosphorIcons.gift(),
-                  iconColor: kWarning,
-                  title: _contribLabel(event.contributionType),
-                  subtitle: event.contributionType != 'monetaire'
-                      ? 'Entrée libre'
-                      : [
-                          // Prix de départ basé sur les catégories (à jour),
-                          // sinon prix unique legacy.
-                          if (event.priceFrom != null)
-                            'Dès ${event.priceFrom} FCFA'
-                          else if (event.contributionAmount != null)
-                            '${event.contributionAmount!.toStringAsFixed(0)} FCFA',
-                          if (event.contributionItems.isNotEmpty)
-                            '${event.contributionItems.length} en nature',
-                        ].join(' · '),
+                const SizedBox(width: Sp.sm),
+                Expanded(child: contribCard),
+              ],
+            )
+          else if (showParticipantsInfo)
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoCard(
+                    icon: PhosphorIcons.users(),
+                    iconColor: kSuccess,
+                    title: participantLabel,
+                    subtitle: 'Inscrits',
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: Sp.sm),
+                Expanded(child: contribCard),
+              ],
+            )
+          else
+            contribCard,
         ],
       ),
     );
@@ -1545,6 +1605,18 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   void _showInviteSheet(BuildContext context) {
+    // Organisateur / co-org d'un événement privé → écran d'invitation complet
+    // (sélection par listes + « tout sélectionner » + lien partageable). Sinon,
+    // sheet simple d'invitation par recherche (un destinataire à la fois).
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final userId = authState is AuthAuthenticated ? authState.user.id : null;
+    final isOrganizer = userId != null && event.organizerId == userId;
+    final canBulk = (isOrganizer || event.isCoOrganizer) &&
+        event.visibility == 'private';
+    if (canBulk) {
+      context.push('/event/${event.id}/invite', extra: {'title': event.title});
+      return;
+    }
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -2305,7 +2377,10 @@ class _ContribSelectionSheetState extends State<_ContribSelectionSheet> {
 class _InviteSheet extends ConsumerStatefulWidget {
   final String eventId;
   final String eventTitle;
-  const _InviteSheet({required this.eventId, required this.eventTitle});
+  const _InviteSheet({
+    required this.eventId,
+    required this.eventTitle,
+  });
 
   @override
   ConsumerState<_InviteSheet> createState() => _InviteSheetState();

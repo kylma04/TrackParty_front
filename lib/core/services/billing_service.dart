@@ -46,6 +46,7 @@ class PlansCatalog {
   final double commissionPct;
   final int freeMaxEvents;
   final int freeMaxCoOrganizers;
+  final int freeMaxEventInvites; // plafond cumulé d'invitations/event (gratuit)
   final int proPrice;
   final int proWeeklyBoostDays;
 
@@ -55,6 +56,7 @@ class PlansCatalog {
     required this.commissionPct,
     required this.freeMaxEvents,
     required this.freeMaxCoOrganizers,
+    required this.freeMaxEventInvites,
     required this.proPrice,
     required this.proWeeklyBoostDays,
   });
@@ -72,6 +74,7 @@ class PlansCatalog {
       commissionPct: (j['commission_pct'] as num?)?.toDouble() ?? 0,
       freeMaxEvents: (free['max_active_events'] as num?)?.toInt() ?? 2,
       freeMaxCoOrganizers: (free['max_co_organizers'] as num?)?.toInt() ?? 1,
+      freeMaxEventInvites: (free['max_event_invites'] as num?)?.toInt() ?? 100,
       proPrice: (pro['price'] as num?)?.toInt() ?? 0,
       proWeeklyBoostDays: (pro['weekly_boost_days'] as num?)?.toInt() ?? 0,
     );

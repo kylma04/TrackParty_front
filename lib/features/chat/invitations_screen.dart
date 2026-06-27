@@ -162,7 +162,12 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
 
   Future<void> _handleAccept() async {
     final event = widget.invitation.event;
-    if (event != null && event.needsContribution) {
+    // Event PAYANT : accepter donne seulement l'accès. Le choix du tarif (catégorie)
+    // OU de la contribution en nature, et le paiement, se font sur la page de
+    // l'événement (« Je participe »). On ne présélectionne rien ici.
+    final isPaid = event != null && event.contributionType == 'monetaire';
+    // Event GRATUIT proposant des options en nature : on choisit ce qu'on apporte.
+    if (!isPaid && event != null && event.contributionItems.isNotEmpty) {
       final result = await showModalBottomSheet<({String itemId, int qty})>(
         context: context,
         backgroundColor: Colors.transparent,
@@ -187,12 +192,17 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
         quantity: quantity,
       );
       if (mounted) {
+        final isPaid = widget.invitation.event?.contributionType == 'monetaire';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(action == 'accept' ? '🎉 Invitation acceptée !' : 'Invitation refusée'),
+          content: Text(action == 'accept'
+              ? (isPaid ? '🎟️ Accès débloqué — choisis ta place' : '🎉 Invitation acceptée !')
+              : 'Invitation refusée'),
           backgroundColor: action == 'accept' ? kPrimary : null,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
+        // Vers la page de l'événement : pour un event payant, l'invité y choisit
+        // son tarif / sa contribution en nature et paie via « Je participe ».
         if (action == 'accept' && widget.invitation.event != null) {
           context.push('/event/${widget.invitation.event!.id}');
         }

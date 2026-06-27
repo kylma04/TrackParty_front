@@ -10,6 +10,7 @@ import '../../core/api/api_exception.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/ticket_provider.dart';
 import '../../core/services/payment_service.dart';
+import '../../widgets/pay_method_logo.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -69,7 +70,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             method: _method,
           );
       _paymentId = init.paymentId;
-      // Ouvre la page de paiement Jeko dans le navigateur.
+      // Ouvre la page de paiement GeniusPay dans le navigateur.
       if (init.redirectUrl != null && init.redirectUrl!.isNotEmpty) {
         await launchUrl(Uri.parse(init.redirectUrl!),
             mode: LaunchMode.externalApplication);
@@ -256,7 +257,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           ),
         ),
         child: Row(children: [
-          Text(m.emoji, style: const TextStyle(fontSize: 20)),
+          PayMethodLogo(method: m),
           const SizedBox(width: 12),
           Expanded(
             child: Text(m.label,

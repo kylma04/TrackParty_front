@@ -11,6 +11,7 @@ import '../../core/models/event_model.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/ticket_provider.dart';
 import '../../core/services/payment_service.dart';
+import '../../widgets/pay_method_logo.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -24,7 +25,7 @@ enum _Phase { cart, polling, success, failure }
 
 /// Panier de participation : choisir des billets payants (catégories) et/ou des
 /// contributions en nature (items à apporter), jusqu'à la limite, puis valider.
-/// La partie payante ouvre le paiement Jeko ; la nature est confirmée directement.
+/// La partie payante ouvre le paiement GeniusPay ; la nature est confirmée directement.
 class OrderCartScreen extends ConsumerStatefulWidget {
   final EventModel event;
   const OrderCartScreen({super.key, required this.event});
@@ -399,7 +400,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
               width: active ? 1.6 : 1),
         ),
         child: Row(children: [
-          Text(m.emoji, style: const TextStyle(fontSize: 20)),
+          PayMethodLogo(method: m),
           const SizedBox(width: 12),
           Expanded(
             child: Text(m.label,

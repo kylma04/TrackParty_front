@@ -34,6 +34,7 @@ import '../../features/ticket/event_staff_screen.dart';
 import '../../features/event/event_coorganizers_screen.dart';
 import '../../features/event/event_dashboard_screen.dart';
 import '../../features/event/event_boost_screen.dart';
+import '../../features/event/event_invite_screen.dart';
 import '../../features/billing/plans_screen.dart';
 import '../../features/payment/payment_screen.dart';
 import '../../features/event/order_cart_screen.dart';
@@ -54,6 +55,8 @@ import '../../features/profile/saved_events_screen.dart';
 import '../../features/profile/my_events_screen.dart';
 import '../../features/ticket/event_waitlist_screen.dart';
 import '../providers/auth_provider.dart';
+import '../providers/maintenance_provider.dart';
+import '../../features/system/maintenance_screen.dart';
 import 'main_shell.dart';
 import '../../features/profile/identity_verification_screen.dart';
 
@@ -104,6 +107,7 @@ final _routes = [
     builder: (_, s) => ForgotPasswordScreen(prefilledEmail: s.extra as String?),
   ),
   GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
+  GoRoute(path: '/maintenance', builder: (_, _) => const MaintenanceScreen()),
 
   // ── Notifications ──────────────────────────────────────────────────────────
   GoRoute(
@@ -158,8 +162,12 @@ final _routes = [
   ),
   GoRoute(
     path: '/event/:id',
-    pageBuilder: (_, s) =>
-        _slide(s, EventDetailScreen(id: s.pathParameters['id']!)),
+    pageBuilder: (_, s) => _slide(
+        s,
+        EventDetailScreen(
+          id: s.pathParameters['id']!,
+          inviteCode: s.uri.queryParameters['invite'],
+        )),
   ),
   
   GoRoute(
@@ -254,6 +262,17 @@ final _routes = [
   GoRoute(
     path: '/event/:id/participate',
     builder: (_, s) => OrderCartScreen(event: s.extra as EventModel),
+  ),
+
+  GoRoute(
+    path: '/event/:id/invite',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventInviteScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
   ),
 
   GoRoute(
@@ -426,9 +445,24 @@ class RouterNotifier extends ChangeNotifier {
       authNotifierProvider,
       (_, _) => notifyListeners(),
     );
+    // Bascule immédiate vers / depuis l'écran de maintenance.
+    _ref.listen<MaintenanceInfo?>(
+      maintenanceProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
+    final loc = state.matchedLocation;
+
+    // Maintenance globale : priorité absolue, confine sur l'écran dédié.
+    final maintenance = _ref.read(maintenanceProvider);
+    if (maintenance != null) {
+      return loc == '/maintenance' ? null : '/maintenance';
+    }
+    // Maintenance levée : on quitte l'écran et on relance le flux normal.
+    if (loc == '/maintenance') return '/splash';
+
     final authValue = _ref.read(authNotifierProvider);
 
     // Keep current location while resolving (splash handles this visually)
@@ -436,7 +470,6 @@ class RouterNotifier extends ChangeNotifier {
 
     final auth = authValue.valueOrNull;
     final isAuthenticated = auth is AuthAuthenticated;
-    final loc = state.matchedLocation;
     final isPublic = _publicRoutes.any((r) => loc.startsWith(r));
 
     // Compte bloqué par la modération : confiné à l'écran dédié.

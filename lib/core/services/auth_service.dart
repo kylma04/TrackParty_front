@@ -140,7 +140,7 @@ class AuthService {
       });
 
   Future<void> registerFcmToken(String token) => _call(() async {
-        debugPrint('📱 FCM: Calling API to register token: $token');
+        // Ne pas logguer la valeur du token (permet d'adresser des push à l'appareil).
         final response = await _dio.post('auth/me/fcm-token/', data: {'fcm_token': token});
         debugPrint('📱 FCM: API response status: ${response.statusCode}');
       });

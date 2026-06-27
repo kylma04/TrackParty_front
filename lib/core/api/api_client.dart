@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/env.dart';
+import '../providers/maintenance_provider.dart';
 import '../services/token_storage.dart';
 
 // Incremented by the Dio interceptor when refresh fails.
@@ -44,6 +45,20 @@ Dio _buildDio(Ref ref) {
               (data is Map ? data['detail'] as String? : null) ??
               'Ton compte a été bloqué.';
           ref.read(accountBlockedProvider.notifier).state = msg;
+          return handler.next(error);
+        }
+
+        // Maintenance globale : l'API renvoie 503 {code:'maintenance'} pour
+        // toutes les routes (sauf /status/). On bascule l'app sur l'écran dédié.
+        if (error.response?.statusCode == 503 && code == 'maintenance') {
+          final msg =
+              (data is Map ? data['detail'] as String? : null) ??
+              'TrackParty est en maintenance. Nous revenons très vite.';
+          final endRaw = data is Map ? data['estimated_end'] as String? : null;
+          ref.read(maintenanceProvider.notifier).state = MaintenanceInfo(
+            message: msg,
+            estimatedEnd: endRaw != null ? DateTime.tryParse(endRaw) : null,
+          );
           return handler.next(error);
         }
 

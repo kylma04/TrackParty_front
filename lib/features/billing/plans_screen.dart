@@ -9,6 +9,8 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_toast.dart';
+import '../payment/payment_sheet.dart';
 
 class PlansScreen extends ConsumerWidget {
   const PlansScreen({super.key});
@@ -46,7 +48,7 @@ class PlansScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                data: (p) => _content(context, p),
+                data: (p) => _content(context, ref, p),
               ),
             ),
           ],
@@ -89,7 +91,7 @@ class PlansScreen extends ConsumerWidget {
     );
   }
 
-  Widget _content(BuildContext context, PlansCatalog p) {
+  Widget _content(BuildContext context, WidgetRef ref, PlansCatalog p) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(Sp.md, 4, Sp.md, Sp.lg),
       children: [
@@ -118,7 +120,7 @@ class PlansScreen extends ConsumerWidget {
 
         _freeCard(context, p),
         const SizedBox(height: Sp.md),
-        _proCard(context, p),
+        _proCard(context, ref, p),
 
         const SizedBox(height: Sp.md),
         Text(
@@ -184,6 +186,8 @@ class PlansScreen extends ConsumerWidget {
           _feat(context, 'Billetterie & QR code d\'entrée'),
           _feat(context, 'Catégories de billets & participants'),
           _feat(context, 'Chat de communauté & notifications'),
+          _feat(context,
+              'Jusqu\'à ${p.freeMaxEventInvites} invitations / événement privé'),
           _feat(context, 'Événements illimités', enabled: false),
           _feat(context, 'Analytics avancées', enabled: false),
           _feat(context, 'Jours de boost offerts', enabled: false),
@@ -192,7 +196,7 @@ class PlansScreen extends ConsumerWidget {
     );
   }
 
-  Widget _proCard(BuildContext context, PlansCatalog p) {
+  Widget _proCard(BuildContext context, WidgetRef ref, PlansCatalog p) {
     final isCurrent = p.isPro;
     return Container(
       padding: const EdgeInsets.all(2),
@@ -265,10 +269,11 @@ class PlansScreen extends ConsumerWidget {
             _feat(context, 'Tableau de bord web & analytics complètes'),
             _feat(context, 'Badge Pro sur ton profil'),
             _feat(context, 'Co-organisateurs illimités'),
+            _feat(context, 'Invitations en masse illimitées (events privés)'),
             const SizedBox(height: 18),
             if (!isCurrent)
               GestureDetector(
-                onTap: () => _showSoonSheet(context),
+                onTap: () => _upgradeToPro(context, ref, p),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 15),
@@ -353,69 +358,20 @@ class PlansScreen extends ConsumerWidget {
     );
   }
 
-  void _showSoonSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, Sp.lg),
-        decoration: BoxDecoration(
-          color: ctx.tpCard,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                gradient: trackpartyGradient,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(PhosphorIcons.crown(PhosphorIconsStyle.fill),
-                  color: Colors.white, size: 26),
-            ),
-            const SizedBox(height: 16),
-            Text('Paiement bientôt disponible',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: ctx.tpInk)),
-            const SizedBox(height: 8),
-            Text(
-              'L\'abonnement Pro arrive très bientôt avec le paiement mobile. '
-              'On te préviendra dès son ouverture.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: ctx.tpInkSub,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                style: TextButton.styleFrom(
-                  backgroundColor: kPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(Radii.md),
-                  ),
-                ),
-                child: const Text('Compris',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15)),
-              ),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _upgradeToPro(
+      BuildContext context, WidgetRef ref, PlansCatalog p) async {
+    final paid = await showPaymentSheet(
+      context, ref,
+      purpose: 'subscription',
+      amount: p.proPrice,
+      title: 'Plan Pro',
     );
+    if (!paid) return;
+    // Paiement confirmé : rafraîchit le statut d'abonnement / droits.
+    ref.invalidate(plansProvider);
+    ref.invalidate(entitlementsProvider);
+    if (context.mounted) {
+      TpToast.success(context, 'Bienvenue dans le plan Pro 🎉');
+    }
   }
 }
