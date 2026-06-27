@@ -11,6 +11,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_toast.dart';
+import '../payment/payment_sheet.dart';
 
 const _goldRose = LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEC4899)]);
 
@@ -52,13 +53,35 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
   Future<void> _submit({required bool proFree}) async {
     setState(() => _submitting = true);
     try {
-      await ref.read(eventServiceProvider).createBoost(
+      final boost = await ref.read(eventServiceProvider).createBoost(
             widget.eventId,
             mode: proFree ? 'pro_free' : null,
           );
       ref.invalidate(eventBoostProvider(widget.eventId));
       if (!mounted) return;
-      _showPendingSheet(proFree: proFree);
+
+      final status = boost['status'] as String?;
+      final amount = (boost['amount'] as num?)?.toInt() ?? 0;
+      final boostId = boost['id'] as String?;
+
+      // Jour Pro offert, ou boost déjà activé (pré-lancement auto-approuvé),
+      // ou gratuit : rien à payer.
+      if (proFree || status == 'active' || amount <= 0 || boostId == null) {
+        _showPendingSheet(proFree: proFree);
+        return;
+      }
+
+      // Boost payant en attente de paiement → feuille de paiement GeniusPay.
+      final paid = await showPaymentSheet(
+        context, ref,
+        purpose: 'boost',
+        objectId: boostId,
+        amount: amount,
+        title: 'Booster l\'événement',
+      );
+      if (!mounted) return;
+      ref.invalidate(eventBoostProvider(widget.eventId));
+      if (paid) TpToast.success(context, 'Boost activé 🚀');
     } on ApiException catch (e) {
       if (mounted) TpToast.error(context, e.message);
     } catch (_) {

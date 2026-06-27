@@ -4,24 +4,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
 
-/// Moyens de paiement supportés par Jeko.
-enum PayMethod { wave, orange, mtn, moov, djamo }
+/// Moyens de paiement supportés par GeniusPay (https://geniuspay.ci/docs/api).
+enum PayMethod { wave, orange, mtn, moov, card }
 
 extension PayMethodX on PayMethod {
-  String get api => name; // 'wave', 'orange', …
+  /// Code `payment_method` attendu par l'API GeniusPay.
+  String get api => switch (this) {
+        PayMethod.wave => 'wave',
+        PayMethod.orange => 'orange_money',
+        PayMethod.mtn => 'mtn_money',
+        PayMethod.moov => 'moov_money',
+        PayMethod.card => 'card',
+      };
   String get label => switch (this) {
         PayMethod.wave => 'Wave',
         PayMethod.orange => 'Orange Money',
         PayMethod.mtn => 'MTN MoMo',
         PayMethod.moov => 'Moov Money',
-        PayMethod.djamo => 'Djamo',
+        PayMethod.card => 'Carte bancaire',
       };
+  /// Logo officiel du moyen de paiement (fichiers à déposer dans
+  /// assets/icons/payments/). Un fallback emoji est affiché s'il manque.
+  String get logoAsset => 'assets/icons/payments/$name.png';
   String get emoji => switch (this) {
         PayMethod.wave => '🌊',
         PayMethod.orange => '🟠',
         PayMethod.mtn => '🟡',
         PayMethod.moov => '🔵',
-        PayMethod.djamo => '🟣',
+        PayMethod.card => '💳',
       };
 }
 
@@ -81,7 +91,7 @@ class PaymentService {
   final Dio _dio;
   PaymentService(this._dio);
 
-  /// Démarre l'achat d'un billet payant : réserve la place + renvoie l'URL Jeko.
+  /// Démarre l'achat d'un billet payant : réserve la place + renvoie l'URL GeniusPay.
   Future<PaymentInit> purchaseTicket({
     required String eventId,
     required String categoryId,
@@ -111,6 +121,33 @@ class PaymentService {
         if (method != null) 'payment_method': method.api,
       });
       return OrderResult.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Démarre un paiement abonnement Pro / boost (POST /api/payments/create/).
+  /// `purpose` : 'subscription' | 'boost'. `objectId` = id du boost (si boost).
+  Future<PaymentInit> createPayment({
+    required String purpose,
+    required PayMethod method,
+    String? objectId,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'purpose': purpose,
+        'payment_method': method.api,
+      };
+      if (objectId != null) body['object_id'] = objectId;
+      final res = await _dio.post('payments/create/', data: body);
+      final j = res.data as Map<String, dynamic>;
+      // CreatePaymentView renvoie {id, status, amount, redirect_url, ...}.
+      return PaymentInit(
+        paymentId: j['id'] as String,
+        status: j['status'] as String,
+        amount: (j['amount'] as num?)?.toInt() ?? 0,
+        redirectUrl: j['redirect_url'] as String?,
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }

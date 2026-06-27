@@ -16,6 +16,20 @@ import 'core/services/call_service.dart';
 import 'core/services/user_channel_service.dart';
 import 'theme/app_theme.dart';
 
+/// Écrans (sans paramètre) qu'une annonce admin `broadcast` peut cibler.
+/// Toute autre valeur de `screen` est ignorée → on ouvre les notifications.
+const Set<String> _allowedBroadcastScreens = {
+  'notifications',
+  'feed',
+  'my-events',
+  'my-tickets',
+  'saved-events',
+  'plans',
+  'help',
+  'support',
+  'settings',
+};
+
 class TrackPartyApp extends ConsumerStatefulWidget {
   const TrackPartyApp({super.key});
 
@@ -217,9 +231,12 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
         router.push('/invitations'); return;
 
       case 'broadcast':
-        // Annonce admin : ouvre l'écran ciblé si un lien est fourni, sinon les notifs.
+        // Annonce admin : ouvre l'écran ciblé si fourni ET autorisé, sinon les notifs.
+        // Whitelist : on ne route jamais vers une route arbitraire issue du payload.
         final screen = (data['screen'] ?? '').toString();
-        router.push(screen.isNotEmpty ? '/$screen' : '/notifications');
+        router.push(
+          _allowedBroadcastScreens.contains(screen) ? '/$screen' : '/notifications',
+        );
         return;
 
       case 'new_follower':

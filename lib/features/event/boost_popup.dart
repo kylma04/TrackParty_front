@@ -32,6 +32,16 @@ class BoostPopupController {
 
   static String _today() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 
+  /// Purge le suivi local (popups vus aujourd'hui, compteur). Appelé au
+  /// changement d'identité pour ne pas reporter l'état d'un compte sur le suivant.
+  static Future<void> clearTracking() async {
+    await Future.wait([
+      _storage.delete(key: _kDate),
+      _storage.delete(key: _kCount),
+      _storage.delete(key: _kSeen),
+    ]);
+  }
+
   static Future<void> maybeShow(BuildContext context, WidgetRef ref) async {
     if (_showing) return;
 
