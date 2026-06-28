@@ -12,6 +12,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_pro_badge.dart';
 import '../../widgets/tp_skeleton.dart';
 import 'trust_score_sheet.dart';
 import 'report_sheet.dart';
@@ -142,10 +143,17 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
             ),
             const SizedBox(height: 10),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(promoter.displayName,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
-                    color: Colors.white, letterSpacing: -0.5)),
+              Flexible(
+                child: Text(promoter.displayName,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
+                      color: Colors.white, letterSpacing: -0.5)),
+              ),
               const SizedBox(width: 8),
+              if (promoter.isPro) ...[
+                const TpProBadge(),
+                const SizedBox(width: 6),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(6)),

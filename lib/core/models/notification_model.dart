@@ -50,6 +50,7 @@ class NotificationModel {
       case 'new_follower':        return '✨';
       case 'new_review':          return '⭐';
       case 'participation_confirmed': return '✅';
+      case 'broadcast':           return '📣';
       default:                    return '🔔';
     }
   }

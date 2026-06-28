@@ -147,11 +147,16 @@ class _TpButtonState extends State<TpButton> {
                       Icon(widget.icon, color: textColor, size: _fontSize + 2),
                       const SizedBox(width: 8),
                     ],
-                    Text(
-                      widget.label,
-                      style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                        fontSize: _fontSize,
-                        color: textColor,
+                    Flexible(
+                      child: Text(
+                        widget.label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                          fontSize: _fontSize,
+                          color: textColor,
+                        ),
                       ),
                     ),
                   ],

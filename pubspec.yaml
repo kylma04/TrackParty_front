@@ -50,6 +50,8 @@ dependencies:
 
   # WebRTC (appels audio/vidéo)
   flutter_webrtc: ^1.4.0
+  # Écran d'appel entrant type WhatsApp (plein écran, app en fond/tuée)
+  flutter_callkit_incoming: ^2.0.4+2
 
   # Fonts
   google_fonts: ^6.1.0
@@ -96,6 +98,8 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/icons/payments/
+    - assets/sounds/
 
 flutter_launcher_icons:
   android: true

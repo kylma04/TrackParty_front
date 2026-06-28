@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../features/event/boost_popup.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
@@ -10,21 +11,54 @@ import '../../widgets/tp_button.dart';
 import '../../widgets/tp_tab_bar.dart';
 import '../providers/auth_provider.dart';
 
-class MainShell extends ConsumerWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
   final GoRouterState state;
 
   const MainShell({super.key, required this.child, required this.state});
 
+  @override
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell>
+    with WidgetsBindingObserver {
   static const _routes = ['/feed', '/map', '/messages', '/me'];
 
   int get _activeIndex {
-    final loc = state.uri.path;
+    final loc = widget.state.uri.path;
     final i = _routes.indexOf(loc);
     return i < 0 ? 0 : i;
   }
 
-  void _onCreateTap(BuildContext context, WidgetRef ref) {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Popup d'événement boosté à l'ouverture de l'app (cap 2/jour géré en interne).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkBoostPopup());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Retour de l'arrière-plan = nouvelle « ouverture ».
+    if (state == AppLifecycleState.resumed) _checkBoostPopup();
+  }
+
+  void _checkBoostPopup() {
+    if (!mounted) return;
+    final auth = ref.read(authNotifierProvider).valueOrNull;
+    if (auth is! AuthAuthenticated) return;
+    BoostPopupController.maybeShow(context, ref);
+  }
+
+  void _onCreateTap(BuildContext context) {
     final auth = ref.read(authNotifierProvider).valueOrNull;
     final user = auth is AuthAuthenticated ? auth.user : null;
     // Vérification d'identité requise AVANT d'entrer dans la création.
@@ -109,13 +143,13 @@ class MainShell extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: TpTabBar(
         activeIndex: _activeIndex,
         onTap: (i) => context.go(_routes[i]),
-        onCreateTap: () => _onCreateTap(context, ref),
+        onCreateTap: () => _onCreateTap(context),
       ),
     );
   }

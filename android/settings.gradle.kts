@@ -22,6 +22,9 @@ plugins {
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
     id("com.google.gms.google-services") version "4.4.2" apply false
+    // Auto-provisionne le JDK exigé par les plugins (flutter_callkit_incoming
+    // force un toolchain Java 17). Gradle télécharge le JDK 17 si absent.
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
 }
 
 include(":app")

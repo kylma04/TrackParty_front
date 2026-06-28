@@ -241,7 +241,13 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
   // ── Stats banner ──────────────────────────────────────────────────────────
 
   Widget _buildStatsBanner() {
-    final total     = _participants?.length ?? 0;
+    // Les participants en nature sont déjà comptés dans le bloc CONTRIBUTIONS
+    // ci-dessous → on les EXCLUT du total « inscrits » pour ne pas les
+    // compter deux fois (le total ne reflète que les billets directs/payants).
+    final natureCount = (_participants ?? [])
+        .where((p) => p.contributionItemId != null)
+        .length;
+    final total     = (_participants?.length ?? 0) - natureCount;
     final maxP      = _event?.maxParticipants ?? total;
     final contribC  = _totalContribCurrent;
     final contribT  = _totalContribTotal;

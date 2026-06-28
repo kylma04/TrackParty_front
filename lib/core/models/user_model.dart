@@ -41,6 +41,7 @@ class UserModel {
   final bool isPromoter;
   final bool isVerified;
   final String? identityVerificationStatus;
+  final bool allowPromoterInvites;
   final PromoterProfileModel? promoterProfile;
   final DateTime createdAt;
 
@@ -57,13 +58,17 @@ class UserModel {
     required this.isPromoter,
     required this.isVerified,
     this.identityVerificationStatus,
+    this.allowPromoterInvites = true,
     this.promoterProfile,
     required this.createdAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> j) => UserModel(
         id: j['id'] as String,
-        email: j['email'] as String,
+        // L'email n'est exposé que pour SOI (UserSerializer). Un utilisateur
+        // tiers (PublicUserSerializer : organisateur, co-org…) ne le renvoie pas
+        // → défaut vide, sinon le parsing de l'événement échouait.
+        email: (j['email'] as String?) ?? '',
         displayName: j['display_name'] as String,
         phone: j['phone'] as String?,
         avatarUrl: j['avatar_url'] as String?,
@@ -76,6 +81,7 @@ class UserModel {
         isPromoter: j['is_promoter'] as bool,
         isVerified: j['is_verified'] as bool,
         identityVerificationStatus: j['identity_verification_status'] as String?,
+        allowPromoterInvites: j['allow_promoter_invites'] as bool? ?? true,
         promoterProfile: j['promoter_profile'] != null
             ? PromoterProfileModel.fromJson(j['promoter_profile'] as Map<String, dynamic>)
             : null,
@@ -93,6 +99,7 @@ class UserModel {
     bool? isPromoter,
     bool? isVerified,
     String? identityVerificationStatus,
+    bool? allowPromoterInvites,
   }) =>
       UserModel(
         id: id,
@@ -107,6 +114,7 @@ class UserModel {
         isPromoter: isPromoter ?? this.isPromoter,
         isVerified: isVerified ?? this.isVerified,
         identityVerificationStatus: identityVerificationStatus ?? this.identityVerificationStatus,
+        allowPromoterInvites: allowPromoterInvites ?? this.allowPromoterInvites,
         promoterProfile: promoterProfile,
         createdAt: createdAt,
       );

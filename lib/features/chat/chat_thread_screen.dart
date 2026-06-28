@@ -48,6 +48,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   Timer? _typingClearTimer;
   StreamSubscription<TypingEvent>? _typingSub;
 
+  // Indicateur « enregistre une note vocale »
+  String? _recordingUserName;
+  Timer? _recordingClearTimer;
+  StreamSubscription<RecordingEvent>? _recordingSub;
+
   // Mode événement (annonce + carte événement) — admin de groupe événement uniquement
   bool _attachEvent = true;
 
@@ -79,6 +84,19 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           if (mounted) setState(() => _typingUserName = null);
         });
       });
+      _recordingSub = ws.recording.listen((e) {
+        if (!mounted) return;
+        _recordingClearTimer?.cancel();
+        if (e.state) {
+          setState(() => _recordingUserName = e.userName);
+          // Filet de sécurité si le « stop » se perd.
+          _recordingClearTimer = Timer(const Duration(seconds: 30), () {
+            if (mounted) setState(() => _recordingUserName = null);
+          });
+        } else {
+          setState(() => _recordingUserName = null);
+        }
+      });
     });
   }
 
@@ -98,6 +116,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     _typingTimer?.cancel();
     _typingClearTimer?.cancel();
     _typingSub?.cancel();
+    _recordingClearTimer?.cancel();
+    _recordingSub?.cancel();
     _recordTimer?.cancel();
     if (_voiceMode != _VoiceMode.idle) _recorder.stop().catchError((_) => null);
     _recorder.dispose();
@@ -170,6 +190,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       final dir  = await getTemporaryDirectory();
       final path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+      // Prévient l'autre membre qu'on enregistre une note vocale.
+      ref.read(chatWebSocketServiceProvider(widget.roomId)).sendRecording(true);
       if (mounted) {
         setState(() { _recordSecs = 0; _recordPaused = false; });
         _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -244,6 +266,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   Future<void> _sendVoice() async {
     _recordTimer?.cancel();
+    ref.read(chatWebSocketServiceProvider(widget.roomId)).sendRecording(false);
     final path = await _recorder.stop();
     final secs  = _recordSecs;
     setState(() { _voiceMode = _VoiceMode.idle; _recordPaused = false; });
@@ -256,6 +279,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   Future<void> _cancelVoice() async {
     _recordTimer?.cancel();
+    ref.read(chatWebSocketServiceProvider(widget.roomId)).sendRecording(false);
     await _recorder.stop();
     if (mounted) setState(() { _voiceMode = _VoiceMode.idle; _recordPaused = false; });
   }
@@ -295,7 +319,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               data: (msgs) => _buildMessageList(context, msgs, me?.id, partnerReadAt, canWrite),
             ),
           ),
-          if (_typingUserName != null && _voiceMode == _VoiceMode.idle)
+          if (_recordingUserName != null && _voiceMode == _VoiceMode.idle)
+            _RecordingIndicator(userName: _recordingUserName!)
+          else if (_typingUserName != null && _voiceMode == _VoiceMode.idle)
             _TypingIndicator(userName: _typingUserName!),
           if (!canWrite)
             _BroadcastBanner()
@@ -926,6 +952,35 @@ class _TypingIndicator extends StatelessWidget {
         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
             color: context.tpInkMute, fontStyle: FontStyle.italic),
       ),
+    );
+  }
+}
+
+class _RecordingIndicator extends StatelessWidget {
+  final String userName;
+  const _RecordingIndicator({required this.userName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md + 34, 0, Sp.md, 4),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(PhosphorIcons.microphone(PhosphorIconsStyle.fill),
+            size: 13, color: kError),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            '$userName enregistre une note vocale…',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: kError,
+                fontStyle: FontStyle.italic),
+          ),
+        ),
+      ]),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,16 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/token_storage.dart';
 import '../providers/event_provider.dart';
+import '../providers/chat_provider.dart';
+import '../providers/ticket_provider.dart';
+import '../providers/promoter_provider.dart';
+import '../providers/notification_provider.dart';
+import '../providers/co_organizer_provider.dart';
+import '../services/billing_service.dart';
+import '../services/biometric_service.dart';
+import '../services/moderation_service.dart';
+import '../services/support_service.dart';
+import '../../features/event/boost_popup.dart';
 
 // ── Auth state ────────────────────────────────────────────────────────────────
 
@@ -128,10 +140,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   /// Applique une AuthResponse déjà obtenue (ex: tokens retournés par verify-email-code).
   Future<void> loginWithResponse(AuthResponse response) async {
+    // _applyResponse purge déjà le cache user-scoped (cf. _resetUserScopedCaches).
     state = AsyncValue.data(await _applyResponse(Future.value(response)));
-    ref.invalidate(nearbyEventsFeedProvider);
-    ref.invalidate(trendingEventsFeedProvider);
-    ref.invalidate(savedEventsProvider);
   }
 
   Future<void> updateProfile(Map<String, dynamic> data) async {
@@ -160,12 +170,13 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       } catch (_) {}
     }
     await TokenStorage.clear();
-    // On ne supprime PAS les credentials biométriques à la déconnexion
-    // pour permettre une reconnexion rapide par biométrie
+    // Efface les identifiants biométriques mémorisés : sur un appareil partagé,
+    // un autre compte ne doit pas pouvoir reconnecter le précédent par biométrie.
+    await ref.read(biometricServiceProvider).clearCredentials();
     state = const AsyncValue.data(AuthUnauthenticated());
-    ref.invalidate(nearbyEventsFeedProvider);
-    ref.invalidate(trendingEventsFeedProvider);
-    ref.invalidate(savedEventsProvider);
+    // Purge le cache de la session pour qu'aucune donnée/permission ne fuite
+    // vers le prochain compte connecté sur le même appareil.
+    _resetUserScopedCaches();
   }
 
   // ── Social auth ─────────────────────────────────────────────────────────────
@@ -212,14 +223,64 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     final response = await future;
     await TokenStorage.save(access: response.access, refresh: response.refresh);
     _registerFcmToken();
-    ref.invalidate(nearbyEventsFeedProvider);
-    ref.invalidate(trendingEventsFeedProvider);
-    ref.invalidate(savedEventsProvider);
+    // Le token du NOUVEL utilisateur est déjà persisté → on purge tout le cache
+    // de la session précédente pour éviter de montrer ses données/permissions.
+    _resetUserScopedCaches();
     return AuthAuthenticated(
       user: response.user,
       accessToken: response.access,
       refreshToken: response.refresh,
     );
+  }
+
+  /// Invalide TOUS les providers qui mettent en cache des données ou des
+  /// permissions propres à l'utilisateur. Appelé à chaque changement d'identité
+  /// (connexion ET déconnexion) car, sur un même appareil, le state Riverpod
+  /// survit à la déconnexion et exposerait sinon l'UI de la session précédente
+  /// (ex. outils organisateur via `eventDetailProvider.isCoOrganizer`).
+  ///
+  /// ⚠️ Tout nouveau provider user-scoped DOIT être ajouté ici.
+  void _resetUserScopedCaches() {
+    // Événements
+    ref.invalidate(nearbyEventsFeedProvider);
+    ref.invalidate(trendingEventsFeedProvider);
+    ref.invalidate(eventDetailProvider);
+    ref.invalidate(myEventStatsProvider);
+    ref.invalidate(myEventsProvider);
+    ref.invalidate(eventStatsProvider);
+    ref.invalidate(eventBoostProvider);
+    ref.invalidate(boostedPopupProvider);
+    ref.invalidate(savedEventsProvider);
+    ref.invalidate(eventWaitlistProvider);
+    // Chat & invitations
+    ref.invalidate(chatRoomsProvider);
+    ref.invalidate(chatThreadProvider);
+    ref.invalidate(communityRoomProvider);
+    ref.invalidate(chatPartnerReadAtProvider);
+    ref.invalidate(invitationsProvider);
+    // Billetterie / staff
+    ref.invalidate(myTicketProvider);
+    ref.invalidate(myTicketsProvider);
+    ref.invalidate(myTransferredTicketsProvider);
+    ref.invalidate(eventCheckinsProvider);
+    ref.invalidate(eventStaffProvider);
+    // Profil promoteur
+    ref.invalidate(promoterProfileProvider);
+    ref.invalidate(promoterEventsProvider);
+    ref.invalidate(promoterTrustScoreProvider);
+    ref.invalidate(promoterReviewsProvider);
+    // Notifications & co-organisation
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(coOrganizerInvitationsProvider);
+    // Facturation (droits Pro/plafonds = permissions), modération, support
+    ref.invalidate(entitlementsProvider);
+    ref.invalidate(blockedUsersProvider);
+    ref.invalidate(supportTicketsProvider);
+    ref.invalidate(supportTicketProvider);
+    ref.invalidate(supportUnreadProvider);
+
+    // Suivi local du popup de boost (clés secure storage non liées au compte).
+    unawaited(BoostPopupController.clearTracking());
   }
 
   // Fire-and-forget: get FCM token and send it to the backend.

@@ -1,6 +1,8 @@
 import 'package:app_links/app_links.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,10 +10,25 @@ import 'core/api/api_client.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/notification_provider.dart';
 import 'core/providers/theme_provider.dart';
+import 'core/providers/ticket_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/services/call_service.dart';
 import 'core/services/user_channel_service.dart';
 import 'theme/app_theme.dart';
+
+/// Écrans (sans paramètre) qu'une annonce admin `broadcast` peut cibler.
+/// Toute autre valeur de `screen` est ignorée → on ouvre les notifications.
+const Set<String> _allowedBroadcastScreens = {
+  'notifications',
+  'feed',
+  'my-events',
+  'my-tickets',
+  'saved-events',
+  'plans',
+  'help',
+  'support',
+  'settings',
+};
 
 class TrackPartyApp extends ConsumerStatefulWidget {
   const TrackPartyApp({super.key});
@@ -27,7 +44,49 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     _setupFcmListeners();
     _setupCallService();
     _setupCallListener();
+    _setupCallKitListener();
     _setupDeepLinks();
+  }
+
+  /// Réagit aux actions de l'écran d'appel natif (CallKit) : décrocher / refuser.
+  void _setupCallKitListener() {
+    FlutterCallkitIncoming.onEvent.listen((event) async {
+      if (event == null) return;
+      final body = event.body;
+      final extra = (body is Map && body['extra'] is Map)
+          ? Map<String, dynamic>.from(body['extra'] as Map)
+          : <String, dynamic>{};
+      final callId = (extra['call_id'] ?? '').toString();
+      final callType = (extra['call_type'] ?? 'audio').toString();
+      final roomId = (extra['room_id'] ?? '').toString();
+      final callerName = extra['caller_name']?.toString();
+      final avatar = extra['caller_avatar']?.toString();
+
+      switch (event.event) {
+        case Event.actionCallAccept:
+          if (callId.isEmpty) return;
+          CallService().notifyIncomingCall(
+            callId: callId, callType: callType, roomId: roomId,
+            callerName: callerName,
+            callerAvatarUrl: (avatar?.isNotEmpty ?? false) ? avatar : null,
+          );
+          try { await CallService().acceptCall(); } catch (_) {}
+        case Event.actionCallDecline:
+          if (callId.isEmpty) return;
+          CallService().notifyIncomingCall(
+            callId: callId, callType: callType, roomId: roomId,
+            callerName: callerName,
+          );
+          await CallService().rejectCall();
+        case Event.actionCallEnded:
+        case Event.actionCallTimeout:
+          if (CallService().state.status == CallStatus.incoming) {
+            await CallService().rejectCall();
+          }
+        default:
+          break;
+      }
+    });
   }
 
   void _setupCallService() {
@@ -72,12 +131,14 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     FirebaseMessaging.onMessage.listen((message) {
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
+      _maybeRefreshTickets(message);
     });
 
     // Background: user taps a notification from the system tray → navigate + refresh
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
+      _maybeRefreshTickets(message);
       _navigateFromMessage(message);
     });
 
@@ -86,6 +147,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       if (message == null) return;
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
+      _maybeRefreshTickets(message);
       // Use addPostFrameCallback to ensure the router is ready
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigateFromMessage(message);
@@ -103,6 +165,21 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     final category = (data['category'] ?? '').toString();
     if (category == 'identity' || type.startsWith('identity_')) {
       ref.read(authNotifierProvider.notifier).refreshUser();
+    }
+  }
+
+  /// Quand un push lié aux billets arrive (transfert reçu, promotion liste
+  /// d'attente…), on purge le cache des billets : le destinataire d'un transfert
+  /// doit récupérer le NOUVEAU token, sinon son QR (ancien token) échoue au scan.
+  void _maybeRefreshTickets(RemoteMessage message) {
+    final data = message.data;
+    final type = (data['type'] ?? '').toString();
+    if (type == 'ticket_transferred' || type == 'waitlist_promoted') {
+      ref.invalidate(myTicketsProvider);
+      final eventId = data['event_id'];
+      if (eventId is String && eventId.isNotEmpty) {
+        ref.invalidate(myTicketProvider(eventId));
+      }
     }
   }
 
@@ -153,6 +230,15 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       case 'invitation_accepted':
         router.push('/invitations'); return;
 
+      case 'broadcast':
+        // Annonce admin : ouvre l'écran ciblé si fourni ET autorisé, sinon les notifs.
+        // Whitelist : on ne route jamais vers une route arbitraire issue du payload.
+        final screen = (data['screen'] ?? '').toString();
+        router.push(
+          _allowedBroadcastScreens.contains(screen) ? '/$screen' : '/notifications',
+        );
+        return;
+
       case 'new_follower':
         final followerId = data['follower_id'];
         if (followerId != null) { router.push('/promoter/$followerId'); return; }
@@ -164,6 +250,10 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
           router.push('/event/$eventId/dashboard', extra: {'title': ''});
           return;
         }
+
+      case 'ticket_transferred':
+      case 'waitlist_promoted':
+        router.push('/my-tickets'); return;
     }
 
     // Types avec event_id : event_reminder, event_updated, event_cancelled,

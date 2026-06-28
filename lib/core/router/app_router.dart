@@ -26,12 +26,18 @@ import '../../features/profile/reviews_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/event/event_detail_screen.dart';
 import '../../features/ticket/ticket_screen.dart';
+import '../../core/models/ticket_model.dart';
 import '../../features/ticket/my_tickets_screen.dart';
 import '../../features/ticket/checkin_scanner_screen.dart';
 import '../../features/ticket/event_checkins_screen.dart';
 import '../../features/ticket/event_staff_screen.dart';
 import '../../features/event/event_coorganizers_screen.dart';
 import '../../features/event/event_dashboard_screen.dart';
+import '../../features/event/event_boost_screen.dart';
+import '../../features/event/event_invite_screen.dart';
+import '../../features/billing/plans_screen.dart';
+import '../../features/payment/payment_screen.dart';
+import '../../features/event/order_cart_screen.dart';
 import '../../features/event/co_organizer_invitations_screen.dart';
 import '../../features/event/event_create_screen.dart';
 import '../models/event_model.dart';
@@ -49,6 +55,8 @@ import '../../features/profile/saved_events_screen.dart';
 import '../../features/profile/my_events_screen.dart';
 import '../../features/ticket/event_waitlist_screen.dart';
 import '../providers/auth_provider.dart';
+import '../providers/maintenance_provider.dart';
+import '../../features/system/maintenance_screen.dart';
 import 'main_shell.dart';
 import '../../features/profile/identity_verification_screen.dart';
 
@@ -99,6 +107,7 @@ final _routes = [
     builder: (_, s) => ForgotPasswordScreen(prefilledEmail: s.extra as String?),
   ),
   GoRoute(path: '/blocked', builder: (_, _) => const BlockedScreen()),
+  GoRoute(path: '/maintenance', builder: (_, _) => const MaintenanceScreen()),
 
   // ── Notifications ──────────────────────────────────────────────────────────
   GoRoute(
@@ -129,8 +138,8 @@ final _routes = [
     builder: (_, s) {
       final extra = s.extra as Map<String, dynamic>? ?? {};
       return LocationPickerScreen(
-        initialLat: (extra['lat'] as double?) ?? 5.3484,
-        initialLng: (extra['lng'] as double?) ?? -4.0168,
+        initialLat: extra['lat'] as double?,
+        initialLng: extra['lng'] as double?,
       );
     },
   ),
@@ -153,8 +162,12 @@ final _routes = [
   ),
   GoRoute(
     path: '/event/:id',
-    pageBuilder: (_, s) =>
-        _slide(s, EventDetailScreen(id: s.pathParameters['id']!)),
+    pageBuilder: (_, s) => _slide(
+        s,
+        EventDetailScreen(
+          id: s.pathParameters['id']!,
+          inviteCode: s.uri.queryParameters['invite'],
+        )),
   ),
   
   GoRoute(
@@ -178,8 +191,13 @@ final _routes = [
   ),
   GoRoute(
     path: '/ticket/:eventId',
-    pageBuilder: (_, s) =>
-        _slide(s, TicketScreen(eventId: s.pathParameters['eventId']!)),
+    pageBuilder: (_, s) => _slide(
+      s,
+      TicketScreen(
+        eventId: s.pathParameters['eventId']!,
+        ticket: s.extra as TicketModel?,
+      ),
+    ),
   ),
   GoRoute(
     path: '/my-tickets',
@@ -211,6 +229,46 @@ final _routes = [
     builder: (_, s) {
       final extra = s.extra as Map<String, dynamic>?;
       return EventDashboardScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/boost',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventBoostScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/pay',
+    builder: (_, s) {
+      final extra = (s.extra as Map<String, dynamic>?) ?? const {};
+      return PaymentScreen(
+        eventId: s.pathParameters['id']!,
+        categoryId: extra['categoryId'] as String? ?? '',
+        categoryName: extra['categoryName'] as String? ?? '',
+        amount: (extra['amount'] as num?)?.toInt() ?? 0,
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/participate',
+    builder: (_, s) => OrderCartScreen(event: s.extra as EventModel),
+  ),
+
+  GoRoute(
+    path: '/event/:id/invite',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return EventInviteScreen(
         eventId: s.pathParameters['id']!,
         eventTitle: extra?['title'] as String? ?? '',
       );
@@ -274,6 +332,10 @@ final _routes = [
   GoRoute(
     path: '/help',
     pageBuilder: (_, s) => _slide(s, const HelpScreen()),
+  ),
+  GoRoute(
+    path: '/plans',
+    pageBuilder: (_, s) => _slide(s, const PlansScreen()),
   ),
   GoRoute(
     path: '/privacy',
@@ -383,9 +445,24 @@ class RouterNotifier extends ChangeNotifier {
       authNotifierProvider,
       (_, _) => notifyListeners(),
     );
+    // Bascule immédiate vers / depuis l'écran de maintenance.
+    _ref.listen<MaintenanceInfo?>(
+      maintenanceProvider,
+      (_, _) => notifyListeners(),
+    );
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
+    final loc = state.matchedLocation;
+
+    // Maintenance globale : priorité absolue, confine sur l'écran dédié.
+    final maintenance = _ref.read(maintenanceProvider);
+    if (maintenance != null) {
+      return loc == '/maintenance' ? null : '/maintenance';
+    }
+    // Maintenance levée : on quitte l'écran et on relance le flux normal.
+    if (loc == '/maintenance') return '/splash';
+
     final authValue = _ref.read(authNotifierProvider);
 
     // Keep current location while resolving (splash handles this visually)
@@ -393,7 +470,6 @@ class RouterNotifier extends ChangeNotifier {
 
     final auth = authValue.valueOrNull;
     final isAuthenticated = auth is AuthAuthenticated;
-    final loc = state.matchedLocation;
     final isPublic = _publicRoutes.any((r) => loc.startsWith(r));
 
     // Compte bloqué par la modération : confiné à l'écran dédié.

@@ -366,6 +366,22 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(children: [
       _ActionRow(
+        icon: PhosphorIcons.qrCode(),
+        iconColor: kPrimary,
+        label: 'Scanner les entrées',
+        subtitle: 'Scanner le QR code d\'un billet',
+        onTap: () => context.push('/event/$eventId/scan'),
+      ),
+      const SizedBox(height: 10),
+      _ActionRow(
+        icon: PhosphorIcons.users(),
+        iconColor: kPrimary,
+        label: 'Voir les participants',
+        subtitle: '${stats.participantsCount} inscrit${stats.participantsCount > 1 ? 's' : ''}',
+        onTap: () => context.push('/event/$eventId/participants', extra: {'title': eventTitle}),
+      ),
+      const SizedBox(height: 10),
+      _ActionRow(
         icon: PhosphorIcons.listChecks(),
         iconColor: kSuccess,
         label: 'Voir les check-ins',

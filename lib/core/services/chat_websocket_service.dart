@@ -32,6 +32,7 @@ class ChatWebSocketService with WidgetsBindingObserver {
   StreamSubscription? _sub;
   final _messageCtrl       = StreamController<ChatMessage>.broadcast();
   final _typingCtrl        = StreamController<TypingEvent>.broadcast();
+  final _recordingCtrl     = StreamController<RecordingEvent>.broadcast();
   final _reactionCtrl      = StreamController<ReactionEvent>.broadcast();
   final _readReceiptCtrl   = StreamController<ReadReceiptEvent>.broadcast();
   final _reconnectedCtrl   = StreamController<void>.broadcast();
@@ -51,6 +52,7 @@ class ChatWebSocketService with WidgetsBindingObserver {
 
   Stream<ChatMessage>      get messages     => _messageCtrl.stream;
   Stream<TypingEvent>      get typing       => _typingCtrl.stream;
+  Stream<RecordingEvent>   get recording    => _recordingCtrl.stream;
   Stream<ReactionEvent>    get reactions    => _reactionCtrl.stream;
   Stream<ReadReceiptEvent> get readReceipts => _readReceiptCtrl.stream;
 
@@ -104,6 +106,12 @@ class ChatWebSocketService with WidgetsBindingObserver {
         _typingCtrl.add(TypingEvent(
           userId:   data['user_id'] as String,
           userName: data['user_name'] as String,
+        ));
+      } else if (type == 'recording') {
+        _recordingCtrl.add(RecordingEvent(
+          userId:   data['user_id'] as String,
+          userName: data['user_name'] as String,
+          state:    data['state'] as bool? ?? true,
         ));
       } else if (type == 'reaction') {
         final rawReactions = data['reactions'] as List<dynamic>;
@@ -163,6 +171,10 @@ class ChatWebSocketService with WidgetsBindingObserver {
     _send({'type': 'typing'});
   }
 
+  void sendRecording(bool state) {
+    _send({'type': 'recording', 'state': state});
+  }
+
   void _send(Map<String, dynamic> payload) {
     if (!_connected || _channel == null) return;
     _channel!.sink.add(jsonEncode(payload));
@@ -178,6 +190,7 @@ class ChatWebSocketService with WidgetsBindingObserver {
     _connected = false;
     if (!_messageCtrl.isClosed)      _messageCtrl.close();
     if (!_typingCtrl.isClosed)       _typingCtrl.close();
+    if (!_recordingCtrl.isClosed)    _recordingCtrl.close();
     if (!_reactionCtrl.isClosed)     _reactionCtrl.close();
     if (!_readReceiptCtrl.isClosed)  _readReceiptCtrl.close();
     if (!_reconnectedCtrl.isClosed)  _reconnectedCtrl.close();
@@ -188,6 +201,13 @@ class TypingEvent {
   final String userId;
   final String userName;
   const TypingEvent({required this.userId, required this.userName});
+}
+
+class RecordingEvent {
+  final String userId;
+  final String userName;
+  final bool state; // true = enregistre, false = arrêté
+  const RecordingEvent({required this.userId, required this.userName, required this.state});
 }
 
 class ReactionEvent {
