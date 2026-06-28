@@ -82,6 +82,7 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
   StreamSubscription<ChatMessage>? _wsSub;
   StreamSubscription<ReactionEvent>? _reactionSub;
   StreamSubscription<ReadReceiptEvent>? _readReceiptSub;
+  StreamSubscription<void>? _reconnectedSub;
 
   bool _hasMoreOlder = true;
   bool _loadingOlder = false;
@@ -110,17 +111,38 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
     _wsSub?.cancel();
     _reactionSub?.cancel();
     _readReceiptSub?.cancel();
+    _reconnectedSub?.cancel();
     _wsSub = ws.messages.listen(_onWsMessage);
     _reactionSub = ws.reactions.listen(_onWsReaction);
     _readReceiptSub = ws.readReceipts.listen(_onReadReceipt);
+    // À chaque reconnexion du WS (retour réseau / premier plan), le serveur ne
+    // rejoue pas les messages manqués : on recharge via REST pour rattraper.
+    _reconnectedSub = ws.reconnected.listen((_) => _resyncAfterReconnect());
 
     ref.onDispose(() {
       _wsSub?.cancel();
       _reactionSub?.cancel();
       _readReceiptSub?.cancel();
+      _reconnectedSub?.cancel();
     });
 
     return sorted;
+  }
+
+  /// Recharge la dernière page via REST et fusionne les messages absents de
+  /// l'état courant (reçus pendant une coupure du WebSocket).
+  Future<void> _resyncAfterReconnect() async {
+    try {
+      final latest = await ref.read(chatServiceProvider).getMessages(roomId);
+      final current = state.valueOrNull ?? [];
+      final knownIds = current.map((m) => m.id).toSet();
+      final missed = latest.reversed.where((m) => !knownIds.contains(m.id)).toList();
+      if (missed.isEmpty) return;
+      state = AsyncData([...current, ...missed]);
+      unawaited(
+        ref.read(chatServiceProvider).markRoomAsRead(roomId).catchError((_) {}),
+      );
+    } catch (_) {}
   }
 
   void _onWsMessage(ChatMessage msg) {

@@ -102,13 +102,25 @@ class CallService {
   WebSocketChannel? _sigWs;
   StreamSubscription? _sigSub;
 
-  static const _iceConfig = {
-    'iceServers': [
+  // Config ICE : STUN Google (P2P direct) + TURN si fourni via dart-define.
+  // Sans TURN, les appels échouent sur les réseaux mobiles à NAT strict.
+  static Map<String, dynamic> get _iceConfig {
+    final servers = <Map<String, dynamic>>[
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-    ],
-    'sdpSemantics': 'unified-plan',
-  };
+    ];
+    if (Env.turnConfigured) {
+      servers.add({
+        'urls': Env.turnUrl,
+        if (Env.turnUsername.isNotEmpty)   'username':   Env.turnUsername,
+        if (Env.turnCredential.isNotEmpty) 'credential': Env.turnCredential,
+      });
+    } else {
+      debugPrint('📞 ⚠️ Aucun TURN configuré (STUN seul) — les appels peuvent '
+          'couper sur réseau mobile à NAT strict.');
+    }
+    return {'iceServers': servers, 'sdpSemantics': 'unified-plan'};
+  }
 
   // ─── Appelant : initier ───────────────────────────────────────────────────
 
@@ -153,7 +165,9 @@ class CallService {
       await _connectSignaling(callId);
       await _setupPeerConnection();
     } catch (e) {
-      // Réinitialiser complètement si quelque chose échoue
+      // Réinitialiser complètement si quelque chose échoue (ex: getUserMedia
+      // refusé = permission micro/caméra non accordée → l'appel coupe aussitôt).
+      debugPrint('📞 ❌ initiateCall a échoué: $e');
       await _cleanup();
       rethrow;
     }
@@ -177,6 +191,7 @@ class CallService {
       await _setupPeerConnection();
       _sendSignal({'type': 'call_accepted'});
     } catch (e) {
+      debugPrint('📞 ❌ acceptCall a échoué: $e');
       await _cleanup();
       rethrow;
     }
@@ -287,11 +302,15 @@ class CallService {
     final token = await TokenStorage.getAccessToken();
     if (token == null) throw Exception('Non authentifié');
     final uri = Uri.parse('${Env.wsBaseUrl}/call/$callId/?token=$token');
+    debugPrint('📞 Signaling: connexion à $uri');
     _sigWs = WebSocketChannel.connect(uri);
     _sigSub = _sigWs!.stream.listen(
       _onSignal,
       onDone:  _onSignalingClosed,
-      onError: (_) => _cleanup(),
+      onError: (e) {
+        debugPrint('📞 ❌ Signaling erreur: $e');
+        _cleanup();
+      },
     );
   }
 
@@ -315,6 +334,10 @@ class CallService {
   }
 
   void _onSignalingClosed() {
+    // Code de close utile au diagnostic : 4001 = token invalide/expiré ou user
+    // bloqué ; 4003 = pas participant de l'appel ; 1006/null = coupure réseau.
+    debugPrint('📞 Signaling fermé: code=${_sigWs?.closeCode} '
+        'reason=${_sigWs?.closeReason}');
     if (state.status != CallStatus.idle) _cleanup();
   }
 
@@ -337,10 +360,15 @@ class CallService {
     };
 
     _pc!.onConnectionState = (s) {
+      debugPrint('📞 PeerConnection state: $s');
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         stateNotifier.value = state.copyWith(status: CallStatus.active);
       } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        // 'failed' juste après la tentative = ICE n'a pas pu traverser le NAT
+        // (manque un TURN). 'disconnected' = perte réseau en cours d'appel.
+        debugPrint('📞 ❌ Connexion WebRTC $s → fin de l\'appel '
+            '(TURN configuré: ${Env.turnConfigured})');
         _cleanup();
       }
     };

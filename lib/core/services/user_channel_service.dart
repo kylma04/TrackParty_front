@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/env.dart';
@@ -9,10 +10,12 @@ import 'token_storage.dart';
 
 /// Canal WebSocket personnel de l'utilisateur.
 /// Reçoit les appels entrants, les annulations d'appels et les mises à jour de salles.
-class UserChannelService {
+class UserChannelService with WidgetsBindingObserver {
   static final UserChannelService _instance = UserChannelService._();
   factory UserChannelService() => _instance;
-  UserChannelService._();
+  UserChannelService._() {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   WebSocketChannel? _channel;
   StreamSubscription? _sub;
@@ -86,6 +89,17 @@ class UserChannelService {
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(const Duration(seconds: 5), connect);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Retour au premier plan : reconnecter tout de suite (l'OS coupe les
+    // sockets en arrière-plan) au lieu d'attendre le timer de 5 s. `connect()`
+    // est idempotent et ne fait rien si déjà connecté ou si l'user est déconnecté.
+    if (state == AppLifecycleState.resumed && !_connected) {
+      _reconnectTimer?.cancel();
+      connect();
+    }
   }
 
   void disconnect() {
