@@ -8,9 +8,10 @@ plugins {
 }
 
 // Parse --dart-define-from-file values passed by Flutter as base64-encoded entries.
-val dartDefines: Map<String, String> = if (project.hasProperty("dart.defines")) {
-    (project.property("dart.defines") as String)
+val dartDefines: Map<String, String> = if (project.hasProperty("dart-defines")) {
+    (project.property("dart-defines") as String)
         .split(",")
+        .filter { it.isNotBlank() }
         .associate { entry ->
             val decoded = String(Base64.getDecoder().decode(entry))
             val idx = decoded.indexOf('=')
