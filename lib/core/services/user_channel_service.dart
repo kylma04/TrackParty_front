@@ -39,6 +39,9 @@ class UserChannelService with WidgetsBindingObserver {
 
       final uri = Uri.parse('${Env.wsBaseUrl}/user/?token=$token');
       _channel = WebSocketChannel.connect(uri);
+      // Attendre l'établissement réel : `ready` lève sur échec (403, DNS) → capté
+      // par le catch → reconnexion propre (sinon exception async non gérée).
+      await _channel!.ready;
       _connected = true;
 
       _sub = _channel!.stream.listen(

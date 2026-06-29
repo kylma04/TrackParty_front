@@ -70,7 +70,13 @@ class ChatWebSocketService with WidgetsBindingObserver {
 
       final uri = Uri.parse('${Env.wsBaseUrl}/chat/$roomId/?token=$token');
       _channel = WebSocketChannel.connect(uri);
+      // Attendre l'établissement réel : `ready` lève sur échec de handshake
+      // (403, DNS, réseau) → capté par le catch → reconnexion propre (sinon
+      // l'erreur s'échappe en exception async non gérée).
+      await _channel!.ready;
+      if (_manualClose) { await _channel!.sink.close(); return; }
       _connected = true;
+      _retryCount = 0;
 
       _sub?.cancel();
       _sub = _channel!.stream.listen(
