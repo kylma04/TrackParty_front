@@ -121,6 +121,19 @@ class CallService {
     try { await _ringPlayer.stop(); } catch (_) {}
   }
 
+  // Lecteur dédié au bip de fin : persistant et SÉPARÉ de `_ringPlayer` pour ne
+  // pas être coupé par `_stopRing()` pendant le `_cleanup()`.
+  final AudioPlayer _endPlayer = AudioPlayer();
+
+  /// Bip de fin d'appel (joué une fois).
+  Future<void> _playEndTone() async {
+    try {
+      await _endPlayer.stop();
+      await _endPlayer.setReleaseMode(ReleaseMode.stop);
+      await _endPlayer.play(AssetSource('sounds/call_end.wav'), volume: 1.0);
+    } catch (_) {}
+  }
+
   // Config ICE : STUN Google (P2P direct) + TURN si fourni via dart-define.
   // Sans TURN, les appels échouent sur les réseaux mobiles à NAT strict.
   static Map<String, dynamic> get _iceConfig {
@@ -241,6 +254,9 @@ class CallService {
 
     final callId = state.callId;
 
+    // Bip de fin dès qu'on raccroche un appel en cours (sortant ou connecté).
+    if (state.status != CallStatus.idle) _playEndTone();
+
     // 1. Notifier le serveur (non bloquant)
     unawaited(
       _dio.post('chat/calls/${callId ?? ''}/cancel/')
@@ -330,6 +346,7 @@ class CallService {
     final uri = Uri.parse('${Env.wsBaseUrl}/call/$callId/?token=$token');
     debugPrint('📞 Signaling: connexion à $uri');
     _sigWs = WebSocketChannel.connect(uri);
+    await _sigWs!.ready; // lève si le handshake échoue (403, DNS) → remonte au catch appelant
     _sigSub = _sigWs!.stream.listen(
       _onSignal,
       onDone:  _onSignalingClosed,
@@ -352,8 +369,11 @@ class CallService {
           if (_isOfferer) await _handleAnswer(data);
         case 'ice_candidate':
           await _handleIceCandidate(data);
-        case 'call_rejected':
         case 'hangup':
+          // L'interlocuteur a raccroché : bip de fin si un appel était en cours.
+          if (state.status != CallStatus.idle) _playEndTone();
+          await _cleanup();
+        case 'call_rejected':
           await _cleanup();
       }
     } catch (_) {}
