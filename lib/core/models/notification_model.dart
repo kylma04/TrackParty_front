@@ -6,6 +6,10 @@ class NotificationModel {
   final Map<String, dynamic> payload;
   final bool isRead;
   final DateTime createdAt;
+  /// Statut réel de l'élément actionnable lié (invitation) renvoyé par le serveur :
+  /// 'pending' | 'accepted' | 'refused' | null. Sert à ne plus afficher
+  /// Accepter/Refuser une fois la demande traitée (persistant entre sessions).
+  final String? actionStatus;
 
   const NotificationModel({
     required this.id,
@@ -15,6 +19,7 @@ class NotificationModel {
     required this.payload,
     required this.isRead,
     required this.createdAt,
+    this.actionStatus,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +31,7 @@ class NotificationModel {
       payload: (json['payload'] as Map<String, dynamic>?) ?? {},
       isRead: json['is_read'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
+      actionStatus: json['action_status'] as String?,
     );
   }
 
@@ -37,11 +43,13 @@ class NotificationModel {
     payload: payload,
     isRead: isRead ?? this.isRead,
     createdAt: createdAt,
+    actionStatus: actionStatus,
   );
 
   String get icon {
     switch (notificationType) {
       case 'new_message':         return '💬';
+      case 'missed_call':         return '📞';
       case 'invitation':          return '🎉';
       case 'invitation_accepted': return '✅';
       case 'event_reminder':      return '⏰';
@@ -64,6 +72,7 @@ class NotificationModel {
       case 'participation_confirmed':
         return 'events';
       case 'new_message':
+      case 'missed_call':
         return 'messages';
       default:
         return 'social';

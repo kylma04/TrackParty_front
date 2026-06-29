@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:app_links/app_links.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -126,9 +129,26 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     super.dispose();
   }
 
+  // Canal natif Android pour afficher une notif locale au premier plan.
+  static const _androidNotif = MethodChannel('trackparty/notifications');
+
+  /// Android : FCM n'affiche PAS les notifications quand l'app est au premier
+  /// plan → on poste une notif locale (bannière + son) nous-mêmes. iOS est géré
+  /// par `setForegroundNotificationPresentationOptions` (cf main.dart).
+  void _showForegroundNotification(RemoteMessage message) {
+    if (!Platform.isAndroid) return;
+    final n = message.notification;
+    if (n == null) return; // messages data-only (appels, contrôle) → pas de bannière
+    _androidNotif.invokeMethod('show', {
+      'title': n.title ?? 'TrackParty',
+      'body': n.body ?? '',
+    }).catchError((_) {});
+  }
+
   void _setupFcmListeners() {
-    // Foreground: app is open, message arrives → refresh the in-app list silently
+    // Foreground: app is open, message arrives → notif locale + refresh in-app
     FirebaseMessaging.onMessage.listen((message) {
+      _showForegroundNotification(message);
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
       _maybeRefreshTickets(message);
@@ -220,6 +240,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
 
     switch (type) {
       case 'new_message':
+      case 'missed_call':
         final roomId = data['room_id'];
         if (roomId != null) { router.push('/chat/$roomId'); return; }
 

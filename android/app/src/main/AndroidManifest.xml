@@ -67,6 +67,11 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
+        <!-- Canal FCM par défaut : doit exister AVEC son (créé dans MainActivity)
+             pour que les notifications sonnent. Sert de repli si l'app est tuée. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

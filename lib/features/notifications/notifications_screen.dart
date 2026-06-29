@@ -386,8 +386,33 @@ class _NotifRow extends StatefulWidget {
 }
 
 class _NotifRowState extends State<_NotifRow> {
-  bool _responded = false;
+  String? _invitationOutcome; // null | 'accepted' | 'refused' (réponse locale immédiate)
   String? _reviewOutcome; // null | 'rated' | 'declined'
+
+  Widget _invitationStatusLabel(BuildContext context, String outcome) {
+    final accepted = outcome == 'accepted';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          accepted
+              ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill)
+              : PhosphorIcons.xCircle(),
+          size: 14,
+          color: accepted ? kSuccess : context.tpInkMute,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          accepted ? 'Invitation acceptée' : 'Invitation refusée',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: accepted ? kSuccess : context.tpInkMute,
+          ),
+        ),
+      ],
+    );
+  }
 
   bool get _isGroup =>
       widget.notif.notificationType == 'new_message' &&
@@ -430,6 +455,9 @@ class _NotifRowState extends State<_NotifRow> {
         if (notif.notificationType == 'support_reply') {
           final id = notif.payload['ticket_id'];
           if (id != null) context.push('/support/$id');
+        } else if (notif.notificationType == 'missed_call') {
+          final rid = notif.roomId;
+          if (rid != null) context.push('/chat/$rid');
         }
       },
       child: Container(
@@ -491,20 +519,36 @@ class _NotifRowState extends State<_NotifRow> {
                   Text(_fmtTime(notif.createdAt),
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
                         color: context.tpInkMute)),
-                  if (notif.isInvitation && !_responded && notif.invitationId != null) ...[
+                  if (notif.isInvitation && notif.invitationId != null) ...[
                     const SizedBox(height: 8),
-                    _InvitationActions(
-                      invitationId: notif.invitationId!,
-                      onResponded: () {
-                        setState(() => _responded = true);
-                        widget.onMarkRead();
-                      },
-                    ),
+                    Builder(builder: (ctx) {
+                      // Statut effectif : réponse locale (vient d'agir) sinon le
+                      // statut réel renvoyé par le serveur (persistant).
+                      final srv = notif.actionStatus;
+                      final outcome = _invitationOutcome ??
+                          ((srv == 'accepted' || srv == 'refused') ? srv : null);
+                      if (outcome != null) {
+                        return _invitationStatusLabel(ctx, outcome);
+                      }
+                      return _InvitationActions(
+                        invitationId: notif.invitationId!,
+                        onResponded: (action) {
+                          setState(() => _invitationOutcome =
+                              action == 'accept' ? 'accepted' : 'refused');
+                          widget.onMarkRead();
+                        },
+                      );
+                    }),
                   ],
                   if (notif.isReviewRequest && notif.eventId != null) ...[
                     const SizedBox(height: 8),
-                    if (_reviewOutcome == null)
-                      _ReviewRequestActions(
+                    Builder(builder: (ctx) {
+                      // État effectif : réponse locale sinon statut réel serveur.
+                      final srv = notif.actionStatus; // 'rated'|'declined'|'pending'|null
+                      final outcome = _reviewOutcome ??
+                          ((srv == 'rated' || srv == 'declined') ? srv : null);
+                      if (outcome != null) return _reviewStatusLabel(ctx, outcome);
+                      return _ReviewRequestActions(
                         eventId: notif.eventId!,
                         onRated: () {
                           setState(() => _reviewOutcome = 'rated');
@@ -514,9 +558,8 @@ class _NotifRowState extends State<_NotifRow> {
                           setState(() => _reviewOutcome = 'declined');
                           widget.onMarkRead();
                         },
-                      )
-                    else
-                      _reviewStatusLabel(context, _reviewOutcome!),
+                      );
+                    }),
                   ],
                 ],
               ),
@@ -540,7 +583,7 @@ class _NotifRowState extends State<_NotifRow> {
 
 class _InvitationActions extends ConsumerStatefulWidget {
   final String invitationId;
-  final VoidCallback onResponded;
+  final ValueChanged<String> onResponded; // 'accept' | 'refuse'
 
   const _InvitationActions({required this.invitationId, required this.onResponded});
 
@@ -559,7 +602,7 @@ class _InvitationActionsState extends ConsumerState<_InvitationActions> {
         'chat/invitations/${widget.invitationId}/respond/',
         data: {'action': action},
       );
-      widget.onResponded();
+      widget.onResponded(action);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

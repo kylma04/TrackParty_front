@@ -33,6 +33,13 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // iOS : afficher les notifications même app au premier plan (bannière + son).
+    // (Sur Android, FCM ne le fait pas → on affiche une notif locale, cf app.dart.)
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     debugPrint('🔥 Firebase initialized successfully');
   } catch (e) {
     debugPrint('⚠️ Firebase initialization failed: $e');
