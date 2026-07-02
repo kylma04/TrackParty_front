@@ -74,16 +74,35 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
     });
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  bool _initialScrollDone = false;
+
+  bool _isNearBottom() {
+    if (!_scrollCtrl.hasClients) return true;
+    final pos = _scrollCtrl.position;
+    return pos.maxScrollExtent - pos.pixels <= 200;
+  }
+
+  /// Voir la note dans chat_thread_screen.dart : on répète le saut sur plusieurs
+  /// frames car la liste lazy fait grandir maxScrollExtent après coup.
+  void _scrollToBottom({bool animate = true}) {
+    const delays = [
+      Duration.zero,
+      Duration(milliseconds: 80),
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 600),
+    ];
+    for (final d in delays) {
+      Future.delayed(d, () {
+        if (!mounted || !_scrollCtrl.hasClients) return;
+        final target = _scrollCtrl.position.maxScrollExtent;
+        if (animate && d == Duration.zero) {
+          _scrollCtrl.animateTo(target,
+              duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        } else {
+          _scrollCtrl.jumpTo(target);
+        }
+      });
+    }
   }
 
   Future<void> _changeAvatar(ChatRoomModel room) async {
@@ -182,7 +201,13 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
     final canPost = room.isAdmin || !room.isBroadcast;
 
     ref.listen(chatThreadProvider(room.id), (_, next) {
-      if (next is AsyncData) _scrollToBottom();
+      if (next is! AsyncData) return;
+      if (!_initialScrollDone) {
+        _initialScrollDone = true;
+        _scrollToBottom(animate: false);
+      } else if (_isNearBottom()) {
+        _scrollToBottom();
+      }
     });
 
     return Scaffold(
@@ -979,12 +1004,15 @@ class _TypingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Sp.md + 34, 0, Sp.md, 4),
-      child: Text(
-        '$userName est en train d\'écrire…',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-            color: context.tpInkMute, fontStyle: FontStyle.italic),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Sp.md + 34, 0, Sp.md, 4),
+        child: Text(
+          '$userName est en train d\'écrire…',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+              color: context.tpInkMute, fontStyle: FontStyle.italic),
+        ),
       ),
     );
   }

@@ -10,6 +10,8 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_tab_bar.dart';
 import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
+import '../providers/notification_provider.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -144,10 +146,21 @@ class _MainShellState extends ConsumerState<MainShell>
 
   @override
   Widget build(BuildContext context) {
+    // Bulles du footer : Messages (index 2) = messages non lus ; Profil
+    // (index 3) = notifications non lues. Pas de bulle sur Accueil/Carte.
+    final messagesUnread = ref.watch(chatRoomsProvider).valueOrNull
+            ?.fold<int>(0, (sum, room) => sum + room.unreadCount) ??
+        0;
+    final profilUnread = ref.watch(unreadNotifCountProvider);
+
     return Scaffold(
       body: widget.child,
       bottomNavigationBar: TpTabBar(
         activeIndex: _activeIndex,
+        badges: {
+          if (messagesUnread > 0) 2: messagesUnread,
+          if (profilUnread > 0) 3: profilUnread,
+        },
         onTap: (i) => context.go(_routes[i]),
         onCreateTap: () => _onCreateTap(context),
       ),

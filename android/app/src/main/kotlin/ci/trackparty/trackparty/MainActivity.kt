@@ -1,13 +1,19 @@
 package ci.trackparty.trackparty
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -38,6 +44,81 @@ class MainActivity : FlutterFragmentActivity() {
                     result.notImplemented()
                 }
             }
+
+        // Canal « préparation aux appels en arrière-plan » : exemption
+        // d'optimisation batterie + démarrage automatique OEM. Piloté depuis
+        // CallReadinessService (Dart).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BATTERY_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isIgnoringBatteryOptimizations" ->
+                        result.success(isIgnoringBatteryOptimizations())
+                    "requestBatteryExemption" -> { requestBatteryExemption(); result.success(null) }
+                    "openAutoStartSettings"   -> { openAutoStartSettings();   result.success(null) }
+                    "openAppSettings"         -> { openAppSettings();          result.success(null) }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // ── Optimisation batterie / démarrage auto ────────────────────────────────
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    @SuppressLint("BatteryLife")
+    private fun requestBatteryExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        try {
+            startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    .setData(Uri.parse("package:$packageName"))
+            )
+        } catch (_: Exception) {
+            openAppSettings()
+        }
+    }
+
+    /** Ouvre la page « Démarrage automatique » du constructeur ; repli : réglages app. */
+    private fun openAutoStartSettings() {
+        val candidates = listOf(
+            "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity",
+            "com.letv.android.letvsafe" to "com.letv.android.letvsafe.AutobootManageActivity",
+            "com.huawei.systemmanager" to "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+            "com.huawei.systemmanager" to "com.huawei.systemmanager.optimize.process.ProtectActivity",
+            "com.coloros.safecenter" to "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+            "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
+            "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
+            "com.iqoo.secure" to "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
+            "com.vivo.permissionmanager" to "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+            "com.samsung.android.lool" to "com.samsung.android.sm.ui.battery.BatteryActivity",
+            "com.oneplus.security" to "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity",
+        )
+        for ((pkg, cls) in candidates) {
+            try {
+                val intent = Intent()
+                    .setComponent(ComponentName(pkg, cls))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (packageManager.resolveActivity(intent, 0) != null) {
+                    startActivity(intent)
+                    return
+                }
+            } catch (_: Exception) { /* on tente le composant suivant */ }
+        }
+        openAppSettings()
+    }
+
+    private fun openAppSettings() {
+        try {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) { /* rien à faire */ }
     }
 
     private fun showLocalNotification(title: String, body: String) {
@@ -100,5 +181,6 @@ class MainActivity : FlutterFragmentActivity() {
     companion object {
         const val CHANNEL_ID = "high_importance_channel"
         const val METHOD_CHANNEL = "trackparty/notifications"
+        const val BATTERY_CHANNEL = "trackparty/battery"
     }
 }

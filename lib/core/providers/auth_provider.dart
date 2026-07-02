@@ -257,6 +257,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     ref.invalidate(chatThreadProvider);
     ref.invalidate(communityRoomProvider);
     ref.invalidate(chatPartnerReadAtProvider);
+    ref.invalidate(chatPartnerOnlineProvider);
     ref.invalidate(invitationsProvider);
     // Billetterie / staff
     ref.invalidate(myTicketProvider);

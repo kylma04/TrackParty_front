@@ -35,7 +35,9 @@ class CallKitService {
       },
       android: const AndroidParams(
         isCustomNotification: true,
-        isShowLogo: false,
+        // Logo TrackParty sur l'écran d'appel entrant (drawable embarqué).
+        isShowLogo: true,
+        logoUrl: 'ic_notification_large',
         ringtonePath: 'system_ringtone_default',
         backgroundColor: '#4F46E5',
         actionColor: '#22A865',

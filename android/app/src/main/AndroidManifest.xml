@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Exemption d'optimisation batterie : nécessaire pour réveiller l'app tuée
+         sur un appel entrant (VoIP). Ouvre la boîte de dialogue système directe.
+         ⚠️ Play Store : justifié par la fonctionnalité d'appels (à déclarer). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <application
         android:label="TrackParty"
         android:name="${applicationName}"

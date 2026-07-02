@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -160,6 +162,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ]),
                 const SizedBox(height: 20),
+
+                // ── Appels (Android : réveil app fermée) ───────────────────────
+                if (Platform.isAndroid) ...[
+                  _SectionHeader(label: 'APPELS'),
+                  const SizedBox(height: 8),
+                  _SettingsCard(children: [
+                    _SettingRow(
+                      icon: PhosphorIcons.phoneCall(),
+                      iconColor: kSuccess,
+                      label: 'Appels en arrière-plan',
+                      sub: 'Sonner même quand l\'app est fermée',
+                      isLast: true,
+                      onTap: () => context.push('/calls/background'),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                ],
 
                 // ── Sécurité ───────────────────────────────────────────────────
                 _SectionHeader(label: 'SÉCURITÉ'),

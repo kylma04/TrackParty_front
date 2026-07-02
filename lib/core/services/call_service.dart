@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -107,18 +108,38 @@ class CallService {
   final AudioPlayer _ringPlayer = AudioPlayer();
   bool _ringing = false;
 
+  // true quand la sonnerie active est celle du système (appel entrant), false
+  // quand c'est la tonalité de retour asset (appel sortant).
+  bool _systemRing = false;
+
   Future<void> _playRing(String asset) async {
     try {
       _ringing = true;
+      _systemRing = false;
       await _ringPlayer.setReleaseMode(ReleaseMode.loop);
       await _ringPlayer.play(AssetSource(asset), volume: 1.0);
+    } catch (_) {}
+  }
+
+  /// Sonnerie d'appel ENTRANT = sonnerie par défaut du téléphone (comme un
+  /// vrai appel), pas un asset. En arrière-plan/tuée, c'est CallKit qui sonne
+  /// (`system_ringtone_default`) ; ici on couvre le cas app au 1er plan.
+  Future<void> _playSystemRingtone() async {
+    try {
+      _ringing = true;
+      _systemRing = true;
+      FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: false);
     } catch (_) {}
   }
 
   Future<void> _stopRing() async {
     if (!_ringing) return;
     _ringing = false;
-    try { await _ringPlayer.stop(); } catch (_) {}
+    if (_systemRing) {
+      try { FlutterRingtonePlayer().stop(); } catch (_) {}
+    } else {
+      try { await _ringPlayer.stop(); } catch (_) {}
+    }
   }
 
   // Lecteur dédié au bip de fin : persistant et SÉPARÉ de `_ringPlayer` pour ne
@@ -195,8 +216,12 @@ class CallService {
       _isOfferer = true;
       _startRingTimer();
       _playRing('sounds/ringback.wav'); // tonalité « ça sonne » pour l'appelant
-      await _connectSignaling(callId);
+      // La peer connection doit exister AVANT de rejoindre la signalisation :
+      // si l'appelé rejoint dans la foulée, son `participant_joined` déclenche
+      // l'envoi de l'offre, or `_createAndSendOffer` exige `_pc != null`. Même
+      // logique de sûreté que côté `acceptCall`.
       await _setupPeerConnection();
+      await _connectSignaling(callId);
     } catch (e) {
       // Réinitialiser complètement si quelque chose échoue (ex: getUserMedia
       // refusé = permission micro/caméra non accordée → l'appel coupe aussitôt).
@@ -320,7 +345,7 @@ class CallService {
       remoteUserName: callerName,
       remoteUserAvatarUrl: callerAvatarUrl,
     );
-    _playRing('sounds/ringtone.wav'); // sonnerie pour l'appelé
+    _playSystemRingtone(); // sonnerie du téléphone pour l'appelé
   }
 
   void cancelIncomingCall(String callId) {

@@ -10,12 +10,16 @@ class TpTabBar extends StatelessWidget {
   final int activeIndex;
   final void Function(int) onTap;
   final VoidCallback onCreateTap;
+  /// Bulles de notification par index d'onglet (0=Accueil, 1=Carte,
+  /// 2=Messages, 3=Profil). Une entrée > 0 affiche une pastille sur l'icône.
+  final Map<int, int> badges;
 
   const TpTabBar({
     super.key,
     required this.activeIndex,
     required this.onTap,
     required this.onCreateTap,
+    this.badges = const {},
   });
 
   static final _items = [
@@ -25,6 +29,37 @@ class TpTabBar extends StatelessWidget {
     _TabItem(icon: PhosphorIcons.chatCircle(), activeIcon: PhosphorIcons.chatCircle(PhosphorIconsStyle.fill), label: 'Messages'),
     _TabItem(icon: PhosphorIcons.user(), activeIcon: PhosphorIcons.user(PhosphorIconsStyle.fill), label: 'Profil'),
   ];
+
+  Widget _iconWithBadge(BuildContext context, IconData icon, bool active, int badge) {
+    final iconWidget = Icon(icon, color: active ? kPrimary : context.tpInkMute, size: 24);
+    if (badge <= 0) return iconWidget;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        iconWidget,
+        Positioned(
+          right: -7,
+          top: -5,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: badge > 9 ? 4 : 0),
+            constraints: const BoxConstraints(minWidth: 16),
+            height: 16,
+            decoration: BoxDecoration(
+              color: kError,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: context.tpCard, width: 1.5),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              badge > 9 ? '9+' : '$badge',
+              style: const TextStyle(
+                fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white, height: 1),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +83,10 @@ class TpTabBar extends StatelessWidget {
                   final item = _items[i];
                   final tabIndex = i > 2 ? i - 1 : i;
                   final active = activeIndex == tabIndex;
+                  final badge = badges[tabIndex] ?? 0;
                   return Expanded(
                     child: Semantics(
-                      label: item.label,
+                      label: badge > 0 ? '${item.label}, $badge non lus' : item.label,
                       selected: active,
                       button: true,
                       child: GestureDetector(
@@ -59,10 +95,11 @@ class TpTabBar extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
+                            _iconWithBadge(
+                              context,
                               active ? item.activeIcon : item.icon,
-                              color: active ? kPrimary : context.tpInkMute,
-                              size: 24,
+                              active,
+                              badge,
                             ),
                             const SizedBox(height: 2),
                             Text(

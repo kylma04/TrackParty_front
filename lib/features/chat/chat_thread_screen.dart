@@ -56,6 +56,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   // Mode événement (annonce + carte événement) — admin de groupe événement uniquement
   bool _attachEvent = true;
 
+  // DM « collant » : une fois qu'on sait que la salle est un DM, on le garde vrai
+  // pour toute la durée de l'écran. Sinon, un rechargement de `chatRoomsProvider`
+  // rend `room` momentanément null → les accusés de lecture disparaîtraient.
+  bool _isDm = false;
+
+  // Mon id « collant » : un rechargement de l'auth (resync identité…) rendrait
+  // `me` null un instant → `isMe` faux → coches disparues. On le mémorise.
+  String? _myId;
+
   // Voice recording — style WhatsApp
   _VoiceMode _voiceMode   = _VoiceMode.idle;
   bool       _recordPaused = false;
@@ -141,16 +150,37 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     }
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  bool _initialScrollDone = false;
+
+  bool _isNearBottom() {
+    if (!_scrollCtrl.hasClients) return true;
+    final pos = _scrollCtrl.position;
+    return pos.maxScrollExtent - pos.pixels <= 200;
+  }
+
+  /// Colle la vue au dernier message. On répète le saut sur plusieurs frames :
+  /// `ListView.builder` construit paresseusement, donc `maxScrollExtent` grandit
+  /// au fur et à mesure que les bulles du bas (et les images) se posent. Un seul
+  /// `animateTo` s'arrête donc avant le vrai bas.
+  void _scrollToBottom({bool animate = true}) {
+    const delays = [
+      Duration.zero,
+      Duration(milliseconds: 80),
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 600),
+    ];
+    for (final d in delays) {
+      Future.delayed(d, () {
+        if (!mounted || !_scrollCtrl.hasClients) return;
+        final target = _scrollCtrl.position.maxScrollExtent;
+        if (animate && d == Duration.zero) {
+          _scrollCtrl.animateTo(target,
+              duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        } else {
+          _scrollCtrl.jumpTo(target);
+        }
+      });
+    }
   }
 
   Future<void> _sendText() async {
@@ -290,9 +320,14 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     final room             = ref.watch(chatRoomByIdProvider(widget.roomId));
     final authState        = ref.watch(authNotifierProvider).valueOrNull;
     final me               = authState is AuthAuthenticated ? authState.user : null;
-    final partnerReadAt    = room?.isPrivate == true
-        ? ref.watch(chatPartnerReadAtProvider(widget.roomId))
-        : null;
+    if (me?.id != null) _myId = me!.id;
+    // DM collant : ne repasse jamais à false même si `room` devient null pendant
+    // un rechargement → les accusés de lecture restent affichés en continu.
+    if (room?.isPrivate == true) _isDm = true;
+    // On observe toujours les providers (défaut null/false) : leur valeur ne
+    // s'efface pas au rechargement de la salle, donc les coches ne clignotent pas.
+    final partnerReadAt    = ref.watch(chatPartnerReadAtProvider(widget.roomId));
+    final partnerOnline    = ref.watch(chatPartnerOnlineProvider(widget.roomId));
 
     final canWrite = room == null ||
         room.isPrivate ||
@@ -300,7 +335,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         room.groupMode == 'open';
 
     ref.listen(chatThreadProvider(widget.roomId), (_, next) {
-      if (next is AsyncData) _scrollToBottom();
+      if (next is! AsyncData) return;
+      if (!_initialScrollDone) {
+        // À l'ouverture : saut instantané tout en bas (pas d'animation).
+        _initialScrollDone = true;
+        _scrollToBottom(animate: false);
+      } else if (_isNearBottom()) {
+        // Ensuite on ne suit les nouveaux messages que si l'utilisateur est
+        // déjà en bas — sinon on ne le tire pas pendant qu'il lit l'historique.
+        _scrollToBottom();
+      }
     });
 
     return Scaffold(
@@ -316,7 +360,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 child: Text('Erreur de chargement',
                   style: TextStyle(color: context.tpInkSub)),
               ),
-              data: (msgs) => _buildMessageList(context, msgs, me?.id, partnerReadAt, canWrite),
+              data: (msgs) => _buildMessageList(
+                  context, msgs, _myId, partnerReadAt, partnerOnline, _isDm, canWrite),
             ),
           ),
           if (_recordingUserName != null && _voiceMode == _VoiceMode.idle)
@@ -504,7 +549,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   // ── Liste ──────────────────────────────────────────────────────────────────
 
-  Widget _buildMessageList(BuildContext context, List<ChatMessage> messages, String? myId, DateTime? partnerReadAt, bool canWrite) {
+  Widget _buildMessageList(BuildContext context, List<ChatMessage> messages, String? myId, DateTime? partnerReadAt, bool partnerOnline, bool isDm, bool canWrite) {
     final notifier     = ref.read(chatThreadProvider(widget.roomId).notifier);
     final isLoadingOld = notifier.loadingOlder;
     final hasMoreOld   = notifier.hasMoreOlder;
@@ -519,9 +564,6 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         ]),
       );
     }
-
-    // Index du dernier message envoyé par moi, pour afficher "Vu"
-    final lastMyMsgIdx = messages.lastIndexWhere((m) => m.sender.id == myId);
 
     return ListView.builder(
       controller: _scrollCtrl,
@@ -552,11 +594,22 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         final msg  = messages[idx];
         final isMe = msg.sender.id == myId;
         final showDay = idx == 0 || !_sameDay(messages[idx - 1].createdAt, msg.createdAt);
-        final showRead = isMe && idx == lastMyMsgIdx && partnerReadAt != null
-            && !partnerReadAt.isBefore(msg.createdAt);
+        // Accusé de lecture par message (DM uniquement) : lu (2 bleus) / livré
+        // = partenaire en ligne mais pas encore lu (2 gris) / envoyé = hors
+        // ligne (1 gris).
+        _MsgStatus? status;
+        if (isDm && isMe) {
+          if (partnerReadAt != null && !partnerReadAt.isBefore(msg.createdAt)) {
+            status = _MsgStatus.read;
+          } else if (partnerOnline) {
+            status = _MsgStatus.delivered;
+          } else {
+            status = _MsgStatus.sent;
+          }
+        }
         return Column(children: [
           if (showDay) _buildDaySeparator(context, msg.createdAt),
-          _MessageBubble(message: msg, isMe: isMe, roomId: widget.roomId, showRead: showRead, canReact: canWrite),
+          _MessageBubble(message: msg, isMe: isMe, roomId: widget.roomId, status: status, canReact: canWrite),
         ]);
       },
     );
@@ -909,6 +962,11 @@ class _VoiceActionBtn extends StatelessWidget {
 
 enum _VoiceMode { idle, holding, locked, paused }
 
+/// Accusé de lecture d'un message envoyé (DM), style WhatsApp.
+/// [sent] = partenaire hors ligne (1 coche) · [delivered] = en ligne mais pas
+/// encore lu (2 coches grises) · [read] = lu (2 coches bleues).
+enum _MsgStatus { sent, delivered, read }
+
 // ── Bouton appel (navbar) ─────────────────────────────────────────────────────
 
 class _CallIconBtn extends StatelessWidget {
@@ -945,12 +1003,15 @@ class _TypingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Sp.md + 34, 0, Sp.md, 4),
-      child: Text(
-        '$userName est en train d\'écrire…',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-            color: context.tpInkMute, fontStyle: FontStyle.italic),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Sp.md + 34, 0, Sp.md, 4),
+        child: Text(
+          '$userName est en train d\'écrire…',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+              color: context.tpInkMute, fontStyle: FontStyle.italic),
+        ),
       ),
     );
   }
@@ -962,7 +1023,9 @@ class _RecordingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md + 34, 0, Sp.md, 4),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(PhosphorIcons.microphone(PhosphorIconsStyle.fill),
@@ -981,6 +1044,7 @@ class _RecordingIndicator extends StatelessWidget {
           ),
         ),
       ]),
+      ),
     );
   }
 }
@@ -1040,14 +1104,14 @@ class _MessageBubble extends ConsumerWidget {
   final ChatMessage message;
   final bool isMe;
   final String roomId;
-  final bool showRead;
+  final _MsgStatus? status;
   final bool canReact;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     required this.roomId,
-    this.showRead = false,
+    this.status,
     this.canReact = true,
   });
 
@@ -1120,12 +1184,17 @@ class _MessageBubble extends ConsumerWidget {
                       child: Text(time,
                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: context.tpInkMute)),
                     ),
-                    if (showRead) ...[
-                      const SizedBox(width: 2),
-                      Text('Vu',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kInfo)),
-                      const SizedBox(width: 2),
-                      const Icon(Icons.done_all_rounded, size: 12, color: kInfo),
+                    if (status != null) ...[
+                      const SizedBox(width: 3),
+                      Icon(
+                        // Envoyé (hors ligne) = 1 coche ; livré / lu = 2 coches.
+                        status == _MsgStatus.sent
+                            ? Icons.done_rounded
+                            : Icons.done_all_rounded,
+                        size: 14,
+                        // Lu = bleu plein ; envoyé / livré = gris.
+                        color: status == _MsgStatus.read ? kInfo : context.tpInkMute,
+                      ),
                     ],
                   ],
                 ),
@@ -1276,8 +1345,17 @@ class _VoiceContentState extends State<_VoiceContent> {
       await _player.pause();
       setState(() => _playing = false);
     } else {
-      await _player.play(UrlSource(widget.voiceUrl!));
-      setState(() => _playing = true);
+      try {
+        await _player.play(UrlSource(widget.voiceUrl!));
+        if (mounted) setState(() => _playing = true);
+      } catch (e) {
+        // Lecture impossible (URL injoignable, format non supporté…) : ne pas
+        // rester bloqué en « lecture », et prévenir l'utilisateur.
+        if (mounted) {
+          setState(() => _playing = false);
+          TpToast.error(context, 'Impossible de lire la note vocale.');
+        }
+      }
     }
   }
 

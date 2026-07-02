@@ -7,12 +7,17 @@ import '../models/chat_model.dart';
 import '../services/chat_service.dart';
 import '../services/invitation_service.dart';
 import '../services/user_channel_service.dart';
-import '../services/chat_websocket_service.dart' show chatWebSocketServiceProvider, ReactionEvent, ReadReceiptEvent;
+import '../services/chat_websocket_service.dart' show chatWebSocketServiceProvider, ReactionEvent, ReadReceiptEvent, PresenceEvent;
 
 // ── Dernier "lu" du partenaire dans un DM (roomId → DateTime?) ───────────────
 
 final chatPartnerReadAtProvider =
     StateProvider.family<DateTime?, String>((ref, roomId) => null);
+
+// ── Présence en ligne du partenaire dans un DM (roomId → bool) ───────────────
+
+final chatPartnerOnlineProvider =
+    StateProvider.family<bool, String>((ref, roomId) => false);
 
 // ── Salle communautaire d'un promoteur ───────────────────────────────────────
 
@@ -82,6 +87,7 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
   StreamSubscription<ChatMessage>? _wsSub;
   StreamSubscription<ReactionEvent>? _reactionSub;
   StreamSubscription<ReadReceiptEvent>? _readReceiptSub;
+  StreamSubscription<PresenceEvent>? _presenceSub;
   StreamSubscription<void>? _reconnectedSub;
 
   bool _hasMoreOlder = true;
@@ -111,10 +117,12 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
     _wsSub?.cancel();
     _reactionSub?.cancel();
     _readReceiptSub?.cancel();
+    _presenceSub?.cancel();
     _reconnectedSub?.cancel();
     _wsSub = ws.messages.listen(_onWsMessage);
     _reactionSub = ws.reactions.listen(_onWsReaction);
     _readReceiptSub = ws.readReceipts.listen(_onReadReceipt);
+    _presenceSub = ws.presence.listen(_onPresence);
     // À chaque reconnexion du WS (retour réseau / premier plan), le serveur ne
     // rejoue pas les messages manqués : on recharge via REST pour rattraper.
     _reconnectedSub = ws.reconnected.listen((_) => _resyncAfterReconnect());
@@ -123,6 +131,7 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
       _wsSub?.cancel();
       _reactionSub?.cancel();
       _readReceiptSub?.cancel();
+      _presenceSub?.cancel();
       _reconnectedSub?.cancel();
     });
 
@@ -156,6 +165,10 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
     if (current == null || event.readAt.isAfter(current)) {
       ref.read(chatPartnerReadAtProvider(roomId).notifier).state = event.readAt;
     }
+  }
+
+  void _onPresence(PresenceEvent event) {
+    ref.read(chatPartnerOnlineProvider(roomId).notifier).state = event.online;
   }
 
   void _onWsReaction(ReactionEvent event) {

@@ -35,6 +35,7 @@ class ChatWebSocketService with WidgetsBindingObserver {
   final _recordingCtrl     = StreamController<RecordingEvent>.broadcast();
   final _reactionCtrl      = StreamController<ReactionEvent>.broadcast();
   final _readReceiptCtrl   = StreamController<ReadReceiptEvent>.broadcast();
+  final _presenceCtrl      = StreamController<PresenceEvent>.broadcast();
   final _reconnectedCtrl   = StreamController<void>.broadcast();
 
   bool _connected = false;
@@ -55,6 +56,7 @@ class ChatWebSocketService with WidgetsBindingObserver {
   Stream<RecordingEvent>   get recording    => _recordingCtrl.stream;
   Stream<ReactionEvent>    get reactions    => _reactionCtrl.stream;
   Stream<ReadReceiptEvent> get readReceipts => _readReceiptCtrl.stream;
+  Stream<PresenceEvent>    get presence     => _presenceCtrl.stream;
 
   /// Émet à chaque reconnexion réussie (après une coupure). Le provider doit
   /// alors recharger les messages via REST pour rattraper ceux manqués.
@@ -135,6 +137,11 @@ class ChatWebSocketService with WidgetsBindingObserver {
             readAt: DateTime.parse(readAtStr),
           ));
         }
+      } else if (type == 'presence') {
+        _presenceCtrl.add(PresenceEvent(
+          userId: data['user_id'] as String,
+          online: data['online'] as bool? ?? false,
+        ));
       }
     } catch (_) {}
   }
@@ -199,6 +206,7 @@ class ChatWebSocketService with WidgetsBindingObserver {
     if (!_recordingCtrl.isClosed)    _recordingCtrl.close();
     if (!_reactionCtrl.isClosed)     _reactionCtrl.close();
     if (!_readReceiptCtrl.isClosed)  _readReceiptCtrl.close();
+    if (!_presenceCtrl.isClosed)     _presenceCtrl.close();
     if (!_reconnectedCtrl.isClosed)  _reconnectedCtrl.close();
   }
 }
@@ -226,4 +234,10 @@ class ReadReceiptEvent {
   final String userId;
   final DateTime readAt;
   const ReadReceiptEvent({required this.userId, required this.readAt});
+}
+
+class PresenceEvent {
+  final String userId;
+  final bool online;
+  const PresenceEvent({required this.userId, required this.online});
 }

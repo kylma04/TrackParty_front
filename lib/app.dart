@@ -15,6 +15,7 @@ import 'core/providers/notification_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/ticket_provider.dart';
 import 'core/router/app_router.dart';
+import 'core/services/call_readiness_service.dart';
 import 'core/services/call_service.dart';
 import 'core/services/user_channel_service.dart';
 import 'theme/app_theme.dart';
@@ -48,7 +49,31 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     _setupCallService();
     _setupCallListener();
     _setupCallKitListener();
+    _requestCallPermissions();
     _setupDeepLinks();
+  }
+
+  /// Autorisations nécessaires pour qu'un appel entrant s'affiche en plein écran
+  /// même app en arrière-plan / tuée / écran verrouillé.
+  /// NB : sur certains constructeurs (Xiaomi/MIUI, Oppo/ColorOS, Samsung…), le
+  /// réveil d'un appel quand l'app est TOTALEMENT fermée exige en plus que
+  /// l'utilisateur retire l'app de l'optimisation batterie — non demandable de
+  /// façon fiable par programme (restriction OS), à documenter dans l'onboarding.
+  Future<void> _requestCallPermissions() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await FlutterCallkitIncoming.requestNotificationPermission({
+        'rationaleMessagePermission':
+            'TrackParty a besoin des notifications pour t\'avertir des appels et messages.',
+        'postNotificationMessageRequired':
+            'Autorise les notifications dans les réglages pour recevoir les appels.',
+      });
+      // Android 14+ : autorisation d'affichage plein écran (full-screen intent).
+      final canFull = await FlutterCallkitIncoming.canUseFullScreenIntent();
+      if (canFull == false) {
+        await FlutterCallkitIncoming.requestFullIntentPermission();
+      }
+    } catch (_) {}
   }
 
   /// Réagit aux actions de l'écran d'appel natif (CallKit) : décrocher / refuser.
@@ -104,6 +129,9 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       next.whenData((state) {
         if (state is AuthAuthenticated) {
           UserChannelService().connect();
+          // Uniquement pour un compte vérifié : sinon la redirection force
+          // /verify-email et le prompt unique serait « consommé » sans s'afficher.
+          if (state.user.isVerified) _maybePromptCallReadiness();
         } else {
           UserChannelService().disconnect();
         }
@@ -112,6 +140,18 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
 
     // Afficher l'écran appel entrant quand le statut passe à 'incoming'
     CallService().stateNotifier.addListener(_onCallStateChanged);
+  }
+
+  /// Après login : propose UNE fois l'écran « Appels en arrière-plan » si le
+  /// téléphone n'est pas encore exempté d'optimisation batterie (Android, et
+  /// tant que l'utilisateur n'a pas désactivé le rappel).
+  Future<void> _maybePromptCallReadiness() async {
+    if (!await CallReadinessService.shouldAutoPrompt()) return;
+    await CallReadinessService.markAutoPrompted();
+    // Laisser la redirection post-login atterrir (sur /feed) avant de pousser.
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+    ref.read(routerProvider).push('/calls/background');
   }
 
   void _onCallStateChanged() {

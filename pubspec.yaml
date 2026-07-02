@@ -45,6 +45,8 @@ dependencies:
   cached_network_image: ^3.3.0
   record: 6.2.0
   audioplayers: ^6.0.0
+  # Sonnerie système du téléphone pour les appels entrants (in-app, 1er plan)
+  flutter_ringtone_player: ^4.0.0+3
   qr_flutter: ^4.1.0
   mobile_scanner: ^6.0.0
 
