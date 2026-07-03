@@ -69,6 +69,8 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
       );
     } else if (s.status == CallStatus.idle) {
       _pop();
+    } else if (s.status == CallStatus.connecting) {
+      setState(() {}); // « Sonnerie… » → « Connexion… »
     }
   }
 
@@ -147,7 +149,11 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
 
                   const SizedBox(height: 12),
 
-                  _RingingText(),
+                  _StatusDotsText(
+                    label: CallService().state.status == CallStatus.connecting
+                        ? 'Connexion'
+                        : 'Sonnerie',
+                  ),
 
                   // Indicateur "Votre caméra est active" pour appel vidéo
                   if (isVideo) ...[
@@ -207,14 +213,17 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
   }
 }
 
-// ── "Sonnerie…" animé ─────────────────────────────────────────────────────────
+// ── Texte de statut animé ("Sonnerie…" / "Connexion…") ────────────────────────
 
-class _RingingText extends StatefulWidget {
+class _StatusDotsText extends StatefulWidget {
+  final String label;
+  const _StatusDotsText({required this.label});
+
   @override
-  State<_RingingText> createState() => _RingingTextState();
+  State<_StatusDotsText> createState() => _StatusDotsTextState();
 }
 
-class _RingingTextState extends State<_RingingText> {
+class _StatusDotsTextState extends State<_StatusDotsText> {
   int _dots = 1;
   Timer? _timer;
 
@@ -232,7 +241,7 @@ class _RingingTextState extends State<_RingingText> {
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Sonnerie${'.' * _dots}',
+      '${widget.label}${'.' * _dots}',
       style: const TextStyle(color: Colors.white54, fontSize: 16),
     );
   }

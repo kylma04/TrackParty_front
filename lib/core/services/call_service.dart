@@ -14,7 +14,7 @@ import 'token_storage.dart';
 const _kRingTimeout    = Duration(seconds: 60);
 const _kCleanupTimeout = Duration(seconds: 3);
 
-enum CallStatus { idle, outgoing, incoming, active }
+enum CallStatus { idle, outgoing, incoming, connecting, active }
 
 class CallState {
   final CallStatus status;
@@ -155,9 +155,50 @@ class CallService {
     } catch (_) {}
   }
 
-  // Config ICE : STUN Google (P2P direct) + TURN si fourni via dart-define.
-  // Sans TURN, les appels échouent sur les réseaux mobiles à NAT strict.
-  static Map<String, dynamic> get _iceConfig {
+  // Config ICE récupérée du backend (TURN éphémère Cloudflare), mise en cache
+  // jusqu'à ~80% du TTL pour éviter un identifiant périmé en plein appel.
+  Map<String, dynamic>? _cachedIceConfig;
+  DateTime? _iceConfigExpiry;
+
+  /// Récupère la config ICE (STUN + TURN) depuis le backend, qui génère des
+  /// identifiants TURN éphémères. Sans TURN, les appels échouent sur réseau
+  /// mobile à NAT strict. Repli sur la config statique (dart-define) si le
+  /// backend est injoignable ou pas encore initialisé (ex: accept CallKit à froid).
+  Future<Map<String, dynamic>> _getIceConfig() async {
+    final cached = _cachedIceConfig;
+    final expiry = _iceConfigExpiry;
+    if (cached != null && expiry != null && DateTime.now().isBefore(expiry)) {
+      return cached;
+    }
+    if (!_dioReady) return _staticIceConfig;
+    try {
+      final resp = await _dio
+          .get('chat/calls/turn-credentials/')
+          .timeout(const Duration(seconds: 6));
+      final servers = (resp.data['iceServers'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      final ttl = (resp.data['ttl'] as num?)?.toInt() ?? 3600;
+      final config = {'iceServers': servers, 'sdpSemantics': 'unified-plan'};
+      _cachedIceConfig  = config;
+      _iceConfigExpiry  = DateTime.now().add(Duration(seconds: (ttl * 0.8).round()));
+      final hasTurn = servers.any((s) {
+        final u = s['urls'];
+        final str = u is List ? u.join(',') : u.toString();
+        return str.contains('turn:') || str.contains('turns:');
+      });
+      debugPrint('📞 Config ICE backend: ${servers.length} serveur(s) — TURN: $hasTurn');
+      return config;
+    } catch (e) {
+      debugPrint('📞 ⚠️ turn-credentials injoignable → repli statique: $e');
+      return _staticIceConfig;
+    }
+  }
+
+  // Repli local : STUN Google (P2P direct) + TURN si fourni via dart-define.
+  // Utilisé seulement si le backend est injoignable — sans TURN, les appels
+  // coupent sur les réseaux mobiles à NAT strict.
+  static Map<String, dynamic> get _staticIceConfig {
     final servers = <Map<String, dynamic>>[
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
@@ -169,7 +210,7 @@ class CallService {
         if (Env.turnCredential.isNotEmpty) 'credential': Env.turnCredential,
       });
     } else {
-      debugPrint('📞 ⚠️ Aucun TURN configuré (STUN seul) — les appels peuvent '
+      debugPrint('📞 ⚠️ Aucun TURN statique (STUN seul) — les appels peuvent '
           'couper sur réseau mobile à NAT strict.');
     }
     return {'iceServers': servers, 'sdpSemantics': 'unified-plan'};
@@ -237,13 +278,17 @@ class CallService {
     final s = state;
     if (s.status != CallStatus.incoming || s.callId == null) return;
     await _stopRing(); // l'appelé décroche → on coupe la sonnerie
+    // Feedback immédiat : « Connexion… » pendant toute la négociation WebRTC
+    // (setup PC + signalisation + ICE), au lieu d'un bouton figé sans retour.
+    stateNotifier.value = s.copyWith(status: CallStatus.connecting);
 
     try {
       final stream = await _getLocalStream(s.callType ?? 'audio');
       _localStream = stream;
       final isVideo = (s.callType ?? 'audio') == 'video';
       if (isVideo) Helper.setSpeakerphoneOn(true);
-      stateNotifier.value = s.copyWith(localStream: stream, speakerEnabled: isVideo);
+      // state (pas s) pour conserver le statut `connecting` déjà posé ci-dessus.
+      stateNotifier.value = state.copyWith(localStream: stream, speakerEnabled: isVideo);
 
       _isOfferer = false;
       // IMPORTANT : la peer connection doit être PRÊTE avant de rejoindre la
@@ -392,6 +437,13 @@ class CallService {
           if (!_isOfferer) await _handleOffer(data);
         case 'answer':
           if (_isOfferer) await _handleAnswer(data);
+        case 'call_accepted':
+          // L'appelé a décroché : couper la tonalité de retour et afficher
+          // « Connexion… » le temps que le média WebRTC s'établisse.
+          if (_isOfferer && state.status == CallStatus.outgoing) {
+            await _stopRing();
+            stateNotifier.value = state.copyWith(status: CallStatus.connecting);
+          }
         case 'ice_candidate':
           await _handleIceCandidate(data);
         case 'hangup':
@@ -415,7 +467,7 @@ class CallService {
   // ─── WebRTC ───────────────────────────────────────────────────────────────
 
   Future<void> _setupPeerConnection() async {
-    _pc = await createPeerConnection(_iceConfig);
+    _pc = await createPeerConnection(await _getIceConfig());
     _localStream?.getTracks().forEach((t) => _pc!.addTrack(t, _localStream!));
 
     _pc!.onIceCandidate = (c) {

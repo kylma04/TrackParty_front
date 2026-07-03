@@ -43,6 +43,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
       );
     } else if (s.status == CallStatus.idle) {
       _pop();
+    } else if (s.status == CallStatus.connecting) {
+      setState(() {}); // bascule l'UI sur « Connexion… »
     }
   }
 
@@ -70,11 +72,20 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     CallService().rejectCall().catchError((_) {});
   }
 
+  // Abandon pendant la connexion : l'appel est déjà accepté → raccrocher
+  // (et non refuser), pour notifier proprement l'appelant.
+  void _cancel() {
+    Haptics.heavy();
+    _pop();
+    CallService().hangup().catchError((_) {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final s      = CallService().state;
     final isVideo = s.callType == 'video';
     final name   = s.remoteUserName ?? 'Appel entrant';
+    final connecting = s.status == CallStatus.connecting || _isAccepting;
 
     return Scaffold(
       backgroundColor: kCallBg,
@@ -123,27 +134,54 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
             const Spacer(flex: 3),
 
-            // Boutons refuser / accepter
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 56),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            // Pendant la connexion : indicateur « Connexion… » + raccrocher.
+            // Sinon : boutons refuser / accepter.
+            if (connecting)
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  const SizedBox(
+                    width: 26, height: 26,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Connexion…',
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 16,
+                        fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 28),
                   _CallBtn(
                     icon: PhosphorIcons.phoneSlash(),
-                    label: 'Refuser',
+                    label: 'Raccrocher',
                     color: kCallDecline,
-                    onTap: _reject,
-                  ),
-                  _CallBtn(
-                    icon: isVideo ? PhosphorIcons.videoCamera() : PhosphorIcons.phone(),
-                    label: _isAccepting ? '…' : 'Accepter',
-                    color: kCallAccept,
-                    onTap: _isAccepting ? null : _accept,
+                    onTap: _cancel,
                   ),
                 ],
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 56),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _CallBtn(
+                      icon: PhosphorIcons.phoneSlash(),
+                      label: 'Refuser',
+                      color: kCallDecline,
+                      onTap: _reject,
+                    ),
+                    _CallBtn(
+                      icon: isVideo ? PhosphorIcons.videoCamera() : PhosphorIcons.phone(),
+                      label: 'Accepter',
+                      color: kCallAccept,
+                      onTap: _accept,
+                    ),
+                  ],
+                ),
               ),
-            ),
 
             const SizedBox(height: 56),
           ],
