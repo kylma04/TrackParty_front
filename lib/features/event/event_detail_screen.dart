@@ -42,17 +42,48 @@ class EventDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
-  bool _expanded = false;
+class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
+    with WidgetsBindingObserver {
+      bool _expanded = false;
+      Timer? _pollTimer;
 
-  @override
-  void initState() {
-    super.initState();
-    final code = widget.inviteCode;
-    if (code != null && code.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _redeemInvite(code));
-    }
-  }
+      @override
+      void initState() {
+        super.initState();
+        WidgetsBinding.instance.addObserver(this);
+        final code = widget.inviteCode;
+        if (code != null && code.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _redeemInvite(code));
+        }
+        _startPollingIfPending();
+      }
+
+      @override
+      void dispose() {
+        WidgetsBinding.instance.removeObserver(this);
+        _pollTimer?.cancel();
+        super.dispose();
+      }
+
+      @override
+      void didChangeAppLifecycleState(AppLifecycleState state) {
+        if (state == AppLifecycleState.resumed) {
+          ref.read(eventDetailProvider(widget.id).notifier).refresh();
+        }
+      }
+
+      void _startPollingIfPending() {
+        _pollTimer?.cancel();
+        _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+          final event = ref.read(eventDetailProvider(widget.id)).valueOrNull;
+          if (event == null) return;
+          if (event.myJoinRequestStatus == 'pending') {
+            ref.read(eventDetailProvider(widget.id).notifier).refresh();
+          } else {
+            _pollTimer?.cancel();
+          }
+        });
+      }
 
   Future<void> _redeemInvite(String code) async {
     try {
