@@ -10,6 +10,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/token_storage.dart';
 import '../providers/event_provider.dart';
+import '../providers/call_history_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/ticket_provider.dart';
 import '../providers/promoter_provider.dart';
@@ -259,6 +260,10 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     ref.invalidate(chatPartnerReadAtProvider);
     ref.invalidate(chatPartnerOnlineProvider);
     ref.invalidate(invitationsProvider);
+    // Appels (historique + pastille appels manqués)
+    ref.invalidate(callHistoryProvider);
+    ref.invalidate(missedCallsBadgeProvider);
+    unawaited(CallHistorySeen.clear());
     // Billetterie / staff
     ref.invalidate(myTicketProvider);
     ref.invalidate(myTicketsProvider);

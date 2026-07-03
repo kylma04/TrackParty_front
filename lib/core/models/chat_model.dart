@@ -24,12 +24,18 @@ class ChatLastMessage {
   final String senderName;
   final String content;
   final DateTime createdAt;
+  final bool isMine;
+  /// Statut de lecture quand le message est de moi dans un DM :
+  /// 'sent' / 'delivered' / 'read'. null sinon (message reçu ou groupe).
+  final String? status;
 
   const ChatLastMessage({
     required this.id,
     required this.senderName,
     required this.content,
     required this.createdAt,
+    this.isMine = false,
+    this.status,
   });
 
   factory ChatLastMessage.fromJson(Map<String, dynamic> j) => ChatLastMessage(
@@ -37,6 +43,8 @@ class ChatLastMessage {
     senderName: j['sender_name'] as String,
     content: j['content'] as String,
     createdAt: DateTime.parse(j['created_at'] as String),
+    isMine: j['is_mine'] as bool? ?? false,
+    status: j['status'] as String?,
   );
 }
 
@@ -76,6 +84,7 @@ class ChatRoomModel {
   final String? promoterName;
   final String? promoterAvatarUrl;
   final String? roomAvatarUrl;
+  final bool isMuted;
 
   const ChatRoomModel({
     required this.id,
@@ -94,6 +103,7 @@ class ChatRoomModel {
     this.promoterName,
     this.promoterAvatarUrl,
     this.roomAvatarUrl,
+    this.isMuted = false,
   });
 
   factory ChatRoomModel.fromJson(Map<String, dynamic> j) => ChatRoomModel(
@@ -117,6 +127,7 @@ class ChatRoomModel {
     promoterName: j['promoter_name'] as String?,
     promoterAvatarUrl: j['promoter_avatar_url'] as String?,
     roomAvatarUrl: j['room_avatar_url'] as String?,
+    isMuted: j['is_muted'] as bool? ?? false,
   );
 
   bool get isPrivate => roomType == 'private';

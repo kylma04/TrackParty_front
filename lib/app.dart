@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/api/api_client.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/providers/call_history_provider.dart';
 import 'core/providers/notification_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/ticket_provider.dart';
@@ -192,6 +193,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
       _maybeRefreshTickets(message);
+      _maybeRefreshCalls(message);
     });
 
     // Background: user taps a notification from the system tray → navigate + refresh
@@ -199,6 +201,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
       _maybeRefreshTickets(message);
+      _maybeRefreshCalls(message);
       _navigateFromMessage(message);
     });
 
@@ -208,6 +211,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       ref.invalidate(notificationsProvider);
       _maybeRefreshUser(message);
       _maybeRefreshTickets(message);
+      _maybeRefreshCalls(message);
       // Use addPostFrameCallback to ensure the router is ready
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _navigateFromMessage(message);
@@ -240,6 +244,14 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       if (eventId is String && eventId.isNotEmpty) {
         ref.invalidate(myTicketProvider(eventId));
       }
+    }
+  }
+
+  // Appel manqué reçu → rafraîchit l'historique et donc la pastille du header.
+  void _maybeRefreshCalls(RemoteMessage message) {
+    final type = (message.data['type'] ?? '').toString();
+    if (type == 'missed_call') {
+      ref.invalidate(callHistoryProvider);
     }
   }
 

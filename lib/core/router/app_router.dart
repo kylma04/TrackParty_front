@@ -18,6 +18,7 @@ import '../../features/chat/new_chat_screen.dart';
 import '../../features/calls/incoming_call_screen.dart';
 import '../../features/calls/outgoing_call_screen.dart';
 import '../../features/calls/call_background_screen.dart';
+import '../../features/calls/call_history_screen.dart';
 import '../../features/event/location_picker_screen.dart';
 import '../../features/chat/invitations_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
@@ -118,6 +119,10 @@ final _routes = [
   GoRoute(
     path: '/invitations',
     pageBuilder: (_, s) => _slide(s, const InvitationsScreen()),
+  ),
+  GoRoute(
+    path: '/calls/history',
+    pageBuilder: (_, s) => _slide(s, const CallHistoryScreen()),
   ),
   GoRoute(
     path: '/call/incoming',

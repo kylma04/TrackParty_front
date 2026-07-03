@@ -10,6 +10,7 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_tab_bar.dart';
 import '../providers/auth_provider.dart';
+import '../providers/call_history_provider.dart';
 import '../providers/chat_provider.dart';
 import '../providers/notification_provider.dart';
 
@@ -146,11 +147,14 @@ class _MainShellState extends ConsumerState<MainShell>
 
   @override
   Widget build(BuildContext context) {
-    // Bulles du footer : Messages (index 2) = messages non lus ; Profil
+    // Bulles du footer : Messages (index 2) = messages non lus + appels manqués
+    // non vus (l'historique d'appels s'ouvre depuis l'écran Messages) ; Profil
     // (index 3) = notifications non lues. Pas de bulle sur Accueil/Carte.
     final messagesUnread = ref.watch(chatRoomsProvider).valueOrNull
             ?.fold<int>(0, (sum, room) => sum + room.unreadCount) ??
         0;
+    final missedCalls  = ref.watch(missedCallsBadgeProvider).valueOrNull ?? 0;
+    final messagesBadge = messagesUnread + missedCalls;
     final profilUnread = ref.watch(unreadNotifCountProvider);
 
     return Scaffold(
@@ -158,7 +162,7 @@ class _MainShellState extends ConsumerState<MainShell>
       bottomNavigationBar: TpTabBar(
         activeIndex: _activeIndex,
         badges: {
-          if (messagesUnread > 0) 2: messagesUnread,
+          if (messagesBadge > 0) 2: messagesBadge,
           if (profilUnread > 0) 3: profilUnread,
         },
         onTap: (i) => context.go(_routes[i]),

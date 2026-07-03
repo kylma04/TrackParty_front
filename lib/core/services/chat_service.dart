@@ -57,6 +57,11 @@ class ChatService {
         await _dio.post('chat/rooms/$roomId/read/');
       });
 
+  /// Coupe (ou réactive) les notifications d'une conversation.
+  Future<void> setRoomMuted(String roomId, bool muted) => _call(() async {
+        await _dio.post('chat/rooms/$roomId/mute/', data: {'muted': muted});
+      });
+
   Future<ChatMessage> sendMessage(
     String roomId,
     String content, {

@@ -10,6 +10,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
 import '../../core/providers/auth_provider.dart' show authNotifierProvider, AuthAuthenticated;
+import '../../core/providers/call_history_provider.dart';
 import '../../core/providers/chat_provider.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
@@ -30,9 +31,26 @@ class ChatListScreen extends ConsumerStatefulWidget {
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   int _tab = 0;
+  final _pageCtrl = PageController();
 
   static const _tabLabels = ['DM', 'Événements', 'Communautés'];
   static const _tabTypes  = ['private', 'event', 'community'];
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  // Change d'onglet en animant le PageView (utilisé par le tap sur un onglet).
+  void _goToTab(int i) {
+    if (_pageCtrl.hasClients) {
+      _pageCtrl.animateToPage(i,
+          duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+    } else {
+      setState(() => _tab = i);
+    }
+  }
 
   void _showNewConversationSheet(BuildContext ctx) {
     showModalBottomSheet(
@@ -59,13 +77,19 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               child: roomsAsync.when(
                 loading: () => SkList(count: 8, builder: (_) => const SkRowItem()),
                 error: (e, _) => _buildError(context),
-                data: (rooms) {
-                  final filtered = rooms
-                      .where((r) => r.roomType == _tabTypes[_tab])
-                      .toList();
-                  if (filtered.isEmpty) return _buildEmpty(context);
-                  return _buildList(context, filtered);
-                },
+                data: (rooms) => PageView.builder(
+                  controller: _pageCtrl,
+                  // Swipe horizontal → change d'onglet (met à jour l'indicateur).
+                  onPageChanged: (i) => setState(() => _tab = i),
+                  itemCount: _tabTypes.length,
+                  itemBuilder: (_, i) {
+                    final filtered = rooms
+                        .where((r) => r.roomType == _tabTypes[i])
+                        .toList();
+                    if (filtered.isEmpty) return _buildEmpty(context, i);
+                    return _buildList(context, filtered);
+                  },
+                ),
               ),
             ),
           ],
@@ -84,6 +108,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900,
                 color: context.tpInk, letterSpacing: -0.8)),
           const Spacer(),
+          _buildCallHistoryButton(context),
+          const SizedBox(width: 8),
           Semantics(
             button: true,
             label: 'Voir mes invitations',
@@ -115,6 +141,46 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
+  // Icône Historique d'appels + pastille "appels manqués non vus".
+  Widget _buildCallHistoryButton(BuildContext context) {
+    final missed = ref.watch(missedCallsBadgeProvider).valueOrNull ?? 0;
+    return Semantics(
+      button: true,
+      label: missed > 0 ? "Historique d'appels, $missed manqués" : "Historique d'appels",
+      child: GestureDetector(
+        onTap: () => context.push('/calls/history'),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.md), boxShadow: Shadows.sm),
+              child: Icon(PhosphorIcons.phone(), color: kPrimary, size: 18),
+            ),
+            if (missed > 0)
+              Positioned(
+                top: -4, right: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(Radii.pill),
+                    border: Border.all(color: context.tpBg, width: 2),
+                  ),
+                  child: Center(
+                    child: Text(missed > 9 ? '9+' : '$missed',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Tabs ──────────────────────────────────────────────────────────────────
   Widget _buildTabs(BuildContext context, AsyncValue<List<ChatRoomModel>> roomsAsync) {
     final rooms = roomsAsync.valueOrNull ?? [];
@@ -135,7 +201,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               selected: active,
               button: true,
               child: GestureDetector(
-                onTap: () => setState(() => _tab = i),
+                onTap: () => _goToTab(i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   height: 44,
@@ -199,7 +265,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
-  Widget _buildEmpty(BuildContext context) {
+  Widget _buildEmpty(BuildContext context, int tab) {
     final labels = ['conversation', 'groupe événement', 'communauté'];
     return Center(
       child: Column(
@@ -207,7 +273,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         children: [
           const Text('💬', style: TextStyle(fontSize: 48)),
           const SizedBox(height: 12),
-          Text('Aucun ${labels[_tab]}',
+          Text('Aucun ${labels[tab]}',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
           const SizedBox(height: 4),
           Text('Participe à un événement pour rejoindre son chat !',
@@ -708,6 +774,52 @@ class _GroupAvatar extends StatelessWidget {
 
 // ── Chat row ──────────────────────────────────────────────────────────────────
 
+// Aperçu du dernier message (façon WhatsApp) :
+//  • message de moi   → coche(s) de statut + message (pas de nom)
+//  • reçu en DM       → message seul
+//  • reçu en groupe   → « Prénom: message » (utile pour savoir qui a parlé)
+Widget _buildPreview(BuildContext context, ChatRoomModel room) {
+  final lm = room.lastMessage;
+  final style = TextStyle(
+    fontSize: 13,
+    fontWeight: room.unreadCount > 0 ? FontWeight.w700 : FontWeight.w600,
+    color: room.unreadCount > 0 ? context.tpInk : context.tpInkSub,
+  );
+  if (lm == null) {
+    return Text('Aucun message',
+        maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+  }
+
+  var text = lm.content;
+  if (!lm.isMine && !room.isPrivate) {
+    text = '${lm.senderName.split(' ').first}: ${lm.content}';
+  }
+
+  final icon = lm.isMine ? _statusPreviewIcon(context, lm.status) : null;
+  if (icon == null) {
+    return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+  }
+  return Row(
+    children: [
+      icon,
+      const SizedBox(width: 4),
+      Expanded(
+        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style),
+      ),
+    ],
+  );
+}
+
+// Coche(s) de statut : envoyé = 1 coche ; livré/lu = 2 coches ; lu = bleu.
+Widget? _statusPreviewIcon(BuildContext context, String? status) {
+  if (status == null) return null;
+  return Icon(
+    status == 'sent' ? Icons.done_rounded : Icons.done_all_rounded,
+    size: 15,
+    color: status == 'read' ? kInfo : context.tpInkMute,
+  );
+}
+
 String _fmtTime(DateTime dt) {
   final now = DateTime.now();
   final diff = now.difference(dt);
@@ -762,17 +874,7 @@ class _ChatRow extends StatelessWidget {
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900,
                             color: context.tpInk, letterSpacing: -0.3)),
                       const SizedBox(height: 2),
-                      Text(
-                        room.lastMessage != null
-                            ? '${room.lastMessage!.senderName.split(' ').first}: ${room.lastMessage!.content}'
-                            : 'Aucun message',
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: room.unreadCount > 0 ? FontWeight.w700 : FontWeight.w600,
-                          color: room.unreadCount > 0 ? context.tpInk : context.tpInkSub,
-                        ),
-                      ),
+                      _buildPreview(context, room),
                     ],
                   ),
                 ),

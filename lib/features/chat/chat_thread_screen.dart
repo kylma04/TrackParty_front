@@ -17,7 +17,10 @@ import '../../core/providers/auth_provider.dart' show authNotifierProvider, Auth
 import '../../core/providers/chat_provider.dart';
 import '../../core/services/call_service.dart';
 import '../../core/services/chat_websocket_service.dart';
+import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
+import '../../core/services/moderation_service.dart';
+import '../profile/report_sheet.dart';
 import 'room_members_sheet.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -40,6 +43,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   final _scrollCtrl  = ScrollController();
   final _picker      = ImagePicker();
   final _recorder    = AudioRecorder();
+
+  // Recherche dans la conversation (barre de recherche + filtrage des messages).
+  final _searchCtrl  = TextEditingController();
+  bool   _searching  = false;
+  String _searchQuery = '';
 
   // Typing indicator
   Timer? _typingTimer;
@@ -111,7 +119,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   void _onScroll() {
     if (!_scrollCtrl.hasClients) return;
-    if (_scrollCtrl.position.pixels <= 80) {
+    // Liste inversée : le HAUT (messages plus anciens) est du côté maxScrollExtent.
+    final pos = _scrollCtrl.position;
+    if (pos.pixels >= pos.maxScrollExtent - 80) {
       ref.read(chatThreadProvider(widget.roomId).notifier).loadOlderMessages();
     }
   }
@@ -122,6 +132,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     _scrollCtrl.removeListener(_onScroll);
     _ctrl.dispose();
     _scrollCtrl.dispose();
+    _searchCtrl.dispose();
     _typingTimer?.cancel();
     _typingClearTimer?.cancel();
     _typingSub?.cancel();
@@ -150,36 +161,23 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     }
   }
 
-  bool _initialScrollDone = false;
-
+  // Liste inversée : l'offset 0 = le bas (dernier message). « Près du bas » =
+  // offset proche de 0.
   bool _isNearBottom() {
     if (!_scrollCtrl.hasClients) return true;
-    final pos = _scrollCtrl.position;
-    return pos.maxScrollExtent - pos.pixels <= 200;
+    return _scrollCtrl.position.pixels <= 200;
   }
 
-  /// Colle la vue au dernier message. On répète le saut sur plusieurs frames :
-  /// `ListView.builder` construit paresseusement, donc `maxScrollExtent` grandit
-  /// au fur et à mesure que les bulles du bas (et les images) se posent. Un seul
-  /// `animateTo` s'arrête donc avant le vrai bas.
+  /// Ramène la vue au dernier message. En mode `reverse:true`, le bas correspond
+  /// à l'offset 0 — un simple saut/animation vers 0 suffit (pas besoin des sauts
+  /// échelonnés qu'imposait la construction paresseuse en mode normal).
   void _scrollToBottom({bool animate = true}) {
-    const delays = [
-      Duration.zero,
-      Duration(milliseconds: 80),
-      Duration(milliseconds: 250),
-      Duration(milliseconds: 600),
-    ];
-    for (final d in delays) {
-      Future.delayed(d, () {
-        if (!mounted || !_scrollCtrl.hasClients) return;
-        final target = _scrollCtrl.position.maxScrollExtent;
-        if (animate && d == Duration.zero) {
-          _scrollCtrl.animateTo(target,
-              duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-        } else {
-          _scrollCtrl.jumpTo(target);
-        }
-      });
+    if (!_scrollCtrl.hasClients) return;
+    if (animate) {
+      _scrollCtrl.animateTo(0,
+          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    } else {
+      _scrollCtrl.jumpTo(0);
     }
   }
 
@@ -336,18 +334,19 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
     ref.listen(chatThreadProvider(widget.roomId), (_, next) {
       if (next is! AsyncData) return;
-      if (!_initialScrollDone) {
-        // À l'ouverture : saut instantané tout en bas (pas d'animation).
-        _initialScrollDone = true;
-        _scrollToBottom(animate: false);
-      } else if (_isNearBottom()) {
-        // Ensuite on ne suit les nouveaux messages que si l'utilisateur est
-        // déjà en bas — sinon on ne le tire pas pendant qu'il lit l'historique.
-        _scrollToBottom();
-      }
+      // Liste inversée (reverse:true) : elle s'ouvre déjà tout en bas, aucun saut
+      // initial nécessaire. On ne suit un nouveau message que si l'utilisateur est
+      // déjà en bas — sinon on ne le tire pas pendant qu'il lit l'historique.
+      if (_isNearBottom()) _scrollToBottom();
     });
 
-    return Scaffold(
+    return PopScope(
+      // En mode recherche, le retour ferme la recherche au lieu de quitter la conv.
+      canPop: !_searching,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searching) _closeSearch();
+      },
+      child: Scaffold(
       backgroundColor: context.tpBg,
       body: Column(
         children: [
@@ -360,8 +359,10 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 child: Text('Erreur de chargement',
                   style: TextStyle(color: context.tpInkSub)),
               ),
-              data: (msgs) => _buildMessageList(
-                  context, msgs, _myId, partnerReadAt, partnerOnline, _isDm, canWrite),
+              data: (msgs) => _searching
+                  ? _buildSearchResults(context, msgs)
+                  : _buildMessageList(
+                      context, msgs, _myId, partnerReadAt, partnerOnline, _isDm, canWrite),
             ),
           ),
           if (_recordingUserName != null && _voiceMode == _VoiceMode.idle)
@@ -385,6 +386,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               ),
           ],
         ],
+      ),
       ),
     );
   }
@@ -412,6 +414,115 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       }
     }
   }
+
+  // ── Menu ⋮ d'un DM (recherche / sourdine / signaler / bloquer) ─────────────
+
+  void _showDmMenu(BuildContext ctx, ChatRoomModel room, ChatMemberPreview? other) {
+    showModalBottomSheet<void>(
+      context: ctx,
+      backgroundColor: ctx.tpCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(width: 40, height: 4, decoration: BoxDecoration(
+                color: ctx.tpHair, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 6),
+            _menuTile(ctx,
+              icon: PhosphorIcons.magnifyingGlass(),
+              label: 'Rechercher dans la conversation',
+              onTap: () { Navigator.pop(sheetCtx); _openSearch(); }),
+            _menuTile(ctx,
+              icon: room.isMuted ? PhosphorIcons.bell() : PhosphorIcons.bellSlash(),
+              label: room.isMuted ? 'Réactiver les notifications' : 'Couper les notifications',
+              onTap: () { Navigator.pop(sheetCtx); _toggleMute(room); }),
+            if (other != null) ...[
+              _menuTile(ctx,
+                icon: PhosphorIcons.flag(),
+                label: 'Signaler',
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  ReportSheet.show(ctx, targetType: 'user', targetId: other.id,
+                      targetName: other.displayName, blockUserId: other.id);
+                }),
+              _menuTile(ctx,
+                icon: PhosphorIcons.prohibit(),
+                label: 'Bloquer',
+                danger: true,
+                onTap: () { Navigator.pop(sheetCtx); _confirmBlock(ctx, other); }),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _menuTile(BuildContext ctx, {required IconData icon, required String label,
+      required VoidCallback onTap, bool danger = false}) {
+    final color = danger ? const Color(0xFFEF4444) : ctx.tpInk;
+    return ListTile(
+      leading: Icon(icon, color: color, size: 22),
+      title: Text(label,
+          style: TextStyle(color: color, fontSize: 15, fontWeight: FontWeight.w700)),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _toggleMute(ChatRoomModel room) async {
+    final newMuted = !room.isMuted;
+    try {
+      await ref.read(chatServiceProvider).setRoomMuted(room.id, newMuted);
+      await ref.read(chatRoomsProvider.notifier).refresh();
+      if (mounted) {
+        TpToast.success(context, newMuted
+            ? 'Notifications coupées pour cette conversation'
+            : 'Notifications réactivées');
+      }
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Action impossible pour le moment');
+    }
+  }
+
+  Future<void> _confirmBlock(BuildContext ctx, ChatMemberPreview other) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: dCtx.tpCard,
+        title: Text('Bloquer ${other.displayName} ?',
+            style: TextStyle(color: dCtx.tpInk, fontWeight: FontWeight.w800)),
+        content: Text("Cette personne ne pourra plus t'envoyer de message ni t'appeler.",
+            style: TextStyle(color: dCtx.tpInkSub)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('Bloquer', style: TextStyle(color: Color(0xFFEF4444)))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(moderationServiceProvider).block(other.id);
+      if (mounted) {
+        TpToast.success(context, '${other.displayName} a été bloqué');
+        context.pop();
+      }
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Impossible de bloquer');
+    }
+  }
+
+  // ── Recherche dans la conversation ─────────────────────────────────────────
+
+  void _openSearch() =>
+      setState(() { _searching = true; _searchQuery = ''; _searchCtrl.clear(); });
+
+  void _closeSearch() =>
+      setState(() { _searching = false; _searchQuery = ''; _searchCtrl.clear(); });
 
   // ── Membres du groupe ─────────────────────────────────────────────────────
 
@@ -445,6 +556,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   // ── NavBar ────────────────────────────────────────────────────────────────
 
   Widget _buildNavBar(BuildContext context, ChatRoomModel? room) {
+    if (_searching) return _buildSearchBar(context);
     final name    = room?.displayName ?? 'Conversation';
     final other   = room?.membersPreview.isNotEmpty == true
         ? room!.membersPreview.first
@@ -536,14 +648,118 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 ),
               ],
             ] else
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
-                child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
+              Semantics(
+                button: true, label: "Plus d'options",
+                child: GestureDetector(
+                  onTap: room == null ? null : () => _showDmMenu(context, room, other),
+                  child: Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
+                    child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInk, size: 20),
+                  ),
+                ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 10),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          border: Border(bottom: BorderSide(color: context.tpHair)),
+        ),
+        child: Row(
+          children: [
+            Semantics(
+              button: true, label: 'Fermer la recherche',
+              child: GestureDetector(
+                onTap: _closeSearch,
+                child: SizedBox(
+                  width: 44, height: 44,
+                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
+                ),
+              ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                style: TextStyle(color: context.tpInk, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher un message…',
+                  hintStyle: TextStyle(color: context.tpInkMute),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              GestureDetector(
+                onTap: () => setState(() { _searchQuery = ''; _searchCtrl.clear(); }),
+                child: Icon(PhosphorIcons.x(), color: context.tpInkSub, size: 18),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Résultats de recherche ─────────────────────────────────────────────────
+
+  Widget _buildSearchResults(BuildContext context, List<ChatMessage> messages) {
+    final q = _searchQuery.toLowerCase();
+    if (q.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text('Tape un mot pour rechercher dans les messages de cette conversation.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: context.tpInkMute, fontSize: 14)),
+        ),
+      );
+    }
+    // Recherche sur les messages texte chargés (les plus récents d'abord).
+    final results = [
+      for (final m in messages.reversed)
+        if (m.isText && m.content.toLowerCase().contains(q)) m,
+    ];
+    if (results.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(PhosphorIcons.magnifyingGlass(), size: 40, color: context.tpInkMute),
+          const SizedBox(height: 12),
+          Text('Aucun résultat',
+            style: TextStyle(color: context.tpInkSub, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('Fais défiler la conversation vers le haut pour charger plus d\'historique.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: context.tpInkMute, fontSize: 12)),
+        ]),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: Sp.sm),
+      itemCount: results.length,
+      separatorBuilder: (_, _) => Divider(height: 1, indent: Sp.md, color: context.tpHair),
+      itemBuilder: (_, i) {
+        final m = results[i];
+        return ListTile(
+          title: Text(m.sender.displayName,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.tpInk, fontWeight: FontWeight.w800, fontSize: 14)),
+          subtitle: Text(m.content,
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.tpInkSub, fontSize: 13)),
+          trailing: Text(DateFormat('d MMM', 'fr_FR').format(m.createdAt),
+            style: TextStyle(color: context.tpInkMute, fontSize: 11)),
+        );
+      },
     );
   }
 
@@ -567,12 +783,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
     return ListView.builder(
       controller: _scrollCtrl,
+      // Liste INVERSÉE (façon WhatsApp) : l'offset 0 correspond au BAS, donc à
+      // l'ouverture on est déjà sur le dernier message — aucun saut ni défilement
+      // visible. index 0 = message le plus récent ; l'en-tête passe tout en haut.
+      reverse: true,
       padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: Sp.md),
-      // +1 pour l'indicateur de chargement en tête
+      // +1 pour l'en-tête "charger plus / début" (dernier index = tout en haut)
       itemCount: messages.length + 1,
       itemBuilder: (_, i) {
-        // Slot 0 : indicateur "charger plus" ou "début de conversation"
-        if (i == 0) {
+        // Dernier index (mode reverse) = tout en haut : "charger plus" / "début"
+        if (i == messages.length) {
           if (isLoadingOld) {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -590,9 +810,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           return const SizedBox.shrink();
         }
 
-        final idx  = i - 1;
+        final idx  = messages.length - 1 - i;   // i=0 → message le plus récent (bas)
         final msg  = messages[idx];
         final isMe = msg.sender.id == myId;
+        // Séparateur de jour au-dessus du 1er message de chaque journée (comparé
+        // au message plus ancien, donc idx-1 dans le tableau oldest→newest).
         final showDay = idx == 0 || !_sameDay(messages[idx - 1].createdAt, msg.createdAt);
         // Accusé de lecture par message (DM uniquement) : lu (2 bleus) / livré
         // = partenaire en ligne mais pas encore lu (2 gris) / envoyé = hors
