@@ -165,7 +165,7 @@ class EventModel {
   final UserParticipation? userParticipation;
   final bool showPrivateEventPublicly;
   final bool showTicketCounts;
-  final int maxTicketsPerUserPerEvent;
+  final int? maxTicketsPerUserPerEvent;
   final int myTicketsCount;
   final bool isLocked;
   final String? myJoinRequestStatus; // null | 'pending' | 'accepted' | 'rejected'
@@ -268,7 +268,7 @@ class EventModel {
         showPrivateEventPublicly:
           j['show_private_event_publicly'] as bool? ?? false,
         showTicketCounts: j['show_ticket_counts'] as bool? ?? false,
-        maxTicketsPerUserPerEvent: (j['max_tickets_per_user_per_event'] as num?)?.toInt() ?? 5,
+        maxTicketsPerUserPerEvent: (j['max_tickets_per_user_per_event'] as num?)?.toInt(),
         myTicketsCount: (j['my_tickets_count'] as num?)?.toInt() ?? 0,
 
         isLocked:

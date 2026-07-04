@@ -4,6 +4,7 @@ import '../models/custom_category.dart';
 import '../models/event_model.dart';
 import '../services/event_service.dart';
 import 'ticket_provider.dart';
+import '../services/user_channel_service.dart';
 
 // ── Filtres du feed ───────────────────────────────────────────────────────────
 
@@ -113,7 +114,24 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
   Future<FeedPage> build() async {
     final loc     = await ref.watch(userLocationProvider.future);
     final filters = ref.watch(feedFiltersProvider);
+    final sub = UserChannelService().eventStatsUpdated.listen(patchEvent);
+    ref.onDispose(sub.cancel);
     return _fetchPage(loc, filters, page: 1);
+  }
+
+  Future<void> patchEvent(String eventId) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final idx = current.items.indexWhere((e) => e.id == eventId);
+    if (idx == -1) return; // pas dans cette liste, rien à faire
+    try {
+      final fresh = await ref.read(eventServiceProvider).getEvent(eventId);
+      final items = [...current.items];
+      items[idx] = fresh;
+      state = AsyncValue.data(current.copyWith(items: items));
+    } catch (_) {
+      // silencieux
+    }
   }
 
   Future<FeedPage> _fetchPage(Position? loc, FeedFilters filters, {required int page}) async {
@@ -185,7 +203,22 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
   @override
   Future<FeedPage> build() async {
     final filters = ref.watch(feedFiltersProvider);
+    final sub = UserChannelService().eventStatsUpdated.listen(patchEvent);
+    ref.onDispose(sub.cancel);
     return _fetchPage(filters, page: 1);
+  }
+
+  Future<void> patchEvent(String eventId) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final idx = current.items.indexWhere((e) => e.id == eventId);
+    if (idx == -1) return;
+    try {
+      final fresh = await ref.read(eventServiceProvider).getEvent(eventId);
+      final items = [...current.items];
+      items[idx] = fresh;
+      state = AsyncValue.data(current.copyWith(items: items));
+    } catch (_) {}
   }
 
   Future<FeedPage> _fetchPage(FeedFilters filters, {required int page}) async {
@@ -247,10 +280,27 @@ final eventDetailProvider =
 
 class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
   @override
-  Future<EventModel> build(String id) =>
-      ref.read(eventServiceProvider).getEvent(id);
+  Future<EventModel> build(String id) async {
+    final event = await ref.read(eventServiceProvider).getEvent(id);
+    // Écoute le canal personnel : rafraîchit si CET event a changé ailleurs.
+    final sub = UserChannelService().eventStatsUpdated.listen((eventId) {
+      if (eventId == id) _silentRefresh(id);
+    });
+    ref.onDispose(sub.cancel);
+    return event;
+  }
+
+  Future<void> _silentRefresh(String id) async {
+    try {
+      final fresh = await ref.read(eventServiceProvider).getEvent(id);
+      state = AsyncValue.data(fresh);
+    } catch (_) {
+      // silencieux : on garde l'état actuel en cas d'échec réseau ponctuel
+    }
+  }
 
   Future<void> participate({String? contributionItemId, int quantity = 1}) async {
+    
     final current = state.valueOrNull;
     if (current == null) return;
 
