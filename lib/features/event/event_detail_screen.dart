@@ -1397,7 +1397,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     // au niveau de l'event ; les billets payants ne s'annulent pas).
     final isPaid = event.contributionType == 'monetaire';
     final maxT = event.maxTicketsPerUserPerEvent;
-    final atLimit = isPaid && event.myTicketsCount >= maxT;
+    final atLimit = isPaid && maxT != null && event.myTicketsCount >= maxT;
     final hasTickets = event.myTicketsCount > 0;
 
     // Event payant par catégorie « complet » : plus aucune catégorie en vente

@@ -84,7 +84,8 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
     setState(() {
       if (next <= 0) {
         map.remove(id);
-      } else if (_total - (map[id] ?? 0) + next <= event.maxTicketsPerUserPerEvent) {
+      } else if (event.maxTicketsPerUserPerEvent == null || 
+        _total - (map[id] ?? 0) + next <= event.maxTicketsPerUserPerEvent!) {
         map[id] = next;
       }
     });
@@ -251,7 +252,10 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                   )),
             ],
             const SizedBox(height: 8),
-            Text('$_total/${event.maxTicketsPerUserPerEvent} billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}',
+            Text(
+              event.maxTicketsPerUserPerEvent == null
+                  ? '$_total billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}'
+                  : '$_total/${event.maxTicketsPerUserPerEvent} billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}',
                 style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute)),
             if (paidAmount > 0) ...[
@@ -267,7 +271,9 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   }
 
   Widget _bottomBar(BuildContext context, int paidAmount) {
-    final enabled = _total >= 1 && _total <= event.maxTicketsPerUserPerEvent && !_submitting;
+    final enabled = _total >= 1 &&
+      (event.maxTicketsPerUserPerEvent == null || _total <= event.maxTicketsPerUserPerEvent!) &&
+      !_submitting;
     final label = paidAmount > 0
         ? 'Payer ${_fmt(paidAmount)}'
         : (_total > 0 ? 'Confirmer ma participation' : 'Sélectionne un billet');
@@ -319,7 +325,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       int? maxQty}) {
     // + bloqué si épuisé, si on atteint la limite globale, ou le stock de la ligne.
     final canAdd = !soldOut &&
-        _total < event.maxTicketsPerUserPerEvent &&
+        (event.maxTicketsPerUserPerEvent == null || _total < event.maxTicketsPerUserPerEvent!) &&
         (maxQty == null || qty < maxQty);
     return Opacity(
       opacity: soldOut ? 0.45 : 1,

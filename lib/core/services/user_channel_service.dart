@@ -22,14 +22,18 @@ class UserChannelService with WidgetsBindingObserver {
   bool _connected = false;
   Timer? _reconnectTimer;
 
-  final _roomsUpdatedCtrl = StreamController<String>.broadcast();
-  final _newMessageCtrl   = StreamController<Map<String, dynamic>>.broadcast();
+  final _roomsUpdatedCtrl  = StreamController<String>.broadcast();
+  final _newMessageCtrl    = StreamController<Map<String, dynamic>>.broadcast();
+  final _eventStatsCtrl    = StreamController<String>.broadcast();
 
   /// Émis quand la salle a été marquée comme lue (compteur → 0).
   Stream<String> get roomsUpdated => _roomsUpdatedCtrl.stream;
 
   /// Émis quand un nouveau message arrive dans une salle (mise à jour du preview).
   Stream<Map<String, dynamic>> get newMessages => _newMessageCtrl.stream;
+
+  /// Émis avec l'ID de l'event quand ses stats (participants/stock) ont changé.
+  Stream<String> get eventStatsUpdated => _eventStatsCtrl.stream;
 
   Future<void> connect() async {
     if (_connected) return;
@@ -75,6 +79,11 @@ class UserChannelService with WidgetsBindingObserver {
         final roomId = data['room_id'] as String?;
         if (roomId != null && !_roomsUpdatedCtrl.isClosed) {
           _roomsUpdatedCtrl.add(roomId);
+        }
+      } else if (type == 'event_stats') {
+        final eventId = data['event_id'] as String?;
+        if (eventId != null && !_eventStatsCtrl.isClosed) {
+          _eventStatsCtrl.add(eventId);
         }
       } else if (type == 'new_message') {
         if (!_newMessageCtrl.isClosed) _newMessageCtrl.add(data);
