@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/custom_category.dart';
 import '../models/event_model.dart';
 import '../services/event_service.dart';
+import 'ticket_provider.dart';
 
 // ── Filtres du feed ───────────────────────────────────────────────────────────
 
@@ -267,6 +268,8 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
         quantity: quantity,
       );
       state = await AsyncValue.guard(() => ref.read(eventServiceProvider).getEvent(arg));
+      ref.invalidate(myTicketsProvider);
+      ref.invalidate(myTicketProvider(arg));
     } catch (e, st) {
       state = AsyncValue.data(current);
       state = AsyncValue.error(e, st);
@@ -288,6 +291,8 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
     try {
       await ref.read(eventServiceProvider).cancelParticipation(arg);
       state = await AsyncValue.guard(() => ref.read(eventServiceProvider).getEvent(arg));
+      ref.invalidate(myTicketsProvider);
+      ref.invalidate(myTicketProvider(arg));
     } catch (e, st) {
       state = AsyncValue.data(current);
       state = AsyncValue.error(e, st);
