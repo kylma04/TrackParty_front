@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/promoter_model.dart';
 import '../../core/providers/promoter_provider.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -27,6 +28,12 @@ class PromoterProfileScreen extends ConsumerStatefulWidget {
 class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
   int _tab = 0;
   bool _followLoading = false;
+
+  bool get _isOwnProfile {
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final myId = authState is AuthAuthenticated ? authState.user.id : null;
+    return myId != null && myId == widget.id;
+  }
 
   Future<void> _toggleFollow() async {
     if (_followLoading) return;
@@ -213,51 +220,64 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
   }
 
   Widget _buildCtas(BuildContext context, PromoterData p) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Sp.md, 16, Sp.md, 8),
-      child: Column(children: [
-        // Suivre — pleine largeur, CTA principal
-        Semantics(
-          button: true,
-          label: p.isFollowing ? 'Se désabonner de ${p.displayName}' : 'Suivre ${p.displayName}',
-          child: GestureDetector(
-            onTap: _followLoading ? null : _toggleFollow,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: p.isFollowing ? null : trackpartyGradient,
-                color: p.isFollowing ? context.tpCard : null,
-                borderRadius: BorderRadius.circular(Radii.button),
-                border: p.isFollowing ? Border.all(color: context.tpHair) : null,
-                boxShadow: p.isFollowing ? null : Shadows.brand,
-              ),
-              child: _followLoading
-                  ? const Center(child: SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)))
-                  : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(p.isFollowing ? PhosphorIcons.check() : PhosphorIcons.plus(),
-                        color: p.isFollowing ? kPrimary : Colors.white, size: 16),
-                      const SizedBox(width: 6),
-                      Text(p.isFollowing ? 'Abonné ✓' : 'Suivre',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
-                            color: p.isFollowing ? kPrimary : Colors.white)),
-                    ]),
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(Sp.md, 16, Sp.md, 8),
+    child: Column(children: [
+      Semantics(
+        button: true,
+        label: _isOwnProfile
+            ? 'Modifier mon profil'
+            : (p.isFollowing ? 'Se désabonner de ${p.displayName}' : 'Suivre ${p.displayName}'),
+        child: GestureDetector(
+          onTap: _isOwnProfile
+              ? () => context.push('/me/edit')
+              : (_followLoading ? null : _toggleFollow),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: (p.isFollowing && !_isOwnProfile) ? null : trackpartyGradient,
+              color: (p.isFollowing && !_isOwnProfile) ? context.tpCard : null,
+              borderRadius: BorderRadius.circular(Radii.button),
+              border: (p.isFollowing && !_isOwnProfile) ? Border.all(color: context.tpHair) : null,
+              boxShadow: (p.isFollowing && !_isOwnProfile) ? null : Shadows.brand,
             ),
+            child: _followLoading
+                ? const Center(child: SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)))
+                : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(
+                      _isOwnProfile
+                          ? PhosphorIcons.pencilSimple()
+                          : (p.isFollowing ? PhosphorIcons.check() : PhosphorIcons.plus()),
+                      color: (p.isFollowing && !_isOwnProfile) ? kPrimary : Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isOwnProfile ? 'Modifier mon profil' : (p.isFollowing ? 'Abonné ✓' : 'Suivre'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: (p.isFollowing && !_isOwnProfile) ? kPrimary : Colors.white,
+                      ),
+                    ),
+                  ]),
           ),
         ),
-        const SizedBox(height: 10),
-        // Message + Communauté — actions secondaires
-        Row(children: [
+      ),
+      const SizedBox(height: 10),
+      Row(children: [
+        if (!_isOwnProfile) ...[
           Expanded(
             child: Semantics(
               button: true, label: 'Envoyer un message à ${p.displayName}',
               child: GestureDetector(
                 onTap: () => context.push('/chat/new', extra: {
-                'userId':      p.id,
-                'displayName': p.displayName,
-                'avatarUrl':   p.avatarUrl,
-              }),
+                  'userId':      p.id,
+                  'displayName': p.displayName,
+                  'avatarUrl':   p.avatarUrl,
+                }),
                 child: Container(
                   height: 48,
                   decoration: BoxDecoration(
@@ -275,31 +295,33 @@ class _PromoterProfileScreenState extends ConsumerState<PromoterProfileScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Semantics(
-              button: true, label: 'Rejoindre la communauté de ${p.displayName}',
-              child: GestureDetector(
-                onTap: () => context.push('/community/${p.id}'),
-                child: Container(
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: context.tpCard, borderRadius: BorderRadius.circular(Radii.button),
-                    border: Border.all(color: context.tpHair),
-                  ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(PhosphorIcons.megaphone(), color: context.tpInk, size: 18),
-                    const SizedBox(width: 6),
-                    Text('Communauté',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
-                  ]),
+        ],
+        Expanded(
+          child: Semantics(
+            button: true,
+            label: _isOwnProfile ? 'Gérer ma communauté' : 'Rejoindre la communauté de ${p.displayName}',
+            child: GestureDetector(
+              onTap: () => context.push('/community/${p.id}'),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: context.tpCard, borderRadius: BorderRadius.circular(Radii.button),
+                  border: Border.all(color: context.tpHair),
                 ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(PhosphorIcons.megaphone(), color: context.tpInk, size: 18),
+                  const SizedBox(width: 6),
+                  Text(_isOwnProfile ? 'Ma communauté' : 'Communauté',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
+                ]),
               ),
             ),
           ),
-        ]),
+        ),
       ]),
-    );
-  }
+    ]),
+  );
+}
 
   Widget _buildBio(BuildContext context, String bio) {
     return Padding(
