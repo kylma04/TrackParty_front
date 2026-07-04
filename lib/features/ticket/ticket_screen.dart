@@ -13,6 +13,7 @@ import '../../core/models/ticket_model.dart';
 import '../../core/providers/ticket_provider.dart';
 import '../../core/services/invitation_service.dart';
 import '../../core/services/ticket_service.dart';
+import '../../core/providers/event_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
@@ -446,6 +447,7 @@ class _CancelNatureButton extends ConsumerWidget {
       await ref.read(ticketServiceProvider).cancelTicket(ticket.id);
       ref.invalidate(myTicketsProvider);
       ref.invalidate(myTicketProvider(ticket.eventId));
+      ref.invalidate(eventDetailProvider(ticket.eventId));
       if (context.mounted) {
         context.pop();
         TpToast.success(context, 'Billet annulé.');
@@ -454,7 +456,6 @@ class _CancelNatureButton extends ConsumerWidget {
       if (context.mounted) TpToast.error(context, 'Échec de l\'annulation.');
     }
   }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
