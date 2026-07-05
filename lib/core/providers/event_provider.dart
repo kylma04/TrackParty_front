@@ -320,9 +320,12 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
       state = await AsyncValue.guard(() => ref.read(eventServiceProvider).getEvent(arg));
       ref.invalidate(myTicketsProvider);
       ref.invalidate(myTicketProvider(arg));
-    } catch (e, st) {
+    } catch (e) {
+      // Rollback de l'optimistic update SANS casser tout l'écran (ex: 400
+      // "tu participes déjà") — l'erreur est relancée pour que l'appelant
+      // affiche un toast au lieu de perdre l'affichage de l'event.
       state = AsyncValue.data(current);
-      state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 
@@ -343,12 +346,11 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
       state = await AsyncValue.guard(() => ref.read(eventServiceProvider).getEvent(arg));
       ref.invalidate(myTicketsProvider);
       ref.invalidate(myTicketProvider(arg));
-    } catch (e, st) {
+    } catch (e) {
       state = AsyncValue.data(current);
-      state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
-
   Future<void> refresh() async {
     state = await AsyncValue.guard(
       () => ref.read(eventServiceProvider).getEvent(arg),

@@ -16,6 +16,8 @@ class TicketModel {
   final DateTime createdAt;
   final String? categoryName;
   final String? categoryColor; // hex #RRGGBB
+  final String? natureItemName;
+  final String? natureItemEmoji;
   final List<String> categoryAdvantages;
   final bool isInKind;
 
@@ -37,6 +39,8 @@ class TicketModel {
     required this.createdAt,
     this.categoryName,
     this.categoryColor,
+    this.natureItemName,
+    this.natureItemEmoji,
     this.categoryAdvantages = const [],
     this.isInKind = false,
   });
@@ -61,6 +65,8 @@ class TicketModel {
         createdAt: DateTime.parse(j['created_at'] as String),
         categoryName: j['category_name'] as String?,
         categoryColor: j['category_color'] as String?,
+        natureItemName: j['nature_item_name'] as String?,
+        natureItemEmoji: j['nature_item_emoji'] as String?,
         categoryAdvantages: (j['category_advantages'] as List<dynamic>?)
                 ?.map((e) => e.toString())
                 .toList() ??

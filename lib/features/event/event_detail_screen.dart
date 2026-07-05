@@ -1592,24 +1592,32 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       ? TpButtonState.disabled
                       : TpButtonState.idle,
                   onPressed: isDisabled
-                      ? null
-                      : () {
-                          if (isPaid) {
-                            // Event payant : on acquiert des billets (panier).
-                            if (event.ticketCategories.isNotEmpty) {
-                              context.push('/event/${event.id}/participate',
-                                  extra: event);
-                            } else {
-                              _showContribSheet(context); // legacy prix unique ± nature
-                            }
-                          } else if (participating || waitlisted) {
-                            widget.onCancelParticipation(); // gratuit : annuler/quitter
-                          } else if (fullNoSlot) {
-                            widget.onJoinWaitlist();
+                    ? null
+                    : () async {
+                        if (isPaid) {
+                          if (event.ticketCategories.isNotEmpty) {
+                            context.push('/event/${event.id}/participate', extra: event);
                           } else {
-                            widget.onParticipate(null, 1); // gratuit : participer
+                            _showContribSheet(context);
                           }
-                        },
+                          return;
+                        }
+                        try {
+                          if (participating || waitlisted) {
+                            await widget.onCancelParticipation();
+                          } else if (fullNoSlot) {
+                            await widget.onJoinWaitlist();
+                          } else {
+                            await widget.onParticipate(null, 1);
+                          }
+                        } catch (e) {
+                          if (!mounted) return;
+                          TpToast.error(
+                            context,
+                            e is ApiException ? e.message : 'Action impossible.',
+                          );
+                        }
+                      },
                 ),
               ),
             ],
@@ -1627,9 +1635,17 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       builder: (_) => _ContribSelectionSheet(
         items: event.contributionItems,
         amount: event.contributionAmount?.toInt(),
-        onConfirm: (itemId, qty) {
+        onConfirm: (itemId, qty) async {
           Navigator.pop(context);
-          widget.onParticipate(itemId, qty);
+          try {
+            await widget.onParticipate(itemId, qty);
+          } catch (e) {
+            if (!mounted) return;
+            TpToast.error(
+              context,
+              e is ApiException ? e.message : 'Impossible de participer.',
+            );
+          }
         },
       ),
     );

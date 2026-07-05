@@ -178,7 +178,7 @@ class _MyTicketsScreenState extends ConsumerState<MyTicketsScreen> {
                     children: filtered
                         .map((t) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: _TicketTile(ticket: t),
+                              child: TicketTile(ticket: t),
                             ))
                         .toList(),
                   );
@@ -267,9 +267,9 @@ class _FilterChip extends StatelessWidget {
       );
 }
 
-class _TicketTile extends StatelessWidget {
+class TicketTile extends StatelessWidget {
   final TicketModel ticket;
-  const _TicketTile({required this.ticket});
+  const TicketTile({required this.ticket});
 
   @override
   Widget build(BuildContext context) {

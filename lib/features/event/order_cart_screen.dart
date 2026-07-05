@@ -37,6 +37,7 @@ class OrderCartScreen extends ConsumerStatefulWidget {
 class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   final Map<String, int> _paid = {};   // categoryId → qté
   final Map<String, int> _nature = {}; // itemId → qté
+  final Map<String, int> _flat = {};   // 'flat' → qté (billet standard, sans catégorie)
   PayMethod _method = PayMethod.wave;
   _Phase _phase = _Phase.cart;
   bool _submitting = false;
@@ -52,6 +53,8 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       .toList();
   List<ContributionItemModel> get _items =>
       event.contributionItems.toList();
+  
+  
 
   int get _total =>
       _paid.values.fold(0, (s, v) => s + v) + _nature.values.fold(0, (s, v) => s + v);
