@@ -61,6 +61,7 @@ import '../providers/maintenance_provider.dart';
 import '../../features/system/maintenance_screen.dart';
 import 'main_shell.dart';
 import '../../features/profile/identity_verification_screen.dart';
+import '../../features/ticket/event_tickets_screen.dart';
 
 // ── Router provider ───────────────────────────────────────────────────────────
 
@@ -202,6 +203,16 @@ final _routes = [
       TicketScreen(
         eventId: s.pathParameters['eventId']!,
         ticket: s.extra as TicketModel?,
+      ),
+    ),
+  ),
+  GoRoute(
+    path: '/event/:eventId/tickets',
+    pageBuilder: (_, s) => _slide(
+      s,
+      EventTicketsScreen(
+        eventId: s.pathParameters['eventId']!,
+        eventTitle: (s.extra as Map<String, dynamic>?)?['title'] as String? ?? '',
       ),
     ),
   ),

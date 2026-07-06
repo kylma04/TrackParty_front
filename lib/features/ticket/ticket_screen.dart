@@ -217,6 +217,17 @@ class _TicketCard extends StatelessWidget {
                   ),
                 ],
               ]),
+              if (ticket.isInKind && ticket.natureItemName != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Article choisi : ${ticket.natureItemName}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
               // Avantages de la catégorie, juste sous le nom.
               if (ticket.categoryAdvantages.isNotEmpty) ...[
                 const SizedBox(height: 8),

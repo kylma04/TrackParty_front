@@ -532,6 +532,7 @@ class _NotifRowState extends State<_NotifRow> {
                       }
                       return _InvitationActions(
                         invitationId: notif.invitationId!,
+                        eventId: notif.eventId,
                         onResponded: (action) {
                           setState(() => _invitationOutcome =
                               action == 'accept' ? 'accepted' : 'refused');
@@ -583,9 +584,14 @@ class _NotifRowState extends State<_NotifRow> {
 
 class _InvitationActions extends ConsumerStatefulWidget {
   final String invitationId;
+  final String? eventId;
   final ValueChanged<String> onResponded; // 'accept' | 'refuse'
 
-  const _InvitationActions({required this.invitationId, required this.onResponded});
+  const _InvitationActions({
+    required this.invitationId, 
+    required this.onResponded,
+    this.eventId,
+  });
 
   @override
   ConsumerState<_InvitationActions> createState() => _InvitationActionsState();
@@ -594,6 +600,7 @@ class _InvitationActions extends ConsumerStatefulWidget {
 class _InvitationActionsState extends ConsumerState<_InvitationActions> {
   bool _loading = false;
 
+/*
   Future<void> _respond(String action) async {
     setState(() => _loading = true);
     try {
@@ -612,50 +619,36 @@ class _InvitationActionsState extends ConsumerState<_InvitationActions> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
+    }*/
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const SizedBox(height: 28,
           child: Center(child: CircularProgressIndicator(color: kPrimary, strokeWidth: 2)));
     }
-    return Row(children: [
-      Semantics(
-        button: true,
-        label: 'Accepter l\'invitation',
-        child: GestureDetector(
-          onTap: () => _respond('accept'),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: trackpartyGradient,
-              borderRadius: BorderRadius.circular(Radii.tag),
-            ),
-            child: const Text('Accepter',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+    return Semantics(
+      button: true,
+      label: 'Voir l\'invitation',
+      child: GestureDetector(
+        onTap: () {
+          context.push('/invitations');
+          /*if (widget.eventId != null) {
+            context.push('/event/${widget.eventId}');
+          }*/
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            gradient: trackpartyGradient,
+            borderRadius: BorderRadius.circular(Radii.tag),
+          ),
+          child: const Text(
+            'Voir',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
           ),
         ),
       ),
-      const SizedBox(width: 6),
-      Semantics(
-        button: true,
-        label: 'Refuser l\'invitation',
-        child: GestureDetector(
-          onTap: () => _respond('refuse'),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: context.tpCard,
-              borderRadius: BorderRadius.circular(Radii.tag),
-              border: Border.all(color: context.tpHair),
-            ),
-            child: Text('Refuser',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
-          ),
-        ),
-      ),
-    ]);
+    );
   }
 }
 
