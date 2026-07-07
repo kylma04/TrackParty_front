@@ -13,6 +13,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../core/providers/event_provider.dart'; 
 
 class InvitationsScreen extends ConsumerStatefulWidget {
   const InvitationsScreen({super.key});
@@ -191,6 +192,11 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
         contributionItemId: contributionItemId,
         quantity: quantity,
       );
+      // seulement si acceptation 
+      if (action == 'accept') {
+        ref.invalidate(nearbyEventsFeedProvider);
+        ref.invalidate(trendingEventsFeedProvider);
+      }
       if (mounted) {
         final isPaid = widget.invitation.event?.contributionType == 'monetaire';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

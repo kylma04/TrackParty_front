@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:trackparty/core/providers/chat_provider.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
@@ -105,48 +106,55 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
       );
     }
   }
+@override
+Widget build(BuildContext context) {
+  final eventAsync = ref.watch(eventDetailProvider(widget.id));
 
-  @override
-  Widget build(BuildContext context) {
-    final eventAsync = ref.watch(eventDetailProvider(widget.id));
-
-    return eventAsync.when(
-      loading: () =>
-          const Scaffold(body: SingleChildScrollView(child: SkEventDetail())),
-      error: (e, _) => Scaffold(
+  return eventAsync.when(
+    loading: () =>
+        const Scaffold(body: SingleChildScrollView(child: SkEventDetail())),
+    error: (e, _) {
+      // Détecte si c'est un 404 (événement supprimé)
+      final isNotFound = e is ApiException && e.statusCode == 404;
+      
+      return Scaffold(
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Impossible de charger l\'événement',
+                isNotFound 
+                    ? 'Cet événement a été supprimé'
+                    : 'Impossible de charger l\'événement',
                 style: TextStyle(color: context.tpInkSub),
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () =>
-                    ref.read(eventDetailProvider(widget.id).notifier).refresh(),
-                child: const Text('Réessayer'),
+                onPressed: isNotFound
+                    ? null  // Bouton désactivé si 404
+                    : () => ref.read(eventDetailProvider(widget.id).notifier).refresh(),
+                child: Text(isNotFound ? 'Retour' : 'Réessayer'),
               ),
             ],
           ),
         ),
-      ),
-      data: (event) => _EventDetailContent(
-        event: event,
-        expanded: _expanded,
-        onToggleExpand: () => setState(() => _expanded = !_expanded),
-        onParticipate: (itemId, qty) => ref
-            .read(eventDetailProvider(widget.id).notifier)
-            .participate(contributionItemId: itemId, quantity: qty),
-        onCancelParticipation: () => ref
-            .read(eventDetailProvider(widget.id).notifier)
-            .cancelParticipation(),
-        onJoinWaitlist: () =>
-            ref.read(eventDetailProvider(widget.id).notifier).participate(),
-      ),
-    );
-  }
+      );
+    },
+    data: (event) => _EventDetailContent(
+      event: event,
+      expanded: _expanded,
+      onToggleExpand: () => setState(() => _expanded = !_expanded),
+      onParticipate: (itemId, qty) => ref
+          .read(eventDetailProvider(widget.id).notifier)
+          .participate(contributionItemId: itemId, quantity: qty),
+      onCancelParticipation: () => ref
+          .read(eventDetailProvider(widget.id).notifier)
+          .cancelParticipation(),
+      onJoinWaitlist: () =>
+          ref.read(eventDetailProvider(widget.id).notifier).participate(),
+    ),
+  );
+}
 }
 
 class _EventDetailContent extends ConsumerStatefulWidget {
@@ -1454,13 +1462,26 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final isDisabled = cancelled || past || atLimit || paidSoldOut;
 
     if (_locked) {
+      //verifie si l'utilisateur a deja une invitation en attente pour cet evenement
+      final invitations = ref.watch(invitationsProvider).valueOrNull ?? [];
+
+      final pendingInvitation = invitations.any(
+        (inv) =>
+            inv.isPending &&
+            inv.invitationType == 'event' &&
+            inv.event?.id == event.id,
+      );
       final status = event.myJoinRequestStatus;
 
       final String ctaLabel;
       final IconData ctaIcon;
       final bool ctaDisabled;
 
-      if (status == 'pending') {
+      if (pendingInvitation) {
+        ctaLabel = 'Répondre à l’invitation';
+        ctaIcon = PhosphorIcons.envelopeOpen();
+        ctaDisabled = false;
+      } else if (status == 'pending') {
         ctaLabel = 'Demande envoyée — en attente';
         ctaIcon = PhosphorIcons.clockCountdown();
         ctaDisabled = true;
@@ -1497,25 +1518,36 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               onPressed: ctaDisabled
                   ? null
                   : () async {
+                      if (pendingInvitation) {
+                        if (!context.mounted) return;
+
+                        context.push('/invitations');
+                        return;
+                      }
+
                       try {
                         await ref
                             .read(eventServiceProvider)
                             .requestPrivateJoin(event.id);
+
                         if (!context.mounted) return;
+
                         TpToast.success(
                           context,
                           'Demande envoyée à l\'organisateur.',
                         );
+
                         // Rafraîchir l'événement pour mettre à jour le statut
                         ref.invalidate(eventDetailProvider(event.id));
                       } catch (_) {
                         if (!context.mounted) return;
+
                         TpToast.error(
                           context,
                           'Impossible d\'envoyer la demande.',
                         );
                       }
-                    },
+                    }
             ),
           ),
         ),
