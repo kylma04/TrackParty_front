@@ -108,11 +108,11 @@ class _TicketBody extends StatelessWidget {
           Padding(
             padding: EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, MediaQuery.of(context).padding.bottom + 16),
             child: Column(children: [
-              if (ticket.isTransferable) ...[
+              if (ticket.isTransferable && ticket.eventStart.isAfter(DateTime.now())) ...[
                 _TransferButton(ticket: ticket),
                 const SizedBox(height: 8),
               ],
-              if (ticket.isInKind && !ticket.checkedIn) ...[
+              if (ticket.isInKind && !ticket.checkedIn && ticket.eventStart.isAfter(DateTime.now())) ...[
                 _CancelNatureButton(ticket: ticket),
                 const SizedBox(height: 8),
               ],

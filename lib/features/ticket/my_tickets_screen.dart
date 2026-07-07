@@ -34,7 +34,7 @@ class _MyTicketsScreenState extends ConsumerState<MyTicketsScreen> {
 
   bool _matches(TicketModel t) => switch (_filter) {
         'scanned' => t.checkedIn,
-        'expired' => !t.isValid && !t.checkedIn,
+        'expired' => (!t.isValid || t.eventStart.isBefore(DateTime.now())) && !t.checkedIn,
         _ => t.isValid && !t.checkedIn, // à venir
       };
 
@@ -274,7 +274,7 @@ class TicketTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateStr = DateFormat("EEE d MMM · HH'h'mm", 'fr_FR').format(ticket.eventStart.toLocal());
-    final expired  = !ticket.isValid;
+    final expired = !ticket.isValid || ticket.eventStart.isBefore(DateTime.now());
     final checked  = ticket.checkedIn;
 
     return Semantics(
