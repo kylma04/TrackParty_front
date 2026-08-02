@@ -187,6 +187,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     _ctrl.clear();
     await ref.read(chatThreadProvider(widget.roomId).notifier)
         .sendTextMessage(text, attachEvent: _attachEvent);
+
+    ref.invalidate(chatThreadProvider(widget.roomId));
     _scrollToBottom();
   }
 
@@ -195,6 +197,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     if (file == null) return;
     await ref.read(chatThreadProvider(widget.roomId).notifier)
         .sendImageMessage(file, attachEvent: _attachEvent);
+
+    ref.invalidate(chatThreadProvider(widget.roomId));
     _scrollToBottom();
   }
 
@@ -301,6 +305,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     if (path != null && secs >= 1) {
       await ref.read(chatThreadProvider(widget.roomId).notifier)
           .sendVoiceMessage(path, secs, attachEvent: _attachEvent);
+
+      ref.invalidate(chatThreadProvider(widget.roomId));
       _scrollToBottom();
     }
   }

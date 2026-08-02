@@ -196,6 +196,9 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
       if (action == 'accept') {
         ref.invalidate(nearbyEventsFeedProvider);
         ref.invalidate(trendingEventsFeedProvider);
+        if (widget.invitation.event != null) {
+          ref.invalidate(eventDetailProvider(widget.invitation.event!.id));
+        }
       }
       if (mounted) {
         final isPaid = widget.invitation.event?.contributionType == 'monetaire';
