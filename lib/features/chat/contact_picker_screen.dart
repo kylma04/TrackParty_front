@@ -5,7 +5,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/models/chat_model.dart';
 import '../../core/providers/chat_provider.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
@@ -86,7 +85,7 @@ class _ContactPickerScreenState extends ConsumerState<ContactPickerScreen> {
                   }
                   if (filtered.isEmpty) {
                     return Center(
-                      child: Text('Aucun résultat', style: TextStyle(color: context.tpInkMute)),
+                      child: Text('Aucun résultat', style: TextStyle(color: context.tpInkSub)),
                     );
                   }
                   return ListView.separated(
@@ -209,11 +208,10 @@ class _ContactRow extends StatelessWidget {
               width: 24, height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: checked ? trackpartyGradient : null,
-                color: checked ? null : Colors.transparent,
+                color: checked ? kPrimary : Colors.transparent,
                 border: checked ? null : Border.all(color: context.tpHair, width: 2),
               ),
-              child: checked ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
+              child: checked ? Icon(PhosphorIconsBold.check, color: Colors.white, size: 16) : null,
             ),
           ]),
         ),

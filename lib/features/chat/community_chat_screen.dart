@@ -42,12 +42,6 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
   bool _attachEvent = true;
 
   @override
-  void initState() {
-    super.initState();
-    _ctrl.addListener(() => setState(() {}));
-  }
-
-  @override
   void dispose() {
     _ctrl.dispose();
     _scrollCtrl.dispose();
@@ -481,7 +475,6 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
   // ── Composer (admins seulement) ───────────────────────────────────────────
 
   Widget _buildComposer(BuildContext context, String roomId, bool isAdmin) {
-    final hasText  = _ctrl.text.isNotEmpty;
     final hintText = isAdmin
         ? (_attachEvent ? 'Poster une annonce…' : 'Écrire un message…')
         : 'Commenter…';
@@ -502,65 +495,64 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
           Padding(
             padding: EdgeInsets.fromLTRB(Sp.md, 10, Sp.md,
                 10 + MediaQuery.of(context).padding.bottom),
-            child: Row(
-        children: [
-          const TpAvatar(name: 'Moi', size: 36),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
-              decoration: BoxDecoration(
-                color: context.tpBg,
-                borderRadius: BorderRadius.circular(22),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 4),
-              child: TextField(
-                controller: _ctrl,
-                maxLines: null,
-                textCapitalization: TextCapitalization.sentences,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-                onSubmitted: (_) => _sendPost(roomId),
-                textInputAction: TextInputAction.send,
-              ),
+            // Scopé au ValueListenableBuilder pour ne reconstruire que la barre
+            // de saisie à chaque frappe, plutôt que tout l'écran via setState().
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _ctrl,
+              builder: (context, value, _) {
+                final hasText = value.text.isNotEmpty;
+                return Row(
+                  children: [
+                    const TpAvatar(name: 'Moi', size: 36),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(maxHeight: 120),
+                        decoration: BoxDecoration(
+                          color: context.tpBg,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 4),
+                        child: TextField(
+                          controller: _ctrl,
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                          decoration: InputDecoration(
+                            hintText: hintText,
+                            hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _sendPost(roomId),
+                          textInputAction: TextInputAction.send,
+                        ),
+                      ),
+                    ),
+                    if (hasText) ...[
+                      const SizedBox(width: 8),
+                      Semantics(
+                        button: true,
+                        label: 'Envoyer le message',
+                        child: GestureDetector(
+                        onTap: () => _sendPost(roomId),
+                        child: Container(
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(
+                            gradient: trackpartyGradient,
+                            borderRadius: BorderRadius.circular(Radii.button),
+                            boxShadow: Shadows.brand,
+                          ),
+                          child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
+                        ),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
-          const SizedBox(width: 8),
-          if (hasText)
-            Semantics(
-              button: true,
-              label: 'Envoyer le message',
-              child: GestureDetector(
-              onTap: () => _sendPost(roomId),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(Radii.button),
-                  boxShadow: Shadows.brand,
-                ),
-                child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
-              ),
-              ),
-            )
-          else
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: context.tpBg,
-                borderRadius: BorderRadius.circular(Radii.button),
-                border: Border.all(color: context.tpHair),
-              ),
-              child: Icon(PhosphorIcons.image(), color: context.tpInkMute, size: 20),
-            ),
-          ],
-        ),
-        ),
         ],
       ),
     );
@@ -609,8 +601,11 @@ class _CommunityPost extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Text(message.sender.displayName,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
+                      Flexible(
+                        child: Text(message.sender.displayName,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
+                      ),
                       const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -746,10 +741,13 @@ class _CommunityComment extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(message.sender.displayName,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInk)),
+                            Expanded(
+                              child: Text(message.sender.displayName,
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: context.tpInk)),
+                            ),
+                            const SizedBox(width: 8),
                             Text(DateFormat('HH:mm').format(message.createdAt.toLocal()),
                               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: context.tpInkMute)),
                           ],
@@ -932,7 +930,7 @@ Future<String?> _showRenameSheet(BuildContext context, String initialName) {
           MediaQuery.of(ctx).padding.bottom + 20;
       return Container(
         decoration: BoxDecoration(
-          color: Theme.of(ctx).cardColor,
+          color: ctx.tpCard,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
         padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom),
@@ -944,7 +942,7 @@ Future<String?> _showRenameSheet(BuildContext context, String initialName) {
               child: Container(
                 width: 44, height: 5,
                 decoration: BoxDecoration(
-                  color: Theme.of(ctx).dividerColor,
+                  color: ctx.tpHair,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),

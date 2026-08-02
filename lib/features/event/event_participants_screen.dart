@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/event_model.dart';
@@ -11,6 +10,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_screen_header.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -169,71 +169,38 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
         ]),
       );
     }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 32),
-      child: Column(children: [
-        _buildStatsBanner(),
-        _buildTabs(context),
-        _buildContent(),
-      ]),
-    );
+    // Stats + onglets fixes en haut, contenu scrollable dans un Expanded —
+    // nécessaire pour que les onglets A-Z/En attente puissent utiliser un
+    // vrai ListView.builder (fenêtre bornée) au lieu d'une Column dans un
+    // SingleChildScrollView qui construirait tous les participants d'un coup.
+    return Column(children: [
+      _buildStatsBanner(),
+      _buildTabs(context),
+      Expanded(child: _buildContent()),
+    ]);
   }
 
   // ── Header ────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context) {
-    return Padding(
+    return TpScreenHeader(
+      title: 'Participants',
+      subtitle: _event?.title,
       padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 0),
-      child: Row(
-        children: [
-          Semantics(
-            button: true,
-            label: 'Retour',
-            child: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: context.tpCard,
-                  borderRadius: BorderRadius.circular(Radii.md),
-                  boxShadow: Shadows.sm,
-                ),
-                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-              ),
+      trailing: Semantics(
+        button: true,
+        label: 'Actualiser',
+        child: GestureDetector(
+          onTap: _load,
+          child: Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: kPrimary,
+              borderRadius: BorderRadius.circular(Radii.md),
             ),
+            child: Icon(PhosphorIcons.arrowsClockwise(), color: Colors.white, size: 18),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Participants',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900,
-                      color: context.tpInk, letterSpacing: -0.4)),
-                if (_event != null)
-                  Text(_event!.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-              ],
-            ),
-          ),
-          Semantics(
-            button: true,
-            label: 'Actualiser',
-            child: GestureDetector(
-              onTap: _load,
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(Radii.md),
-                  boxShadow: const [BoxShadow(color: Color(0x4D7C3AED), blurRadius: 10, offset: Offset(0, 4))],
-                ),
-                child: Icon(PhosphorIcons.arrowsClockwise(), color: Colors.white, size: 18),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -260,7 +227,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
         decoration: BoxDecoration(
           gradient: trackpartyGradient,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: const [BoxShadow(color: Color(0x4D7C3AED), blurRadius: 20, offset: Offset(0, 8))],
+          boxShadow: Shadows.brand,
         ),
         child: Stack(
           children: [
@@ -396,15 +363,12 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
   // ── Content ───────────────────────────────────────────────────────────────
 
   Widget _buildContent() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 0),
-      child: switch (_tab) {
-        0 => _buildGroupsTab(),
-        1 => _buildAzTab(),
-        2 => _buildPendingTab(),
-        _ => const SizedBox.shrink(),
-      },
-    );
+    return switch (_tab) {
+      0 => _buildGroupsTab(),
+      1 => _buildAzTab(),
+      2 => _buildPendingTab(),
+      _ => const SizedBox.shrink(),
+    };
   }
 
   Widget _buildGroupsTab() {
@@ -412,18 +376,24 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
     if (gs.isEmpty) {
       return _buildEmpty('Aucun participant confirmé');
     }
-    return Column(
-      children: gs.map((g) => Padding(
-        padding: const EdgeInsets.only(bottom: 14),
-        child: _ContribGroup(group: g),
-      )).toList(),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 32),
+      child: Column(
+        children: gs.map((g) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _ContribGroup(group: g),
+        )).toList(),
+      ),
     );
   }
 
   Widget _buildAzTab() {
     final list = _allSorted;
     if (list.isEmpty) return _buildEmpty('Aucun participant');
-    return _ParticipantList(people: list);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 0),
+      child: _ParticipantList(people: list),
+    );
   }
 
   Widget _buildPendingTab() {
@@ -431,14 +401,17 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
     if (list.isEmpty) {
       return _buildEmpty('Aucune inscription en attente');
     }
-    return _ParticipantList(people: list);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 14, Sp.md, 0),
+      child: _ParticipantList(people: list),
+    );
   }
 
   Widget _buildEmpty(String msg) => Padding(
-    padding: const EdgeInsets.only(top: 40),
+    padding: const EdgeInsets.fromLTRB(Sp.md, 40, Sp.md, 0),
     child: Center(
       child: Text(msg,
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.tpInkSub)),
     ),
   );
 }
@@ -474,7 +447,7 @@ class _ContribGroup extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(Radii.card),
-        boxShadow: const [BoxShadow(color: Color(0x0F1B1A2E), blurRadius: 12, offset: Offset(0, 4))],
+        boxShadow: Shadows.md,
       ),
       child: Column(
         children: [
@@ -510,7 +483,7 @@ class _ContribGroup extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Text('Aucun participant pour l\'instant',
-                style: TextStyle(fontSize: 12, color: context.tpInkMute)),
+                style: TextStyle(fontSize: 12, color: context.tpInkSub)),
             )
           else ...[
             const SizedBox(height: 12),
@@ -537,12 +510,14 @@ class _ParticipantList extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(Radii.card),
-        boxShadow: const [BoxShadow(color: Color(0x0F1B1A2E), blurRadius: 12, offset: Offset(0, 4))],
+        boxShadow: Shadows.md,
       ),
-      child: Column(
-        children: people.asMap().entries.map((e) =>
-          _PersonRow(person: e.value, isFirst: e.key == 0),
-        ).toList(),
+      // .builder : un événement populaire peut compter des centaines
+      // d'inscrits, on ne veut construire que les lignes visibles.
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 32),
+        itemCount: people.length,
+        itemBuilder: (_, i) => _PersonRow(person: people[i], isFirst: i == 0),
       ),
     );
   }

@@ -27,7 +27,10 @@ const kCardDark = Color(0xFF1A1633);
 const kCardAltDark = Color(0xFF241E40);
 const kInkDark = Color(0xFFFFFFFF);
 const kInkSubDark = Color(0xAAFFFFFF);
-const kInkMuteDark = Color(0x66FFFFFF);
+// 0x78 (47%) au lieu de 0x66 (40%) — le blanc à 40% sur kBgDark ne donnait
+// que ~3.8:1 de contraste (sous le seuil WCAG AA 4.5:1 texte normal) ;
+// 47% remonte à ~4.8:1 sans changer la fonction "texte discret" du token.
+const kInkMuteDark = Color(0x78FFFFFF);
 const kHairDark = Color(0x14FFFFFF);
 
 // Categories

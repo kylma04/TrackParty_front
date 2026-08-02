@@ -426,7 +426,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                       inv.isAccepted ? '✅ Invitation acceptée' : '❌ Invitation refusée',
                       style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w800,
-                        color: inv.isAccepted ? kPrimary : context.tpInkMute,
+                        color: inv.isAccepted ? kPrimary : context.tpInkSub,
                       ),
                     ),
                   ),
@@ -469,7 +469,7 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
     final sel = _selected;
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: context.tpCard,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.cardLg)),
       ),
       padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 16),
@@ -481,11 +481,11 @@ class _ContribPickerSheetState extends State<_ContribPickerSheet> {
           const SizedBox(height: 16),
           Text('Que vas-tu apporter ?',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
-                  color: Theme.of(context).textTheme.bodyLarge?.color, letterSpacing: -0.5)),
+                  color: context.tpInk, letterSpacing: -0.5)),
           const SizedBox(height: 4),
           Text('Choisis un item pour accepter l\'invitation',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                  color: Theme.of(context).textTheme.bodySmall?.color)),
+                  color: context.tpInkSub)),
           const SizedBox(height: 16),
           ...widget.items.map((item) {
             final isSelected = _selectedId == item.id;

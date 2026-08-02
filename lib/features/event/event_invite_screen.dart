@@ -244,7 +244,7 @@ class _EventInviteScreenState extends ConsumerState<EventInviteScreen>
                           Text(_link!.webUrl,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11, color: context.tpInkMute)),
+                              style: TextStyle(fontSize: 11, color: context.tpInkSub)),
                         ],
                       )),
           ),
@@ -266,15 +266,21 @@ class _EventInviteScreenState extends ConsumerState<EventInviteScreen>
     );
   }
 
-  Widget _miniBtn(String label, VoidCallback onTap) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-              gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.tag)),
-          child: Text(label,
-              style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+  Widget _miniBtn(String label, VoidCallback onTap) => Semantics(
+        button: true,
+        label: label,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+                gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.tag)),
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+          ),
         ),
       );
 
@@ -282,8 +288,7 @@ class _EventInviteScreenState extends ConsumerState<EventInviteScreen>
         icon: Icon(icon, size: 18, color: context.tpInkSub),
         onPressed: onTap,
         tooltip: tip,
-        visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       );
 
   Widget _candidateList(String source) {
@@ -340,7 +345,7 @@ class _EventInviteScreenState extends ConsumerState<EventInviteScreen>
                   color: c.isInvitable ? context.tpInk : context.tpInkMute)),
           subtitle: c.statusLabel == null
               ? null
-              : Text(c.statusLabel!, style: TextStyle(fontSize: 11, color: context.tpInkMute)),
+              : Text(c.statusLabel!, style: TextStyle(fontSize: 11, color: context.tpInkSub)),
           trailing: c.isInvitable
               ? Icon(
                   selected ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill) : PhosphorIcons.circle(),

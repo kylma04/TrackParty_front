@@ -10,6 +10,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/providers/chat_provider.dart';
 import '../../theme/spacing.dart';
 import '../../widgets/tp_button.dart';
+import '../../widgets/tp_toast.dart';
 import 'image_editor_screen.dart';
 
 /// Revue des images sélectionnées avant envoi en chat : chaque image peut
@@ -33,7 +34,7 @@ class MultiImagePreviewScreen extends ConsumerStatefulWidget {
 }
 
 class _MultiImagePreviewScreenState extends ConsumerState<MultiImagePreviewScreen> {
-  late final List<File> _files = List.of(widget.files);
+  late List<File> _files = List.of(widget.files);
   bool _sending = false;
 
   Future<void> _editAt(int index) async {
@@ -56,10 +57,21 @@ class _MultiImagePreviewScreenState extends ConsumerState<MultiImagePreviewScree
   Future<void> _sendAll() async {
     setState(() => _sending = true);
     final notifier = ref.read(chatThreadProvider(widget.roomId).notifier);
-    for (final file in _files) {
-      await notifier.sendImageMessage(XFile(file.path), attachEvent: widget.attachEvent);
+    final total = _files.length;
+    final failedFiles = <File>[];
+    for (final file in List.of(_files)) {
+      final ok = await notifier.sendImageMessage(XFile(file.path), attachEvent: widget.attachEvent);
+      if (!ok) failedFiles.add(file);
     }
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    if (failedFiles.isNotEmpty) {
+      final failed = failedFiles.length;
+      setState(() { _sending = false; _files = failedFiles; });
+      TpToast.error(context,
+          '${total - failed}/$total photo${total > 1 ? 's' : ''} envoyée${total - failed > 1 ? 's' : ''} — $failed échec${failed > 1 ? 's' : ''}');
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
@@ -71,6 +83,7 @@ class _MultiImagePreviewScreenState extends ConsumerState<MultiImagePreviewScree
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(PhosphorIconsBold.x),
+          tooltip: 'Fermer',
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('${_files.length} photo${_files.length > 1 ? 's' : ''}'),
@@ -91,7 +104,13 @@ class _MultiImagePreviewScreenState extends ConsumerState<MultiImagePreviewScree
           ),
           SizedBox(
             height: 84,
-            child: ListView.separated(
+            // Empêche de retirer/éditer une photo pendant l'envoi : la liste
+            // itérée dans _sendAll ne doit pas changer sous ses pieds.
+            child: IgnorePointer(
+              ignoring: _sending,
+              child: Opacity(
+                opacity: _sending ? 0.5 : 1,
+                child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: Sp.md),
               scrollDirection: Axis.horizontal,
               itemCount: _files.length,
@@ -104,30 +123,40 @@ class _MultiImagePreviewScreenState extends ConsumerState<MultiImagePreviewScree
                     child: Image.file(_files[i], width: 64, height: 64, fit: BoxFit.cover),
                   ),
                   Positioned(
-                    bottom: 2,
-                    right: 2,
-                    child: GestureDetector(
-                      onTap: () => _editAt(i),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle),
-                        child: const Icon(PhosphorIconsBold.pencilSimple, size: 12, color: Colors.white),
+                    bottom: 0,
+                    right: 0,
+                    child: Semantics(
+                      button: true,
+                      label: 'Modifier la photo ${i + 1}',
+                      child: GestureDetector(
+                        onTap: () => _editAt(i),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle),
+                          child: const Icon(PhosphorIconsBold.pencilSimple, size: 14, color: Colors.white),
+                        ),
                       ),
                     ),
                   ),
                   Positioned(
-                    top: -6,
-                    right: -6,
-                    child: GestureDetector(
-                      onTap: () => _removeAt(i),
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle),
-                        child: const Icon(PhosphorIconsBold.x, size: 12, color: Colors.white),
+                    top: -8,
+                    right: -8,
+                    child: Semantics(
+                      button: true,
+                      label: 'Retirer la photo ${i + 1}',
+                      child: GestureDetector(
+                        onTap: () => _removeAt(i),
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle),
+                          child: const Icon(PhosphorIconsBold.x, size: 14, color: Colors.white),
+                        ),
                       ),
                     ),
                   ),
                 ],
+              ),
+                ),
               ),
             ),
           ),

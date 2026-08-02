@@ -11,12 +11,14 @@ import '../../core/models/event_model.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/ticket_provider.dart';
 import '../../core/services/payment_service.dart';
+import '../../core/utils/format.dart';
+import '../../core/utils/ticket_rules.dart';
 import '../../widgets/pay_method_logo.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
-import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_button.dart';
+import '../../widgets/tp_screen_header.dart';
 import '../../widgets/tp_toast.dart';
 
 
@@ -87,23 +89,12 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
     super.dispose();
   }
 
-  String _fmt(int v) {
-    final s = v.toString();
-    final b = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
-      b.write(s[i]);
-    }
-    return '${b.toString()} FCFA';
-  }
-
   void _bump(Map<String, int> map, String id, int delta) {
     final next = (map[id] ?? 0) + delta;
     setState(() {
       if (next <= 0) {
         map.remove(id);
-      } else if (event.maxTicketsPerUserPerEvent == null || 
-        _total - (map[id] ?? 0) + next <= event.maxTicketsPerUserPerEvent!) {
+      } else if (isWithinCartTicketLimit(event, _total - (map[id] ?? 0) + next)) {
         map[id] = next;
       }
     });
@@ -126,9 +117,22 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
             method: _paidAmount > 0 ? _method : null,
           );
       if (res.needsPayment) {
+        // La commande existe déjà côté serveur à ce stade : si l'ouverture de
+        // l'app de paiement échoue (app absente, deep-link invalide), on
+        // bascule quand même vers le polling au lieu d'afficher une erreur
+        // qui laisserait croire qu'aucune commande n'a été créée (risque de
+        // double commande si l'utilisateur retente _submit).
         _paymentId = res.paymentId;
-        await launchUrl(Uri.parse(res.redirectUrl!),
-            mode: LaunchMode.externalApplication);
+        try {
+          await launchUrl(Uri.parse(res.redirectUrl!),
+              mode: LaunchMode.externalApplication);
+        } catch (e) {
+          debugPrint('OrderCart: échec ouverture app de paiement — $e');
+          if (mounted) {
+            TpToast.error(context, "Impossible d'ouvrir l'application de paiement. "
+                'Vérifie qu\'elle est installée, puis suis l\'état ici.');
+          }
+        }
         if (!mounted) return;
         setState(() => _phase = _Phase.polling);
         _startPolling();
@@ -138,7 +142,8 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       }
     } on ApiException catch (e) {
       if (mounted) TpToast.error(context, e.message);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('OrderCart: échec _submit (createOrder) — $e');
       if (mounted) TpToast.error(context, 'Impossible de valider la commande.');
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -162,6 +167,10 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       ticks++;
       if (ticks > 75 || _paymentId == null) {
         t.cancel();
+        // Le délai de polling est dépassé (5 min) : on ne laisse jamais
+        // l'utilisateur bloqué sur "Paiement en cours…" sans issue — on
+        // bascule vers l'écran d'échec (qui propose de réessayer).
+        if (mounted) setState(() => _phase = _Phase.failure);
         return;
       }
       try {
@@ -174,7 +183,9 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
           t.cancel();
           setState(() => _phase = _Phase.failure);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('OrderCart: échec vérification statut paiement — $e');
+      }
     });
   }
 
@@ -214,20 +225,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   Widget _appBar(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
         child: Row(children: [
-          if (_phase == _Phase.cart)
-            GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: context.tpCard,
-                  borderRadius: BorderRadius.circular(Radii.md),
-                  boxShadow: Shadows.sm,
-                ),
-                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-              ),
-            ),
+          if (_phase == _Phase.cart) const TpBackButton(),
           const SizedBox(width: 12),
           Text('Je participe',
               style: TextStyle(
@@ -247,7 +245,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
               _qtyRow(
                 context,
                 title: 'Entrée',
-                subtitle: _fmt(_flatPrice!),
+                subtitle: formatFcfa(_flatPrice!),
                 qty: _flat['flat'] ?? 0,
                 soldOut: _flatRemaining != null && _flatRemaining! <= 0,
                 maxQty: _flatRemaining,
@@ -260,7 +258,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
               ..._cats.map((c) => _qtyRow(
                     context,
                     title: c.name,
-                    subtitle: _fmt(c.price),
+                    subtitle: formatFcfa(c.price),
                     qty: _paid[c.id] ?? 0,
                     soldOut: c.isSoldOut,
                     maxQty: c.remaining,
@@ -300,10 +298,10 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
 
   Widget _bottomBar(BuildContext context, int paidAmount) {
     final enabled = _total >= 1 &&
-      (event.maxTicketsPerUserPerEvent == null || _total <= event.maxTicketsPerUserPerEvent!) &&
+      isWithinCartTicketLimit(event, _total) &&
       !_submitting;
     final label = paidAmount > 0
-        ? 'Payer ${_fmt(paidAmount)}'
+        ? 'Payer ${formatFcfa(paidAmount)}'
         : (_total > 0 ? 'Confirmer ma participation' : 'Sélectionne un billet');
     return Container(
       padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
@@ -311,27 +309,13 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
         color: context.tpCard,
         boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, -2))],
       ),
-      child: GestureDetector(
-        onTap: enabled ? _submit : null,
-        child: Opacity(
-          opacity: enabled ? 1 : 0.5,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              gradient: trackpartyGradient,
-              borderRadius: BorderRadius.circular(Radii.md),
-            ),
-            child: _submitting
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                : Text(label,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white)),
-          ),
-        ),
+      child: TpButton(
+        label: label,
+        fullWidth: true,
+        state: _submitting
+            ? TpButtonState.loading
+            : (enabled ? TpButtonState.idle : TpButtonState.disabled),
+        onPressed: enabled ? _submit : null,
       ),
     );
   }
@@ -353,7 +337,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       int? maxQty}) {
     // + bloqué si épuisé, si on atteint la limite globale, ou le stock de la ligne.
     final canAdd = !soldOut &&
-        (event.maxTicketsPerUserPerEvent == null || _total < event.maxTicketsPerUserPerEvent!) &&
+        isWithinCartTicketLimit(event, _total + 1) &&
         (maxQty == null || qty < maxQty);
     return Opacity(
       opacity: soldOut ? 0.45 : 1,
@@ -371,6 +355,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       fontSize: 14.5, fontWeight: FontWeight.w800, color: context.tpInk)),
               Text(soldOut ? 'Plus de billets disponibles' : subtitle,
@@ -385,7 +370,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                 style: TextStyle(
                     fontSize: 12.5, fontWeight: FontWeight.w900, color: kError))
           else ...[
-            _stepBtn(context, '−', qty > 0 ? onMinus : null),
+            _stepBtn(context, '−', qty > 0 ? onMinus : null, label: 'Retirer $title'),
             SizedBox(
               width: 30,
               child: Center(
@@ -394,7 +379,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                         fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
               ),
             ),
-            _stepBtn(context, '+', canAdd ? onPlus : null),
+            _stepBtn(context, '+', canAdd ? onPlus : null, label: 'Ajouter $title'),
           ],
         ]),
       ),
@@ -427,6 +412,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${i.emoji} ${i.name}',
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 14.5, fontWeight: FontWeight.w800, color: context.tpInk)),
                 Text(
@@ -446,7 +432,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
               Text('Épuisé',
                   style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: kError))
             else
-              Icon(selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+              Icon(selected ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill) : PhosphorIcons.circle(),
                   color: selected ? kPrimary : context.tpInkMute),
           ]),
         ),
@@ -454,21 +440,33 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
     );
   }
 
-  Widget _stepBtn(BuildContext context, String s, VoidCallback? onTap) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: onTap == null ? context.tpBg : kPrimary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(Radii.tag),
+  Widget _stepBtn(BuildContext context, String s, VoidCallback? onTap, {required String label}) =>
+      Semantics(
+        button: true,
+        label: label,
+        enabled: onTap != null,
+        child: GestureDetector(
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: onTap == null ? context.tpBg : kPrimary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(Radii.tag),
+                ),
+                alignment: Alignment.center,
+                child: Text(s,
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: onTap == null ? context.tpInkMute : kPrimary)),
+              ),
+            ),
           ),
-          alignment: Alignment.center,
-          child: Text(s,
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: onTap == null ? context.tpInkMute : kPrimary)),
         ),
       );
 
@@ -494,7 +492,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                 style: TextStyle(
                     fontSize: 15, fontWeight: FontWeight.w800, color: context.tpInk)),
           ),
-          Icon(active ? Icons.check_circle_rounded : Icons.circle_outlined,
+          Icon(active ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill) : PhosphorIcons.circle(),
               color: active ? kPrimary : context.tpInkMute),
         ]),
       ),
@@ -534,7 +532,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
             decoration: BoxDecoration(
                 color: (ok ? kSuccess : kError).withValues(alpha: 0.15),
                 shape: BoxShape.circle),
-            child: Icon(ok ? Icons.check_rounded : Icons.close_rounded,
+            child: Icon(ok ? PhosphorIconsBold.check : PhosphorIconsBold.x,
                 color: ok ? kSuccess : kError, size: 44),
           ),
           const SizedBox(height: 20),
@@ -558,32 +556,17 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                     fontSize: 12.5, fontWeight: FontWeight.w600, color: context.tpInkMute)),
           ],
           const SizedBox(height: 26),
-          SizedBox(
-            width: double.infinity,
-            child: GestureDetector(
-              onTap: () {
-                if (ok) {
-                  context.pushReplacement('/my-tickets');
-                } else {
-                  setState(() => _phase = _Phase.cart);
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: ok ? trackpartyGradient : null,
-                  color: ok ? null : context.tpCard,
-                  borderRadius: BorderRadius.circular(Radii.md),
-                  border: ok ? null : Border.all(color: context.tpInkMute.withValues(alpha: 0.2)),
-                ),
-                child: Text(ok ? 'Voir mes billets' : 'Réessayer',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: ok ? Colors.white : context.tpInk)),
-              ),
-            ),
+          TpButton(
+            label: ok ? 'Voir mes billets' : 'Réessayer',
+            fullWidth: true,
+            variant: ok ? TpButtonVariant.gradient : TpButtonVariant.outline,
+            onPressed: () {
+              if (ok) {
+                context.pushReplacement('/my-tickets');
+              } else {
+                setState(() => _phase = _Phase.cart);
+              }
+            },
           ),
           if (!ok) ...[
             const SizedBox(height: 8),

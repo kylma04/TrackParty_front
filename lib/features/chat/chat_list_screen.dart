@@ -163,9 +163,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             ),
           ),
           if (_query.isNotEmpty)
-            GestureDetector(
-              onTap: () => setState(() { _searchCtrl.clear(); _query = ''; }),
-              child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 16),
+            Semantics(
+              button: true, label: 'Effacer la recherche',
+              child: IconButton(
+                icon: Icon(PhosphorIcons.x(), size: 16),
+                color: context.tpInkMute,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () => setState(() { _searchCtrl.clear(); _query = ''; }),
+              ),
             ),
         ]),
       ),
@@ -230,12 +236,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         onTap: () => _showNewConversationSheet(context),
         child: Container(
           width: 58, height: 58,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: trackpartyGradient,
             shape: BoxShape.circle,
-            boxShadow: const [
-              BoxShadow(color: Color(0x407C3AED), blurRadius: 16, offset: Offset(0, 6)),
-            ],
+            boxShadow: Shadows.brand,
           ),
           child: Icon(PhosphorIcons.chatCircleText(PhosphorIconsStyle.fill), color: Colors.white, size: 26),
         ),
@@ -267,7 +271,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444),
+                    color: kError,
                     borderRadius: BorderRadius.circular(Radii.pill),
                     border: Border.all(color: context.tpBg, width: 2),
                   ),
@@ -315,13 +319,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      gradient: active ? trackpartyGradient : null,
-                      color: active ? null : context.tpCard,
+                      color: active ? kPrimary : context.tpCard,
                       borderRadius: BorderRadius.circular(Radii.pill),
                       border: active ? null : Border.all(color: context.tpHair),
-                      boxShadow: active
-                          ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 12, offset: Offset(0, 4))]
-                          : null,
                     ),
                     child: Text(_tabLabels[i],
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
@@ -452,10 +452,13 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
     Future<List<InvitationModel>> safe(Future<List<InvitationModel>> f) =>
         f.onError((_, _) => []);
 
-    final sentAccepted     = await safe(service.getInvitations(direction: 'sent',     status: 'accepted'));
-    final receivedAccepted = await safe(service.getInvitations(direction: 'received', status: 'accepted'));
-    final sentPending      = await safe(service.getInvitations(direction: 'sent',     status: 'pending'));
-    final receivedPending  = await safe(service.getInvitations(direction: 'received', status: 'pending'));
+    final results = await Future.wait([
+      safe(service.getInvitations(direction: 'sent',     status: 'accepted')),
+      safe(service.getInvitations(direction: 'received', status: 'accepted')),
+      safe(service.getInvitations(direction: 'sent',     status: 'pending')),
+      safe(service.getInvitations(direction: 'received', status: 'pending')),
+    ]);
+    final [sentAccepted, receivedAccepted, sentPending, receivedPending] = results;
 
     final auth = ref.read(authNotifierProvider).valueOrNull;
     final myId = auth is AuthAuthenticated ? auth.user.id : '';
@@ -512,6 +515,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
         ref.read(chatRoomsProvider.notifier).refresh();
       }
     } catch (_) {
+      if (mounted) TpToast.error(context, 'Impossible d\'ouvrir la conversation');
     } finally {
       if (mounted) setState(() => _acting = null);
     }
@@ -622,8 +626,8 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
                 child: Row(children: [
                   Container(
                     width: 44, height: 44,
-                    decoration: const BoxDecoration(gradient: trackpartyGradient, shape: BoxShape.circle),
-                    child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22),
+                    decoration: const BoxDecoration(color: kPrimary, shape: BoxShape.circle),
+                    child: Icon(PhosphorIcons.usersThree(PhosphorIconsStyle.fill), color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Text('Nouveau groupe',
@@ -749,8 +753,8 @@ class _StatusBadge extends StatelessWidget {
     if (status == null) return const SizedBox.shrink();
     final (label, color) = switch (status!) {
       'accepted' => ('✓ Connecté', kSuccess),
-      'pending'  => ('⏳ En attente', context.tpInkMute),
-      _          => ('', context.tpInkMute),
+      'pending'  => ('⏳ En attente', context.tpInkSub),
+      _          => ('', context.tpInkSub),
     };
     if (label.isEmpty) return const SizedBox.shrink();
     return Text(label,
@@ -819,7 +823,7 @@ class _ActionButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.tag),
         ),
         child: Text('En attente',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInkMute)),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: context.tpInkSub)),
       );
     }
 
@@ -861,11 +865,13 @@ class _GroupAvatar extends StatelessWidget {
     final url = room.roomAvatarUrl;
 
     if (url != null && url.isNotEmpty) {
+      final dpr = MediaQuery.of(context).devicePixelRatio;
       return ClipRRect(
         borderRadius: BorderRadius.circular(Radii.lg),
         child: CachedNetworkImage(
           imageUrl: url,
           width: 52, height: 52,
+          memCacheWidth: (52 * dpr).round(), memCacheHeight: (52 * dpr).round(),
           fit: BoxFit.cover,
           errorWidget: (ctx, url, err) => _fallback(ctx),
           placeholder: (ctx, url) => _fallback(ctx),
@@ -885,7 +891,7 @@ class _GroupAvatar extends StatelessWidget {
     return Container(
       width: 52, height: 52,
       decoration: BoxDecoration(
-        gradient: trackpartyGradient,
+        color: kPrimary,
         borderRadius: BorderRadius.circular(Radii.lg),
       ),
       child: Icon(icon, color: Colors.white, size: 24),
@@ -935,7 +941,7 @@ Widget _buildPreview(BuildContext context, ChatRoomModel room) {
 Widget? _statusPreviewIcon(BuildContext context, String? status) {
   if (status == null) return null;
   return Icon(
-    status == 'sent' ? Icons.done_rounded : Icons.done_all_rounded,
+    status == 'sent' ? PhosphorIcons.check(PhosphorIconsStyle.bold) : PhosphorIcons.checks(PhosphorIconsStyle.bold),
     size: 15,
     color: status == 'read' ? kInfo : context.tpInkMute,
   );
@@ -1044,7 +1050,7 @@ Future<String?> _showGroupNameSheet(BuildContext context) {
           MediaQuery.of(ctx).padding.bottom + 20;
       return Container(
         decoration: BoxDecoration(
-          color: Theme.of(ctx).cardColor,
+          color: ctx.tpCard,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
         padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom),
@@ -1056,7 +1062,7 @@ Future<String?> _showGroupNameSheet(BuildContext context) {
               child: Container(
                 width: 44, height: 5,
                 decoration: BoxDecoration(
-                  color: Theme.of(ctx).dividerColor,
+                  color: ctx.tpHair,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),

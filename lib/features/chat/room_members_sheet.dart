@@ -9,7 +9,6 @@ import '../../core/providers/chat_provider.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
@@ -81,7 +80,7 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
           TextButton(onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('Retirer', style: TextStyle(color: Color(0xFFEF4444)))),
+              child: const Text('Retirer', style: TextStyle(color: kError))),
         ],
       ),
     );
@@ -97,41 +96,44 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
     }
   }
 
-  void _showAdminActions(RoomMemberModel member) {
-    showModalBottomSheet<void>(
+  // Menu contextuel (pas un 2e bottom sheet empilé sur celui déjà ouvert) —
+  // positionné au point de tap grâce à l'Offset transmis par onTapUp.
+  Future<void> _showAdminActions(RoomMemberModel member, Offset tapPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final action = await showMenu<String>(
       context: context,
-      backgroundColor: context.tpCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      color: context.tpCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+      position: RelativeRect.fromLTRB(
+        tapPosition.dx, tapPosition.dy,
+        overlay.size.width - tapPosition.dx, overlay.size.height - tapPosition.dy,
       ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(width: 40, height: 4, decoration: BoxDecoration(
-                color: sheetCtx.tpHair, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 6),
-            ListTile(
-              leading: Icon(
-                member.isAdmin ? PhosphorIcons.shieldSlash() : PhosphorIcons.shieldCheck(),
-                color: sheetCtx.tpInk, size: 22,
-              ),
-              title: Text(member.isAdmin ? 'Retirer les droits admin' : 'Promouvoir admin',
-                  style: TextStyle(color: sheetCtx.tpInk, fontSize: 15, fontWeight: FontWeight.w700)),
-              onTap: () { Navigator.pop(sheetCtx); _toggleAdmin(member); },
+      items: [
+        PopupMenuItem(
+          value: 'toggleAdmin',
+          child: Row(children: [
+            Icon(
+              member.isAdmin ? PhosphorIcons.shieldSlash() : PhosphorIcons.shieldCheck(),
+              color: context.tpInk, size: 20,
             ),
-            ListTile(
-              leading: const Icon(PhosphorIconsBold.userMinus, color: Color(0xFFEF4444), size: 22),
-              title: const Text('Retirer du groupe',
-                  style: TextStyle(color: Color(0xFFEF4444), fontSize: 15, fontWeight: FontWeight.w700)),
-              onTap: () { Navigator.pop(sheetCtx); _removeMember(member); },
-            ),
-            const SizedBox(height: 8),
-          ],
+            const SizedBox(width: 12),
+            Text(member.isAdmin ? 'Retirer les droits admin' : 'Promouvoir admin',
+                style: TextStyle(color: context.tpInk, fontSize: 14, fontWeight: FontWeight.w700)),
+          ]),
         ),
-      ),
+        PopupMenuItem(
+          value: 'remove',
+          child: Row(children: [
+            const Icon(PhosphorIconsBold.userMinus, color: kError, size: 20),
+            const SizedBox(width: 12),
+            const Text('Retirer du groupe',
+                style: TextStyle(color: kError, fontSize: 14, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      ],
     );
+    if (action == 'toggleAdmin') _toggleAdmin(member);
+    if (action == 'remove') _removeMember(member);
   }
 
   @override
@@ -204,7 +206,7 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
                     sending:   _sendingTo.contains(members[i].id),
                     canManage: widget.room.isGroup && widget.room.isAdmin,
                     onRequest: () => _sendRequest(members[i]),
-                    onManage:  () => _showAdminActions(members[i]),
+                    onManage:  (pos) => _showAdminActions(members[i], pos),
                     onMessage: () {
                       Navigator.pop(context);
                       context.push('/chat/new', extra: {
@@ -234,7 +236,7 @@ class RoomMemberRow extends StatelessWidget {
   final bool canManage;
   final VoidCallback onRequest;
   final VoidCallback onMessage;
-  final VoidCallback? onManage;
+  final ValueChanged<Offset>? onManage;
 
   const RoomMemberRow({
     super.key,
@@ -269,7 +271,7 @@ class RoomMemberRow extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
+                      color: kPrimary,
                       borderRadius: BorderRadius.circular(Radii.xs),
                     ),
                     child: const Text('Admin',
@@ -318,35 +320,40 @@ class RoomMemberRow extends StatelessWidget {
             button: true,
             label: 'Demander en ami',
             child: GestureDetector(
-            onTap: sending ? null : onRequest,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: context.tpBg,
-                borderRadius: BorderRadius.circular(Radii.tag),
-                border: Border.all(color: context.tpHair),
+              onTap: sending ? null : onRequest,
+              child: SizedBox(
+                height: 44,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(Radii.tag),
+                      border: Border.all(color: context.tpHair),
+                    ),
+                    child: sending
+                        ? SizedBox(width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: context.tpInkSub))
+                        : Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(PhosphorIcons.userPlus(), color: context.tpInk, size: 14),
+                            const SizedBox(width: 4),
+                            Text('Demander',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInk)),
+                          ]),
+                  ),
+                ),
               ),
-              child: sending
-                  ? SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: context.tpInkSub))
-                  : Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(PhosphorIcons.userPlus(), color: context.tpInk, size: 14),
-                      const SizedBox(width: 4),
-                      Text('Demander',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInk)),
-                    ]),
-            ),
             ),
           ),
         if (canManage) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: 2),
           Semantics(
             button: true,
             label: 'Gérer ${member.displayName}',
             child: GestureDetector(
-              onTap: onManage,
+              onTapUp: onManage == null ? null : (d) => onManage!(d.globalPosition),
               child: SizedBox(
-                width: 36, height: 36,
+                width: 44, height: 44,
                 child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInkSub, size: 18),
               ),
             ),

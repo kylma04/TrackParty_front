@@ -17,6 +17,7 @@ import '../../core/providers/event_provider.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/invitation_service.dart';
+import '../../core/utils/ticket_rules.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 
@@ -32,6 +33,17 @@ import '../../widgets/tp_confirm_sheet.dart';
 import '../../widgets/tp_photo.dart';
 import '../../widgets/tp_skeleton.dart';
 import '../../widgets/tp_toast.dart';
+
+/// Fond neutre des boutons superposés à une photo (hero) — volontairement
+/// indépendant du thème clair/sombre puisqu'il repose sur une image, pas
+/// sur une surface de l'app.
+const _kHeroOverlay = Color(0xFF616161); // = Colors.grey.shade700
+
+/// Ombre de la barre d'action fixée en bas d'écran (billetterie/CTA) —
+/// dupliquée 2× dans ce fichier avant extraction ici.
+const _kBottomBarShadow = [
+  BoxShadow(color: Color(0x1F1B1A2E), blurRadius: 24, offset: Offset(0, -4)),
+];
 
 class EventDetailScreen extends ConsumerStatefulWidget {
   final String id;
@@ -207,7 +219,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       final meters =
           Geolocator.distanceBetween(pos.latitude, pos.longitude, lat, lng);
       if (mounted) setState(() => _distanceKm = meters / 1000);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('EventDetail: échec calcul distance — $e');
+    }
   }
 
   String _fmtKm(double km) {
@@ -224,14 +238,17 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   EventModel get event => widget.event;
-  bool get _locked {
+
+  String? get _myUserId {
     final authState = ref.read(authNotifierProvider).valueOrNull;
-    final userId = authState is AuthAuthenticated ? authState.user.id : null;
+    return authState is AuthAuthenticated ? authState.user.id : null;
+  }
 
-    final isOrganizer = userId != null && event.organizerId == userId;
+  bool get _isOrganizer => _myUserId != null && event.organizerId == _myUserId;
+
+  bool get _locked {
     final isCoOrganizer = event.isCoOrganizer;
-
-    return event.isLocked && !isOrganizer && !isCoOrganizer;
+    return event.isLocked && !_isOrganizer && !isCoOrganizer;
   }
 
   Future<void> _confirmDeleteEvent() async {
@@ -288,36 +305,17 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Wrap(
+                            spacing: Sp.sm,
+                            runSpacing: Sp.xs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               TpBadge.eventCategory(
                                 category: event.category,
                                 label: event.displayCategoryName,
                                 emoji: event.displayEmoji,
                               ),
-
-                              const SizedBox(width: Sp.sm),
-
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: event.visibility == 'private'
-                                      ? Colors.orange.withValues(alpha: 0.15)
-                                      : Colors.green.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  event.visibility == 'private'
-                                      ? '🔒 Privé'
-                                      : '🌍 Public',
-                                ),
-                              ),
-
-                              const SizedBox(width: Sp.sm),
-
+                              TpBadge.visibility(event.visibility == 'private'),
                               if (event.contributionType != 'gratuit')
                                 TpBadge.contrib(
                                   _contribLabel(event.contributionType),
@@ -327,6 +325,8 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           const SizedBox(height: 8),
                           Text(
                             '${event.title}${event.quartier.isNotEmpty ? ' · ${event.quartier}' : ''}',
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w900,
@@ -442,23 +442,13 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               ),
               child: Builder(
                 builder: (context) {
-                  final authState = ref.read(authNotifierProvider).valueOrNull;
-                  final userId = authState is AuthAuthenticated
-                      ? authState.user.id
-                      : null;
-                  final isOrganizer =
-                      userId != null && event.organizerId == userId;
+                  final isOrganizer = _isOrganizer;
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      /*
-                      _HeroBtn(
-                        icon: PhosphorIcons.caretLeft(),
-                        semanticLabel: 'Retour',
-                        // Bouton commenté temporairement — peut être réutilisé plus tard
-                        onTap: () => context.pop(),
-                      ),
-                      */
+                      // Pas de bouton retour ici : la navigation système
+                      // suffit sur cet écran. Le spacer équilibre la Row
+                      // avec les actions organisateur à droite.
                       const SizedBox(width: 44),
                       Padding(
                         padding: const EdgeInsets.only(top: 40),
@@ -468,8 +458,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               _HeroBtn(
                                 icon: PhosphorIcons.pencilSimple(),
                                 semanticLabel: 'Modifier l\'événement',
-                                backgroundColor: Colors.grey.shade700
-                                    .withValues(alpha: 0.9),
+                                backgroundColor: _kHeroOverlay.withValues(alpha: 0.9),
                                 onTap: () => context.push(
                                   '/event/${event.id}/edit',
                                   extra: event,
@@ -479,8 +468,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               _HeroBtn(
                                 icon: PhosphorIcons.copySimple(),
                                 semanticLabel: 'Dupliquer l\'événement',
-                                backgroundColor: Colors.grey.shade700
-                                    .withValues(alpha: 0.9),
+                                backgroundColor: _kHeroOverlay.withValues(alpha: 0.9),
                                 onTap: () => context.push(
                                   '/event/${event.id}/clone',
                                   extra: event,
@@ -507,7 +495,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               active: event.isSaved,
                               backgroundColor: event.isSaved
                                   ? null
-                                  : Colors.grey.shade700.withValues(alpha: 0.9),
+                                  : _kHeroOverlay.withValues(alpha: 0.9),
                               onTap: () async {
                                 final svc = ref.read(eventServiceProvider);
                                 if (event.isSaved) {
@@ -523,7 +511,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                             _HeroBtn(
                               icon: PhosphorIcons.shareNetwork(),
                               semanticLabel: 'Partager',
-                              backgroundColor: Colors.grey.shade700.withValues(
+                              backgroundColor: _kHeroOverlay.withValues(
                                 alpha: 0.9,
                               ),
                               onTap: () => showEventShareSheet(
@@ -553,9 +541,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final avatarUrl = org?.avatarUrl ?? event.organizerAvatarUrl;
     final rating = org?.promoterProfile?.avgRating ?? event.avgRating;
 
-    final authState = ref.read(authNotifierProvider).valueOrNull;
-    final myId = authState is AuthAuthenticated ? authState.user.id : null;
-    final isMyEvent = myId != null && event.organizerId == myId;
+    final isMyEvent = _isOrganizer;
 
     return Semantics(
       button: event.organizerId.isNotEmpty,
@@ -723,10 +709,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     // participants. Pour les autres, on retire le bouton de navigation : on garde
     // une carte d'info (non cliquable) si les compteurs sont publics, sinon on
     // laisse la carte « contribution » occuper toute la largeur.
-    final authState = ref.read(authNotifierProvider).valueOrNull;
-    final userId = authState is AuthAuthenticated ? authState.user.id : null;
-    final isOrganizer = userId != null && event.organizerId == userId;
-    final canSeeParticipants = isOrganizer || event.isCoOrganizer;
+    final canSeeParticipants = _isOrganizer || event.isCoOrganizer;
     final showParticipantsInfo = !canSeeParticipants && event.showTicketCounts;
 
     final contribCard = _InfoCard(
@@ -819,9 +802,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   Widget _buildOrganizerTools(BuildContext context) {
-    final authState = ref.read(authNotifierProvider).valueOrNull;
-    final userId = authState is AuthAuthenticated ? authState.user.id : null;
-    final isOrganizer = userId != null && event.organizerId == userId;
+    final isOrganizer = _isOrganizer;
     // Les co-organisateurs accèdent aussi au tableau de bord (participants,
     // entrées, staff…). Le backend les autorise déjà sur ces endpoints.
     final canManage = isOrganizer || event.isCoOrganizer;
@@ -936,7 +917,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               color: context.tpCard,
               borderRadius: BorderRadius.circular(Radii.lg),
               border: Border.all(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                color: kWarning.withValues(alpha: 0.35),
               ),
             ),
             child: Row(
@@ -946,7 +927,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                   height: 40,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
+                      colors: [kWarning, kTertiary],
                     ),
                     borderRadius: BorderRadius.circular(Radii.md),
                   ),
@@ -1209,6 +1190,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                               Expanded(
                                 child: Text(
                                   event.addressLabel,
+                                  maxLines: 1,
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
@@ -1404,13 +1386,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     // Event payant : acquisition de billets via le panier (jamais d'annulation
     // au niveau de l'event ; les billets payants ne s'annulent pas).
     final isPaid = event.contributionType == 'monetaire';
-    final maxT = event.maxTicketsPerUserPerEvent;
-    final atLimit = isPaid && maxT != null && event.myTicketsCount >= maxT;
+    final atLimit = isPaid && hasReachedTicketLimit(event);
     final hasTickets = event.myTicketsCount > 0;
-    final authState = ref.read(authNotifierProvider).valueOrNull;
-    final userId = authState is AuthAuthenticated ? authState.user.id : null;
-    final isOrganizer = userId != null && event.organizerId == userId;
-    final canAccessChat = isOrganizer || event.isCoOrganizer || hasTickets;
+    final canAccessChat = _isOrganizer || event.isCoOrganizer || hasTickets;
 
     // Event payant par catégorie « complet » : plus aucune catégorie en vente
     // NI option en nature disponible. (max_participants est null dans ce mode,
@@ -1439,7 +1417,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       if (paidSoldOut) {
         label = 'Événement complet';
       } else if (atLimit) {
-        label = 'Déjà $maxT billets (max)';
+        label = 'Déjà ${event.maxTicketsPerUserPerEvent} billets (max)';
       } else if (hasTickets) {
         label = 'Acheter d\'autres billets';
       } else {
@@ -1506,13 +1484,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
       return Container(
         decoration: BoxDecoration(
           color: context.tpCard,
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1F1B1A2E),
-              blurRadius: 24,
-              offset: Offset(0, -4),
-            ),
-          ],
+          boxShadow: _kBottomBarShadow,
         ),
         child: SafeArea(
           top: false,
@@ -1565,13 +1537,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     return Container(
       decoration: BoxDecoration(
         color: context.tpCard,
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F1B1A2E),
-            blurRadius: 24,
-            offset: Offset(0, -4),
-          ),
-        ],
+        boxShadow: _kBottomBarShadow,
       ),
       child: SafeArea(
         top: false,
@@ -1607,7 +1573,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade700.withOpacity(0.9),
+                        color: _kHeroOverlay.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(Radii.lg),
                         border: Border.all(color: context.tpHair),
                       ),
@@ -1630,7 +1596,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade700.withOpacity(0.9),
+                      color: _kHeroOverlay.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(Radii.lg),
                       border: Border.all(color: context.tpHair),
                     ),
@@ -1690,10 +1656,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     // Organisateur / co-org d'un événement privé → écran d'invitation complet
     // (sélection par listes + « tout sélectionner » + lien partageable). Sinon,
     // sheet simple d'invitation par recherche (un destinataire à la fois).
-    final authState = ref.read(authNotifierProvider).valueOrNull;
-    final userId = authState is AuthAuthenticated ? authState.user.id : null;
-    final isOrganizer = userId != null && event.organizerId == userId;
-    final canBulk = (isOrganizer || event.isCoOrganizer) &&
+    final canBulk = (_isOrganizer || event.isCoOrganizer) &&
         event.visibility == 'private';
     if (canBulk) {
       context.push('/event/${event.id}/invite', extra: {'title': event.title});
@@ -1988,16 +1951,20 @@ class _ContribRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        item.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: context.tpInk,
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: context.tpInk,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         item.isAvailable
                             ? '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}'
@@ -2107,8 +2074,12 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
           _results = results;
           _searching = false;
         });
-    } catch (_) {
-      if (mounted) setState(() => _searching = false);
+    } catch (e) {
+      debugPrint('EventDetail: échec recherche utilisateurs à inviter — $e');
+      if (mounted) {
+        setState(() => _searching = false);
+        TpToast.error(context, 'Recherche indisponible.');
+      }
     }
   }
 

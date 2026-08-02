@@ -9,6 +9,14 @@ class Shadows {
     ),
   ];
 
+  static const card = [
+    BoxShadow(
+      color: Color(0x0A1B1A2E),
+      blurRadius: 8,
+      offset: Offset(0, 2),
+    ),
+  ];
+
   static const md = [
     BoxShadow(
       color: Color(0x141B1A2E),

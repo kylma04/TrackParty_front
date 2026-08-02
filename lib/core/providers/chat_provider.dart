@@ -232,12 +232,15 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
     }
   }
 
-  Future<void> sendImageMessage(XFile image, {bool attachEvent = true}) async {
+  Future<bool> sendImageMessage(XFile image, {bool attachEvent = true}) async {
     try {
       final msg = await ref.read(chatServiceProvider)
           .sendImageMessage(roomId, image, attachEvent: attachEvent);
       _addMessage(msg);
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> sendVoiceMessage(String filePath, int durationSeconds, {bool attachEvent = true}) async {

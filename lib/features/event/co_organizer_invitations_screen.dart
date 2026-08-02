@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/providers/co_organizer_provider.dart';
@@ -9,6 +8,7 @@ import '../../theme/colors.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_screen_header.dart';
 import '../../widgets/tp_toast.dart';
 
 class CoOrganizerInvitationsScreen extends ConsumerWidget {
@@ -23,27 +23,9 @@ class CoOrganizerInvitationsScreen extends ConsumerWidget {
       body: SafeArea(
         bottom: false,
         child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 16),
-            child: Row(children: [
-              Semantics(
-                button: true, label: 'Retour',
-                child: GestureDetector(
-                onTap: () => context.pop(),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(Radii.md),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-                ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text('Invitations co-organisateur',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: context.tpInk)),
-            ]),
+          const TpScreenHeader(
+            title: 'Invitations co-organisateur',
+            padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 16),
           ),
           Expanded(
             child: RefreshIndicator(
@@ -205,6 +187,7 @@ class _InvitationCard extends StatelessWidget {
               child: GestureDetector(
                 onTap: onDecline,
                 child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                       color: context.tpBg,
@@ -226,6 +209,7 @@ class _InvitationCard extends StatelessWidget {
               child: GestureDetector(
                 onTap: onAccept,
                 child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                       color: kPrimary,
