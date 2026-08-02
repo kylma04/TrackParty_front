@@ -167,6 +167,7 @@ class EventModel {
   final bool showTicketCounts;
   final int? maxTicketsPerUserPerEvent;
   final int myTicketsCount;
+  final String? chatRoomId;
   final bool isLocked;
   final String? myJoinRequestStatus; // null | 'pending' | 'accepted' | 'rejected'
   final DateTime? createdAt;
@@ -220,6 +221,7 @@ class EventModel {
     this.showTicketCounts = false,
     this.maxTicketsPerUserPerEvent = 5,
     this.myTicketsCount = 0,
+    this.chatRoomId,
     this.isLocked = false,
     this.myJoinRequestStatus,
     this.createdAt,
@@ -270,6 +272,7 @@ class EventModel {
         showTicketCounts: j['show_ticket_counts'] as bool? ?? false,
         maxTicketsPerUserPerEvent: (j['max_tickets_per_user_per_event'] as num?)?.toInt(),
         myTicketsCount: (j['my_tickets_count'] as num?)?.toInt() ?? 0,
+        chatRoomId: j['chat_room_id'] as String?,
 
         isLocked:
           j['is_locked'] as bool? ?? false,
@@ -335,6 +338,7 @@ class EventModel {
     bool? isWaitlisted,
     int? waitlistPosition,
     String? myJoinRequestStatus,
+    String? chatRoomId,
     bool? isSaved,
   }) => EventModel(
         id: id,
@@ -382,6 +386,7 @@ class EventModel {
         showTicketCounts: showTicketCounts,
         maxTicketsPerUserPerEvent: maxTicketsPerUserPerEvent,
         myTicketsCount: myTicketsCount,
+        chatRoomId: chatRoomId ?? this.chatRoomId,
         isLocked: isLocked,
         myJoinRequestStatus: myJoinRequestStatus ?? this.myJoinRequestStatus,
         createdAt: createdAt,

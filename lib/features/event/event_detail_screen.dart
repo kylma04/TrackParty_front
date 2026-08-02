@@ -1407,6 +1407,10 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final maxT = event.maxTicketsPerUserPerEvent;
     final atLimit = isPaid && maxT != null && event.myTicketsCount >= maxT;
     final hasTickets = event.myTicketsCount > 0;
+    final authState = ref.read(authNotifierProvider).valueOrNull;
+    final userId = authState is AuthAuthenticated ? authState.user.id : null;
+    final isOrganizer = userId != null && event.organizerId == userId;
+    final canAccessChat = isOrganizer || event.isCoOrganizer || hasTickets;
 
     // Event payant par catégorie « complet » : plus aucune catégorie en vente
     // NI option en nature disponible. (max_participants est null dans ce mode,
@@ -1442,7 +1446,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
         label = 'Je participe';
       }
     } else if (participating) {
-      label = 'Annuler ma participation';
+        if (event.myTicketsCount > 0) {
+          label = 'Annuler ma participation';
+        } else {
+          label = 'Je participe';
+        }
     } else if (waitlisted) {
       final pos = event.waitlistPosition;
       label = pos != null
@@ -1571,23 +1579,43 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
           padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, Sp.md),
           child: Row(
             children: [
+              
+
               Semantics(
                 button: true,
-                label: 'Ouvrir le chat de l\'événement',
+                label: canAccessChat
+                    ? 'Ouvrir le chat de l\'événement'
+                    : 'Chat verrouillé — billet requis',
                 child: GestureDetector(
-                  onTap: () => context.push('/chat/${event.id}'),
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade700.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(Radii.lg),
-                      border: Border.all(color: context.tpHair),
-                    ),
-                    child: Icon(
-                      PhosphorIcons.chatCircle(),
-                      color: Colors.white,
-                      size: 22,
+                  onTap: canAccessChat
+                      ? () => context.push('/chat/${event.chatRoomId}')
+                      : () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Billet requis'),
+                              content: const Text('Vous devez avoir un billet pour rejoindre le chat de cet événement.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+                              ],
+                            ),
+                          );
+                        },
+                  child: Opacity(
+                    opacity: canAccessChat ? 1.0 : 0.4,
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade700.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(Radii.lg),
+                        border: Border.all(color: context.tpHair),
+                      ),
+                      child: Icon(
+                        PhosphorIcons.chatCircle(),
+                        color: Colors.white,
+                        size: 22,
+                      ),
                     ),
                   ),
                 ),

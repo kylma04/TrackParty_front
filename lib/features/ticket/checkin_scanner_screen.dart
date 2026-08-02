@@ -137,7 +137,7 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
       body: Stack(fit: StackFit.expand, children: [
         MobileScanner(controller: _scanner, onDetect: _onDetect),
         // Overlay cadre de scan
-        _ScanOverlay(),
+        //_ScanOverlay(),
         // Barre de nav
         SafeArea(
           child: Padding(
