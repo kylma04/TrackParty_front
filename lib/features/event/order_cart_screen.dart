@@ -23,9 +23,10 @@ import '../../widgets/tp_toast.dart';
 
 enum _Phase { cart, polling, success, failure }
 
-/// Panier de participation : choisir des billets payants (catégories) et/ou des
-/// contributions en nature (items à apporter), jusqu'à la limite, puis valider.
-/// La partie payante ouvre le paiement GeniusPay ; la nature est confirmée directement.
+/// Panier de participation : choisir des billets payants (par catégorie, ou à
+/// prix unique si l'event n'a pas de catégories) et/ou des contributions en
+/// nature (items à apporter), jusqu'à la limite, puis valider. La partie
+/// payante ouvre le paiement Jeko ; la nature est confirmée directement.
 class OrderCartScreen extends ConsumerStatefulWidget {
   final EventModel event;
   const OrderCartScreen({super.key, required this.event});
@@ -36,7 +37,9 @@ class OrderCartScreen extends ConsumerStatefulWidget {
 
 class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   final Map<String, int> _paid = {};   // categoryId → qté
-  final Map<String, int> _nature = {}; // itemId → qté
+  // Contribution en nature : une seule par personne et par événement — pas de
+  // quantité, un simple choix (ou aucun).
+  String? _natureItemId;
   final Map<String, int> _flat = {};   // 'flat' → qté (billet standard, sans catégorie)
   PayMethod _method = PayMethod.wave;
   _Phase _phase = _Phase.cart;
@@ -53,15 +56,27 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       .toList();
   List<ContributionItemModel> get _items =>
       event.contributionItems.toList();
-  
-  
+
+  // Event payant SANS catégories (prix unique) : le backend n'accepte une
+  // ligne « flat » que dans ce cas (voir OrderView.flat_not_allowed).
+  int? get _flatPrice => (_cats.isEmpty && event.contributionType == 'monetaire')
+      ? event.contributionAmount?.toInt()
+      : null;
+  int? get _flatRemaining => event.maxParticipants != null
+      ? event.maxParticipants! - event.participantsCount
+      : null;
 
   int get _total =>
-      _paid.values.fold(0, (s, v) => s + v) + _nature.values.fold(0, (s, v) => s + v);
+      _paid.values.fold<int>(0, (s, v) => s + v) +
+      (_natureItemId != null ? 1 : 0) +
+      _flat.values.fold<int>(0, (s, v) => s + v);
   int get _paidAmount {
     var a = 0;
     for (final c in _cats) {
       a += c.price * (_paid[c.id] ?? 0);
+    }
+    if (_flatPrice != null) {
+      a += _flatPrice! * (_flat['flat'] ?? 0);
     }
     return a;
   }
@@ -100,8 +115,10 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
       final items = <Map<String, dynamic>>[
         for (final e in _paid.entries)
           {'kind': 'paid', 'category_id': e.key, 'quantity': e.value},
-        for (final e in _nature.entries)
-          {'kind': 'nature', 'item_id': e.key, 'quantity': e.value},
+        if (_natureItemId != null)
+          {'kind': 'nature', 'item_id': _natureItemId, 'quantity': 1},
+        if ((_flat['flat'] ?? 0) > 0)
+          {'kind': 'flat', 'quantity': _flat['flat']},
       ];
       final res = await ref.read(paymentServiceProvider).createOrder(
             eventId: event.id,
@@ -225,7 +242,20 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(Sp.md, 4, Sp.md, Sp.md),
           children: [
-            if (_cats.isNotEmpty) ...[
+            if (_flatPrice != null) ...[
+              _sectionLabel(context, 'Billet'),
+              _qtyRow(
+                context,
+                title: 'Entrée',
+                subtitle: _fmt(_flatPrice!),
+                qty: _flat['flat'] ?? 0,
+                soldOut: _flatRemaining != null && _flatRemaining! <= 0,
+                maxQty: _flatRemaining,
+                onMinus: () => _bump(_flat, 'flat', -1),
+                onPlus: () => _bump(_flat, 'flat', 1),
+              ),
+              const SizedBox(height: 14),
+            ] else if (_cats.isNotEmpty) ...[
               _sectionLabel(context, 'Billets'),
               ..._cats.map((c) => _qtyRow(
                     context,
@@ -241,18 +271,13 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
             ],
             if (_items.isNotEmpty) ...[
               _sectionLabel(context, 'Contribuer en nature'),
-              ..._items.map((i) => _qtyRow(
-                    context,
-                    title: '${i.emoji} ${i.name}',
-                    subtitle: i.categoryName != null
-                        ? 'Billet ${i.categoryName} · à apporter'
-                        : 'À apporter',
-                    qty: _nature[i.id] ?? 0,
-                    soldOut: !i.isAvailable,
-                    maxQty: i.quantityRemaining,
-                    onMinus: () => _bump(_nature, i.id, -1),
-                    onPlus: () => _bump(_nature, i.id, 1),
-                  )),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('Une seule contribution possible par personne',
+                    style: TextStyle(
+                        fontSize: 11.5, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+              ),
+              ..._items.map((i) => _natureRow(context, i)),
             ],
             const SizedBox(height: 8),
             Text(
@@ -376,6 +401,59 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
     );
   }
 
+  /// Ligne de sélection d'une contribution en nature — un choix unique (pas de
+  /// quantité) : tapoter sélectionne l'item et désélectionne tout autre choix ;
+  /// tapoter à nouveau désélectionne.
+  Widget _natureRow(BuildContext context, ContributionItemModel i) {
+    final selected = _natureItemId == i.id;
+    final soldOut = !i.isAvailable;
+    return Opacity(
+      opacity: soldOut ? 0.45 : 1,
+      child: GestureDetector(
+        onTap: soldOut
+            ? null
+            : () => setState(() => _natureItemId = selected ? null : i.id),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: context.tpCard,
+            borderRadius: BorderRadius.circular(Radii.md),
+            border: Border.all(
+                color: selected ? kPrimary : context.tpInkMute.withValues(alpha: 0.12),
+                width: selected ? 1.4 : 1),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${i.emoji} ${i.name}',
+                    style: TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.w800, color: context.tpInk)),
+                Text(
+                  soldOut
+                      ? 'Plus disponible'
+                      : (i.categoryName != null
+                          ? 'Billet ${i.categoryName} · à apporter'
+                          : 'À apporter'),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: soldOut ? kError : context.tpInkSub),
+                ),
+              ]),
+            ),
+            if (soldOut)
+              Text('Épuisé',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: kError))
+            else
+              Icon(selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  color: selected ? kPrimary : context.tpInkMute),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _stepBtn(BuildContext context, String s, VoidCallback? onTap) => GestureDetector(
         onTap: onTap,
         child: Container(
@@ -472,6 +550,13 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
             style: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkSub, height: 1.5),
           ),
+          if (ok) ...[
+            const SizedBox(height: 6),
+            Text('Un reçu t\'a été envoyé par email 📧',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+          ],
           const SizedBox(height: 26),
           SizedBox(
             width: double.infinity,

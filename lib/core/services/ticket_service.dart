@@ -55,10 +55,14 @@ class TicketService {
   Future<void> cancelTicket(String ticketId) =>
       _call(() => _dio.post('events/tickets/$ticketId/cancel/'));
 
-  Future<CheckinResult> checkin(String eventId, String token) => _call(() async {
+  /// [confirm] : à passer à `true` uniquement pour valider un billet en
+  /// nature après vérification par le staff que la contribution a bien été
+  /// apportée (voir [CheckinResult.requiresConfirmation]).
+  Future<CheckinResult> checkin(String eventId, String token, {bool confirm = false}) =>
+      _call(() async {
         final res = await _dio.post(
           'events/$eventId/checkin/',
-          data: {'token': token},
+          data: {'token': token, if (confirm) 'confirm': true},
         );
         return CheckinResult.fromJson(res.data as Map<String, dynamic>);
       });

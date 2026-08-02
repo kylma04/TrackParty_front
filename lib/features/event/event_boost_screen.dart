@@ -71,7 +71,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
         return;
       }
 
-      // Boost payant en attente de paiement → feuille de paiement GeniusPay.
+      // Boost payant en attente de paiement → feuille de paiement Jeko.
       final paid = await showPaymentSheet(
         context, ref,
         purpose: 'boost',

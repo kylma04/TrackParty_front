@@ -133,6 +133,7 @@ class ChatRoomModel {
   bool get isPrivate => roomType == 'private';
   bool get isEvent => roomType == 'event';
   bool get isCommunity => roomType == 'community';
+  bool get isGroup => roomType == 'group';
   bool get isBroadcast => groupMode == 'broadcast';
   bool get isAdmin => myRole == 'admin';
 }

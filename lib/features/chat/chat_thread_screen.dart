@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -21,6 +23,9 @@ import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../core/services/moderation_service.dart';
 import '../profile/report_sheet.dart';
+import 'contact_picker_screen.dart';
+import 'image_viewer_screen.dart';
+import 'multi_image_preview_screen.dart';
 import 'room_members_sheet.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -44,10 +49,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   final _picker      = ImagePicker();
   final _recorder    = AudioRecorder();
 
-  // Recherche dans la conversation (barre de recherche + filtrage des messages).
+  // Recherche dans la conversation : les résultats sont surlignés en place
+  // dans le fil (pas d'écran séparé) — on garde le contexte (heure, expéditeur,
+  // messages autour). Navigation au clavier ▲▼ + compteur "n/N".
   final _searchCtrl  = TextEditingController();
   bool   _searching  = false;
   String _searchQuery = '';
+  String? _activeMatchId;
+  List<ChatMessage> _messages = [];
+  final Map<String, GlobalKey> _msgKeys = {};
 
   // Typing indicator
   Timer? _typingTimer;
@@ -191,10 +201,18 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   }
 
   Future<void> _pickImage() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (file == null) return;
-    await ref.read(chatThreadProvider(widget.roomId).notifier)
-        .sendImageMessage(file, attachEvent: _attachEvent);
+    final picked = await _picker.pickMultiImage(imageQuality: 80);
+    if (picked.isEmpty || !mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MultiImagePreviewScreen(
+          roomId: widget.roomId,
+          files: picked.map((f) => File(f.path)).toList(),
+          attachEvent: _attachEvent,
+        ),
+      ),
+    );
     _scrollToBottom();
   }
 
@@ -315,6 +333,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   @override
   Widget build(BuildContext context) {
     final messagesAsync    = ref.watch(chatThreadProvider(widget.roomId));
+    if (messagesAsync.hasValue) _messages = messagesAsync.value!;
     final room             = ref.watch(chatRoomByIdProvider(widget.roomId));
     final authState        = ref.watch(authNotifierProvider).valueOrNull;
     final me               = authState is AuthAuthenticated ? authState.user : null;
@@ -359,10 +378,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 child: Text('Erreur de chargement',
                   style: TextStyle(color: context.tpInkSub)),
               ),
-              data: (msgs) => _searching
-                  ? _buildSearchResults(context, msgs)
-                  : _buildMessageList(
-                      context, msgs, _myId, partnerReadAt, partnerOnline, _isDm, canWrite),
+              data: (msgs) => _buildMessageList(
+                  context, msgs, _myId, partnerReadAt, partnerOnline, _isDm, canWrite),
             ),
           ),
           if (_recordingUserName != null && _voiceMode == _VoiceMode.idle)
@@ -391,21 +408,37 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     );
   }
 
+  // Plafond appel de groupe (maillage P2P) — doit rester aligné avec
+  // MAX_GROUP_CALL_PARTICIPANTS côté backend (apps/chat/models.py).
+  static const _kMaxGroupCallParticipants = 4;
+
   Future<void> _startCall(BuildContext ctx, ChatRoomModel room, String callType) async {
-    final other = room.membersPreview.isNotEmpty ? room.membersPreview.first : null;
-    final name  = other?.displayName ?? room.displayName;
+    if (room.isGroup && room.membersCount > _kMaxGroupCallParticipants) {
+      TpToast.error(ctx,
+          'Ce groupe compte plus de $_kMaxGroupCallParticipants membres, trop pour un appel.');
+      return;
+    }
+
+    final invitees = room.membersPreview
+        .map((m) => CallParticipant(userId: m.id, displayName: m.displayName, avatarUrl: m.avatarUrl))
+        .toList();
+    final name = room.isGroup ? room.displayName : (invitees.firstOrNull?.displayName ?? room.displayName);
+    final avatarUrl = room.isGroup ? room.roomAvatarUrl : invitees.firstOrNull?.avatarUrl;
+
     try {
       await CallService().initiateCall(
         roomId: room.id,
         callType: callType,
         remoteUserName: name,
-        remoteUserAvatarUrl: other?.avatarUrl,
+        remoteUserAvatarUrl: avatarUrl,
+        isGroup: room.isGroup,
+        invitees: invitees,
       );
       if (ctx.mounted) {
         ctx.push('/call/outgoing', extra: {
           'callType': callType,
           'remoteUserName': name,
-          'remoteUserAvatarUrl': other?.avatarUrl,
+          'remoteUserAvatarUrl': avatarUrl,
         });
       }
     } catch (e) {
@@ -519,10 +552,73 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   // ── Recherche dans la conversation ─────────────────────────────────────────
 
   void _openSearch() =>
-      setState(() { _searching = true; _searchQuery = ''; _searchCtrl.clear(); });
+      setState(() { _searching = true; _searchQuery = ''; _activeMatchId = null; _searchCtrl.clear(); });
 
   void _closeSearch() =>
-      setState(() { _searching = false; _searchQuery = ''; _searchCtrl.clear(); });
+      setState(() { _searching = false; _searchQuery = ''; _activeMatchId = null; _searchCtrl.clear(); });
+
+  List<ChatMessage> _matchesForQuery(String query) {
+    if (query.isEmpty) return const [];
+    final q = query.toLowerCase();
+    return [for (final m in _messages) if (m.isText && m.content.toLowerCase().contains(q)) m];
+  }
+
+  List<ChatMessage> get _searchMatches => _matchesForQuery(_searchQuery);
+
+  void _onSearchChanged(String v) {
+    final query = v.trim();
+    final matches = _matchesForQuery(query);
+    final stillValid = matches.any((m) => m.id == _activeMatchId);
+    setState(() {
+      _searchQuery = query;
+      if (!stillValid) {
+        _activeMatchId = matches.isNotEmpty ? matches.last.id : null;
+      }
+    });
+    if (!stillValid && _activeMatchId != null) {
+      final id = _activeMatchId!;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToMessage(id));
+    }
+  }
+
+  // Navigue vers le résultat précédent (delta -1, plus ancien) ou suivant
+  // (delta +1, plus récent).
+  void _goToMatch(int delta) {
+    final matches = _searchMatches;
+    if (matches.isEmpty) return;
+    final currentIdx = matches.indexWhere((m) => m.id == _activeMatchId);
+    final newIdx = (currentIdx < 0 ? matches.length - 1 : currentIdx + delta)
+        .clamp(0, matches.length - 1);
+    final id = matches[newIdx].id;
+    setState(() => _activeMatchId = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToMessage(id));
+  }
+
+  // Fait défiler jusqu'au message ciblé et le laisse visible à l'écran. Si le
+  // message n'est pas encore construit (hors de la zone de cache de la liste),
+  // on saute d'abord approximativement selon sa position relative dans
+  // l'historique chargé, puis on affine une fois le widget monté.
+  void _scrollToMessage(String id) {
+    final ctx = _msgKeys[id]?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 300), alignment: 0.5, curve: Curves.easeOut);
+      return;
+    }
+    final idx = _messages.indexWhere((m) => m.id == id);
+    if (idx < 0 || !_scrollCtrl.hasClients || _messages.length < 2) return;
+    final fraction = 1 - (idx / (_messages.length - 1)); // liste inversée : bas = fraction 0
+    final target = (_scrollCtrl.position.maxScrollExtent * fraction)
+        .clamp(0.0, _scrollCtrl.position.maxScrollExtent);
+    _scrollCtrl.jumpTo(target);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final retryCtx = _msgKeys[id]?.currentContext;
+      if (retryCtx != null) {
+        Scrollable.ensureVisible(retryCtx,
+            duration: const Duration(milliseconds: 200), alignment: 0.5, curve: Curves.easeOut);
+      }
+    });
+  }
 
   // ── Membres du groupe ─────────────────────────────────────────────────────
 
@@ -551,6 +647,106 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         },
       ),
     );
+  }
+
+  // ── Groupe personnalisé ────────────────────────────────────────────────────
+
+  Future<void> _showGroupSettingsSheet(ChatRoomModel room) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GroupSettingsSheet(
+        room: room,
+        onToggleBroadcast: () async {
+          final newMode = room.isBroadcast ? 'open' : 'broadcast';
+          await ref.read(groupModeUpdateProvider)(room.id, newMode);
+          if (!mounted) return;
+          await ref.read(chatRoomsProvider.notifier).refresh();
+        },
+        onAddMembers: () => _addGroupMembers(room),
+        onRename: () => _renameGroup(room),
+        onChangeAvatar: () => _changeGroupAvatar(room),
+        onLeave: () => _leaveGroup(room),
+      ),
+    );
+  }
+
+  Future<void> _addGroupMembers(ChatRoomModel room) async {
+    List<RoomMemberModel> members;
+    try {
+      members = await ref.read(chatServiceProvider).getRoomMembers(room.id);
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Impossible de charger les membres');
+      return;
+    }
+    if (!mounted) return;
+
+    final excludeIds = {?_myId, ...members.map((m) => m.id)};
+    final memberIds = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => ContactPickerScreen(
+          title: 'Ajouter des membres',
+          confirmLabel: 'Ajouter',
+          excludeIds: excludeIds,
+        ),
+      ),
+    );
+    if (memberIds == null || memberIds.isEmpty || !mounted) return;
+
+    try {
+      await ref.read(chatServiceProvider).addGroupMembers(room.id, memberIds);
+      if (mounted) TpToast.success(context, 'Membres ajoutés');
+    } catch (_) {
+      if (mounted) TpToast.error(context, "Impossible d'ajouter ces membres");
+    }
+  }
+
+  Future<void> _renameGroup(ChatRoomModel room) async {
+    final newName = await _showRenameGroupSheet(context, room.displayName);
+    if (newName == null || newName.trim().isEmpty || !mounted) return;
+    try {
+      await ref.read(chatServiceProvider).updateCommunityName(room.id, newName.trim());
+      await ref.read(chatRoomsProvider.notifier).refresh();
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Impossible de renommer le groupe');
+    }
+  }
+
+  Future<void> _changeGroupAvatar(ChatRoomModel room) async {
+    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null || !mounted) return;
+    try {
+      await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, file);
+      await ref.read(chatRoomsProvider.notifier).refresh();
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Impossible de mettre à jour la photo');
+    }
+  }
+
+  Future<void> _leaveGroup(ChatRoomModel room) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: dCtx.tpCard,
+        title: Text('Quitter le groupe ?',
+            style: TextStyle(color: dCtx.tpInk, fontWeight: FontWeight.w800)),
+        content: Text('Tu ne recevras plus les messages de « ${room.displayName} ».',
+            style: TextStyle(color: dCtx.tpInkSub)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('Quitter', style: TextStyle(color: Color(0xFFEF4444)))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ref.read(chatServiceProvider).leaveGroup(room.id);
+      await ref.read(chatRoomsProvider.notifier).refresh();
+      if (mounted) context.pop();
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Impossible de quitter le groupe');
+    }
   }
 
   // ── NavBar ────────────────────────────────────────────────────────────────
@@ -606,7 +802,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 ],
               ),
             ),
-            // Boutons appel (seulement pour DM)
+            // Boutons appel DM : audio + vidéo séparés.
             if (room?.isPrivate == true) ...[
               _CallIconBtn(
                 icon: PhosphorIcons.phone(),
@@ -621,7 +817,16 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               ),
               const SizedBox(width: 4),
             ],
-            if (room?.isEvent == true) ...[
+            // Bouton appel groupe (sous le plafond du maillage P2P) : menu
+            // déroulant unique pour choisir audio/vidéo.
+            if (room?.isGroup == true && room!.membersCount <= _kMaxGroupCallParticipants) ...[
+              _CallMenuButton(
+                onAudio: () => _startCall(context, room, 'audio'),
+                onVideo: () => _startCall(context, room, 'video'),
+              ),
+              const SizedBox(width: 4),
+            ],
+            if (room?.isEvent == true || room?.isGroup == true) ...[
               Semantics(
                 button: true, label: 'Voir les membres',
                 child: GestureDetector(
@@ -633,12 +838,14 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   ),
                 ),
               ),
-              if (room?.isAdmin == true) ...[
+              if (room?.isGroup == true || room?.isAdmin == true) ...[
                 const SizedBox(width: 4),
                 Semantics(
                   button: true, label: 'Paramètres du groupe',
                   child: GestureDetector(
-                    onTap: () => _showGroupModeSheet(room!),
+                    onTap: () => room!.isGroup
+                        ? _showGroupSettingsSheet(room)
+                        : _showGroupModeSheet(room),
                     child: Container(
                       width: 44, height: 44,
                       decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
@@ -666,6 +873,10 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   }
 
   Widget _buildSearchBar(BuildContext context) {
+    final matches   = _searchMatches;
+    final activeIdx = matches.indexWhere((m) => m.id == _activeMatchId);
+    final hasQuery  = _searchQuery.isNotEmpty;
+
     return SafeArea(
       bottom: false,
       child: Container(
@@ -690,7 +901,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 autofocus: true,
-                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                onChanged: _onSearchChanged,
                 style: TextStyle(color: context.tpInk, fontSize: 15),
                 decoration: InputDecoration(
                   hintText: 'Rechercher un message…',
@@ -699,67 +910,39 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 ),
               ),
             ),
-            if (_searchQuery.isNotEmpty)
+            if (hasQuery) ...[
+              Text(
+                matches.isEmpty ? '0 résultat' : '${activeIdx + 1}/${matches.length}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub),
+              ),
+              Semantics(
+                button: true, label: 'Résultat précédent (plus ancien)',
+                child: IconButton(
+                  icon: Icon(PhosphorIcons.caretUp(), size: 16),
+                  color: context.tpInk,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: matches.isEmpty || activeIdx <= 0 ? null : () => _goToMatch(-1),
+                ),
+              ),
+              Semantics(
+                button: true, label: 'Résultat suivant (plus récent)',
+                child: IconButton(
+                  icon: Icon(PhosphorIcons.caretDown(), size: 16),
+                  color: context.tpInk,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: matches.isEmpty || activeIdx >= matches.length - 1 ? null : () => _goToMatch(1),
+                ),
+              ),
               GestureDetector(
-                onTap: () => setState(() { _searchQuery = ''; _searchCtrl.clear(); }),
+                onTap: () => setState(() { _searchQuery = ''; _activeMatchId = null; _searchCtrl.clear(); }),
                 child: Icon(PhosphorIcons.x(), color: context.tpInkSub, size: 18),
               ),
+            ],
           ],
         ),
       ),
-    );
-  }
-
-  // ── Résultats de recherche ─────────────────────────────────────────────────
-
-  Widget _buildSearchResults(BuildContext context, List<ChatMessage> messages) {
-    final q = _searchQuery.toLowerCase();
-    if (q.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text('Tape un mot pour rechercher dans les messages de cette conversation.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.tpInkMute, fontSize: 14)),
-        ),
-      );
-    }
-    // Recherche sur les messages texte chargés (les plus récents d'abord).
-    final results = [
-      for (final m in messages.reversed)
-        if (m.isText && m.content.toLowerCase().contains(q)) m,
-    ];
-    if (results.isEmpty) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(PhosphorIcons.magnifyingGlass(), size: 40, color: context.tpInkMute),
-          const SizedBox(height: 12),
-          Text('Aucun résultat',
-            style: TextStyle(color: context.tpInkSub, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text('Fais défiler la conversation vers le haut pour charger plus d\'historique.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.tpInkMute, fontSize: 12)),
-        ]),
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: Sp.sm),
-      itemCount: results.length,
-      separatorBuilder: (_, _) => Divider(height: 1, indent: Sp.md, color: context.tpHair),
-      itemBuilder: (_, i) {
-        final m = results[i];
-        return ListTile(
-          title: Text(m.sender.displayName,
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: context.tpInk, fontWeight: FontWeight.w800, fontSize: 14)),
-          subtitle: Text(m.content,
-            maxLines: 2, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: context.tpInkSub, fontSize: 13)),
-          trailing: Text(DateFormat('d MMM', 'fr_FR').format(m.createdAt),
-            style: TextStyle(color: context.tpInkMute, fontSize: 11)),
-        );
-      },
     );
   }
 
@@ -813,9 +996,25 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         final idx  = messages.length - 1 - i;   // i=0 → message le plus récent (bas)
         final msg  = messages[idx];
         final isMe = msg.sender.id == myId;
+
+        // Rafale d'images du même expéditeur envoyées à quelques secondes
+        // d'intervalle → regroupées en un seul bloc (grille). Seule l'ancre
+        // (message le plus récent du groupe) est rendue ; les autres index
+        // du groupe sont sautés.
+        final groupRange = _imageGroupRange(messages, idx);
+        if (groupRange != null && idx != groupRange.$2) {
+          return const SizedBox.shrink();
+        }
+        final imageGroup = groupRange != null
+            ? messages.sublist(groupRange.$1, groupRange.$2 + 1)
+            : null;
+
         // Séparateur de jour au-dessus du 1er message de chaque journée (comparé
         // au message plus ancien, donc idx-1 dans le tableau oldest→newest).
-        final showDay = idx == 0 || !_sameDay(messages[idx - 1].createdAt, msg.createdAt);
+        // Pour un groupe d'images, la base de comparaison est le 1er message
+        // du groupe (pas l'ancre) pour ne pas manquer un changement de jour.
+        final dayBaseIdx = groupRange?.$1 ?? idx;
+        final showDay = dayBaseIdx == 0 || !_sameDay(messages[dayBaseIdx - 1].createdAt, messages[dayBaseIdx].createdAt);
         // Accusé de lecture par message (DM uniquement) : lu (2 bleus) / livré
         // = partenaire en ligne mais pas encore lu (2 gris) / envoyé = hors
         // ligne (1 gris).
@@ -829,16 +1028,52 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             status = _MsgStatus.sent;
           }
         }
-        return Column(children: [
-          if (showDay) _buildDaySeparator(context, msg.createdAt),
-          _MessageBubble(message: msg, isMe: isMe, roomId: widget.roomId, status: status, canReact: canWrite),
-        ]);
+        final msgKey = _msgKeys.putIfAbsent(msg.id, () => GlobalKey());
+        return KeyedSubtree(
+          key: msgKey,
+          child: Column(children: [
+            if (showDay) _buildDaySeparator(context, msg.createdAt),
+            _MessageBubble(
+              message: msg, isMe: isMe, roomId: widget.roomId, status: status,
+              canReact: canWrite, imageGroup: imageGroup,
+              isActiveSearchMatch: _searching && msg.id == _activeMatchId,
+            ),
+          ]),
+        );
       },
     );
   }
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// Fenêtre de rafale : des images du même expéditeur envoyées à moins de
+  /// [_kImageGroupWindow] d'écart sont regroupées en un seul bloc.
+  static const _kImageGroupWindow = Duration(seconds: 20);
+
+  /// Bornes [start, end] (inclus, indices chronologiques dans `messages`) du
+  /// groupe d'images auquel appartient `idx`, ou `null` si `idx` n'est pas
+  /// une image ou forme un groupe de taille 1 (pas de bloc à faire).
+  (int, int)? _imageGroupRange(List<ChatMessage> messages, int idx) {
+    final msg = messages[idx];
+    if (!msg.isImage) return null;
+    var start = idx;
+    while (start > 0 &&
+        messages[start - 1].isImage &&
+        messages[start - 1].sender.id == msg.sender.id &&
+        messages[start].createdAt.difference(messages[start - 1].createdAt) <= _kImageGroupWindow) {
+      start--;
+    }
+    var end = idx;
+    while (end < messages.length - 1 &&
+        messages[end + 1].isImage &&
+        messages[end + 1].sender.id == msg.sender.id &&
+        messages[end + 1].createdAt.difference(messages[end].createdAt) <= _kImageGroupWindow) {
+      end++;
+    }
+    if (start == end) return null;
+    return (start, end);
+  }
 
   Widget _buildDaySeparator(BuildContext context, DateTime dt) {
     final now = DateTime.now();
@@ -919,6 +1154,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               child: TextField(
                 controller: _ctrl,
                 maxLines: null,
+                textCapitalization: TextCapitalization.sentences,
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
                 decoration: InputDecoration(
                   hintText: hintText,
@@ -1189,7 +1425,7 @@ enum _VoiceMode { idle, holding, locked, paused }
 /// encore lu (2 coches grises) · [read] = lu (2 coches bleues).
 enum _MsgStatus { sent, delivered, read }
 
-// ── Bouton appel (navbar) ─────────────────────────────────────────────────────
+// ── Bouton appel DM (navbar) ───────────────────────────────────────────────────
 
 class _CallIconBtn extends StatelessWidget {
   final IconData icon;
@@ -1212,6 +1448,81 @@ class _CallIconBtn extends StatelessWidget {
         ),
         child: Icon(icon, color: kPrimary, size: 18),
       ),
+      ),
+    );
+  }
+}
+
+// ── Bouton appel groupe (navbar) — menu déroulant audio/vidéo ─────────────────
+
+class _CallMenuButton extends StatelessWidget {
+  final VoidCallback onAudio;
+  final VoidCallback onVideo;
+  const _CallMenuButton({required this.onAudio, required this.onVideo});
+
+  Future<void> _openMenu(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final topLeft = box.localToGlobal(Offset(0, box.size.height + 6), ancestor: overlay);
+    final position = RelativeRect.fromLTRB(
+      topLeft.dx, topLeft.dy,
+      overlay.size.width - topLeft.dx - box.size.width, 0,
+    );
+
+    final choice = await showMenu<String>(
+      context: context,
+      position: position,
+      color: context.tpCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+      items: [
+        PopupMenuItem(
+          value: 'audio',
+          child: Row(children: [
+            Icon(PhosphorIcons.phone(), color: kPrimary, size: 18),
+            const SizedBox(width: 10),
+            Text('Appel audio',
+              style: TextStyle(color: context.tpInk, fontWeight: FontWeight.w700, fontSize: 14)),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'video',
+          child: Row(children: [
+            Icon(PhosphorIcons.videoCamera(), color: kPrimary, size: 18),
+            const SizedBox(width: 10),
+            Text('Appel vidéo',
+              style: TextStyle(color: context.tpInk, fontWeight: FontWeight.w700, fontSize: 14)),
+          ]),
+        ),
+      ],
+    );
+
+    if (choice == 'audio') onAudio();
+    if (choice == 'video') onVideo();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Lancer un appel',
+      child: GestureDetector(
+        onTap: () => _openMenu(context),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: kPrimary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(Radii.md),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(PhosphorIcons.phone(), color: kPrimary, size: 18),
+              const SizedBox(width: 2),
+              Icon(PhosphorIcons.caretDown(), color: kPrimary, size: 12),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1328,6 +1639,8 @@ class _MessageBubble extends ConsumerWidget {
   final String roomId;
   final _MsgStatus? status;
   final bool canReact;
+  final List<ChatMessage>? imageGroup;
+  final bool isActiveSearchMatch;
 
   const _MessageBubble({
     required this.message,
@@ -1335,6 +1648,8 @@ class _MessageBubble extends ConsumerWidget {
     required this.roomId,
     this.status,
     this.canReact = true,
+    this.imageGroup,
+    this.isActiveSearchMatch = false,
   });
 
   @override
@@ -1351,12 +1666,20 @@ class _MessageBubble extends ConsumerWidget {
 
     Widget content;
     if (message.isImage) {
-      content = _ImageContent(imageUrl: message.imageUrl, isMe: isMe);
+      final urls = (imageGroup ?? [message]).map((m) => m.imageUrl).whereType<String>().toList();
+      content = _ImageContent(
+        imageUrls: urls,
+        isMe: isMe,
+        onTapIndex: (i) => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ImageViewerScreen(images: urls, initialIndex: i)),
+        ),
+      );
     } else if (message.isVoice) {
       content = _VoiceContent(
         voiceUrl: message.voiceUrl,
         duration: message.voiceDuration ?? 0,
         isMe: isMe,
+        seed: message.id,
       );
     } else if (message.isEventInvite) {
       content = message.invitationId != null
@@ -1364,6 +1687,29 @@ class _MessageBubble extends ConsumerWidget {
           : _EventInviteContent(eventId: message.eventInviteId, isMe: isMe);
     } else {
       content = _TextContent(text: message.content, isMe: isMe);
+    }
+
+    // Résultat de recherche actif dans la conversation : anneau + halo
+    // pour le repérer d'un coup d'œil sans quitter le fil (heure/expéditeur
+    // restent visibles autour, contrairement à une liste de résultats séparée).
+    // Même forme (coins asymétriques) que la bulle elle-même pour épouser son
+    // contour exact plutôt qu'un rectangle générique autour.
+    if (isActiveSearchMatch) {
+      final bubbleRadius = BorderRadius.only(
+        topLeft: const Radius.circular(Radii.card),
+        topRight: const Radius.circular(Radii.card),
+        bottomLeft: Radius.circular(isMe ? 20 : 6),
+        bottomRight: Radius.circular(isMe ? 6 : 20),
+      );
+      content = AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        decoration: BoxDecoration(
+          borderRadius: bubbleRadius,
+          border: Border.all(color: kAccent, width: 2.5),
+          boxShadow: [BoxShadow(color: kAccent.withValues(alpha: 0.35), blurRadius: 10)],
+        ),
+        child: content,
+      );
     }
 
     // Réactions existantes sous la bulle
@@ -1475,38 +1821,87 @@ class _TextContent extends StatelessWidget {
 // ── Contenu image ─────────────────────────────────────────────────────────────
 
 class _ImageContent extends StatelessWidget {
-  final String? imageUrl;
+  final List<String> imageUrls;
   final bool isMe;
-  const _ImageContent({required this.imageUrl, required this.isMe});
+  final ValueChanged<int> onTapIndex;
+  const _ImageContent({required this.imageUrls, required this.isMe, required this.onTapIndex});
 
-  @override
-  Widget build(BuildContext context) {
-    if (imageUrl == null) {
-      return const SizedBox.shrink();
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.only(
+  static const _maxTiles = 4;
+
+  BorderRadius get _radius => BorderRadius.only(
         topLeft: const Radius.circular(Radii.card),
         topRight: const Radius.circular(Radii.card),
         bottomLeft: Radius.circular(isMe ? 20 : 6),
         bottomRight: Radius.circular(isMe ? 6 : 20),
-      ),
-      child: CachedNetworkImage(
-        imageUrl: imageUrl!,
-        width: MediaQuery.of(context).size.width * 0.6,
-        height: 200,
+      );
+
+  Widget _tile(BuildContext context, String url, {double? width, double? height}) => CachedNetworkImage(
+        imageUrl: url,
+        width: width,
+        height: height,
         fit: BoxFit.cover,
         placeholder: (_, _) => Container(
-          width: MediaQuery.of(context).size.width * 0.6,
-          height: 200,
-          color: context.tpHair,
+          width: width, height: height, color: context.tpHair,
           child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         ),
         errorWidget: (_, _, _) => Container(
-          width: MediaQuery.of(context).size.width * 0.6,
-          height: 80,
-          color: context.tpHair,
+          width: width, height: height, color: context.tpHair,
           child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrls.isEmpty) return const SizedBox.shrink();
+    final width = MediaQuery.of(context).size.width * 0.6;
+
+    if (imageUrls.length == 1) {
+      return ClipRRect(
+        borderRadius: _radius,
+        child: GestureDetector(
+          onTap: () => onTapIndex(0),
+          child: _tile(context, imageUrls[0], width: width, height: 200),
+        ),
+      );
+    }
+
+    final shown = imageUrls.length > _maxTiles ? _maxTiles : imageUrls.length;
+    final extra = imageUrls.length - _maxTiles;
+
+    return ClipRRect(
+      borderRadius: _radius,
+      child: SizedBox(
+        width: width,
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 2,
+            mainAxisSpacing: 2,
+            childAspectRatio: 1,
+          ),
+          itemCount: shown,
+          itemBuilder: (_, i) {
+            final isLastVisibleTile = i == shown - 1 && extra > 0;
+            return GestureDetector(
+              onTap: () => onTapIndex(i),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _tile(context, imageUrls[i]),
+                  if (isLastVisibleTile)
+                    Container(
+                      color: Colors.black54,
+                      alignment: Alignment.center,
+                      child: Text('+$extra',
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1519,37 +1914,57 @@ class _VoiceContent extends StatefulWidget {
   final String? voiceUrl;
   final int duration;
   final bool isMe;
+  /// Sert de graine stable pour générer la forme d'onde décorative (même
+  /// message → même dessin à chaque reconstruction). On n'a pas les vraies
+  /// amplitudes audio côté serveur, donc le tracé n'est pas fidèle au son.
+  final String seed;
 
-  const _VoiceContent({required this.voiceUrl, required this.duration, required this.isMe});
+  const _VoiceContent({
+    required this.voiceUrl,
+    required this.duration,
+    required this.isMe,
+    required this.seed,
+  });
 
   @override
   State<_VoiceContent> createState() => _VoiceContentState();
 }
 
 class _VoiceContentState extends State<_VoiceContent> {
+  static const _barCount = 28;
+
   final _player   = AudioPlayer();
   bool  _playing  = false;
-  double _progress = 0;
-  int   _current  = 0;
+  bool  _loading  = false;
+  bool  _hasStarted = false;
+  Duration _current = Duration.zero;
+  Duration? _total;
   StreamSubscription? _posSub;
   StreamSubscription? _stateSub;
+  StreamSubscription? _durSub;
+  late final List<double> _bars = _generateBars(widget.seed, _barCount);
+
+  static List<double> _generateBars(String seed, int count) {
+    final rnd = Random(seed.hashCode);
+    return List.generate(count, (_) => 0.25 + rnd.nextDouble() * 0.75);
+  }
 
   @override
   void initState() {
     super.initState();
     _posSub = _player.onPositionChanged.listen((pos) {
       if (!mounted) return;
-      final total = widget.duration > 0 ? widget.duration : 1;
-      setState(() {
-        _current  = pos.inSeconds;
-        _progress = pos.inSeconds / total;
-      });
+      setState(() => _current = pos);
     });
     _stateSub = _player.onPlayerStateChanged.listen((s) {
       if (!mounted) return;
       if (s == PlayerState.completed) {
-        setState(() { _playing = false; _progress = 0; _current = 0; });
+        setState(() { _playing = false; _current = Duration.zero; });
       }
+    });
+    _durSub = _player.onDurationChanged.listen((d) {
+      if (!mounted) return;
+      setState(() => _total = d);
     });
   }
 
@@ -1557,48 +1972,72 @@ class _VoiceContentState extends State<_VoiceContent> {
   void dispose() {
     _posSub?.cancel();
     _stateSub?.cancel();
+    _durSub?.cancel();
     _player.dispose();
     super.dispose();
+  }
+
+  int get _totalSeconds =>
+      _total?.inSeconds ?? (widget.duration > 0 ? widget.duration : 1);
+
+  double get _progress {
+    final total = _totalSeconds;
+    return total == 0 ? 0 : (_current.inSeconds / total).clamp(0.0, 1.0);
   }
 
   Future<void> _toggle() async {
     if (widget.voiceUrl == null) return;
     if (_playing) {
       await _player.pause();
-      setState(() => _playing = false);
+      if (mounted) setState(() => _playing = false);
     } else {
-      try {
-        await _player.play(UrlSource(widget.voiceUrl!));
-        if (mounted) setState(() => _playing = true);
-      } catch (e) {
-        // Lecture impossible (URL injoignable, format non supporté…) : ne pas
-        // rester bloqué en « lecture », et prévenir l'utilisateur.
-        if (mounted) {
-          setState(() => _playing = false);
-          TpToast.error(context, 'Impossible de lire la note vocale.');
-        }
+      await _playFrom(_progress);
+    }
+  }
+
+  /// Démarre (ou reprend) la lecture à la fraction [0, 1] donnée — utilisé à
+  /// la fois par le bouton lecture et par le tap/glissé sur la forme d'onde.
+  Future<void> _playFrom(double fraction) async {
+    if (widget.voiceUrl == null) return;
+    final target = Duration(milliseconds: (_totalSeconds * 1000 * fraction).round());
+    setState(() => _loading = !_hasStarted);
+    try {
+      if (!_hasStarted) {
+        await _player.play(UrlSource(widget.voiceUrl!), position: target);
+        _hasStarted = true;
+      } else {
+        await _player.seek(target);
+        await _player.resume();
+      }
+      if (mounted) setState(() { _playing = true; _loading = false; _current = target; });
+    } catch (e) {
+      // Lecture impossible (URL injoignable, format non supporté…) : ne pas
+      // rester bloqué en « lecture », et prévenir l'utilisateur.
+      if (mounted) {
+        setState(() { _playing = false; _loading = false; });
+        TpToast.error(context, 'Impossible de lire la note vocale.');
       }
     }
   }
 
-  String _fmt(int secs) {
-    final m = secs ~/ 60;
-    final s = secs % 60;
+  String _fmt(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final bg    = widget.isMe ? null : context.tpCard;
-    final fg    = widget.isMe ? Colors.white : context.tpInk;
-    final track = widget.isMe ? Colors.white38 : context.tpHair;
+    final fg     = widget.isMe ? Colors.white : context.tpInk;
+    final track  = widget.isMe ? Colors.white38 : context.tpHair;
+    final active = widget.isMe ? Colors.white : kPrimary;
 
     return Container(
-      width: MediaQuery.of(context).size.width * 0.65,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      width: MediaQuery.of(context).size.width * 0.68,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         gradient: widget.isMe ? trackpartyGradient : null,
-        color: bg,
+        color: widget.isMe ? null : context.tpCard,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(Radii.card),
           topRight: const Radius.circular(Radii.card),
@@ -1608,24 +2047,32 @@ class _VoiceContentState extends State<_VoiceContent> {
         boxShadow: widget.isMe ? Shadows.brand : Shadows.sm,
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Semantics(
             button: true,
             label: _playing ? 'Pause' : 'Lecture',
             child: GestureDetector(
-            onTap: _toggle,
-            child: Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: widget.isMe ? Colors.white24 : kPrimary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+              onTap: _toggle,
+              child: Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  color: widget.isMe ? Colors.white24 : kPrimary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: _loading
+                    ? Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: active),
+                      )
+                    : Icon(
+                        _playing
+                            ? PhosphorIcons.pause(PhosphorIconsStyle.fill)
+                            : PhosphorIcons.play(PhosphorIconsStyle.fill),
+                        color: active,
+                        size: 18,
+                      ),
               ),
-              child: Icon(
-                _playing ? PhosphorIcons.pause() : PhosphorIcons.play(),
-                color: widget.isMe ? Colors.white : kPrimary,
-                size: 16,
-              ),
-            ),
             ),
           ),
           const SizedBox(width: 10),
@@ -1633,24 +2080,78 @@ class _VoiceContentState extends State<_VoiceContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: track,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    widget.isMe ? Colors.white : kPrimary,
-                  ),
-                  minHeight: 3,
-                  borderRadius: BorderRadius.circular(2),
+                _VoiceWaveform(
+                  bars: _bars,
+                  progress: _progress,
+                  activeColor: active,
+                  trackColor: track,
+                  onSeek: widget.voiceUrl == null ? null : _playFrom,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _playing ? _fmt(_current) : _fmt(widget.duration),
+                  '${_fmt(_current)} / ${_fmt(Duration(seconds: _totalSeconds))}',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg.withValues(alpha: 0.7)),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Forme d'onde interactive (tap/glissé pour avancer la lecture) ─────────────
+
+class _VoiceWaveform extends StatelessWidget {
+  final List<double> bars;
+  final double progress;
+  final Color activeColor;
+  final Color trackColor;
+  final ValueChanged<double>? onSeek;
+
+  const _VoiceWaveform({
+    required this.bars,
+    required this.progress,
+    required this.activeColor,
+    required this.trackColor,
+    this.onSeek,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 22,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          void handleSeek(double dx) {
+            final fraction = constraints.maxWidth == 0 ? 0.0 : (dx / constraints.maxWidth).clamp(0.0, 1.0);
+            onSeek?.call(fraction);
+          }
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: onSeek == null ? null : (d) => handleSeek(d.localPosition.dx),
+            onHorizontalDragUpdate: onSeek == null ? null : (d) => handleSeek(d.localPosition.dx),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (var i = 0; i < bars.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 3),
+                  Expanded(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      height: (bars[i] * 18).clamp(4, 18),
+                      decoration: BoxDecoration(
+                        color: (i / bars.length) <= progress ? activeColor : trackColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -2054,6 +2555,7 @@ class _AnnouncementBubble extends ConsumerWidget {
                 voiceUrl: message.voiceUrl,
                 duration: message.voiceDuration ?? 0,
                 isMe: false,
+                seed: message.id,
               ),
             ),
           // Event mini-card
@@ -2411,6 +2913,112 @@ class EventModeBanner extends StatelessWidget {
   }
 }
 
+class _GroupSettingsSheet extends StatelessWidget {
+  final ChatRoomModel room;
+  final Future<void> Function() onToggleBroadcast;
+  final VoidCallback onAddMembers;
+  final VoidCallback onRename;
+  final VoidCallback onChangeAvatar;
+  final VoidCallback onLeave;
+
+  const _GroupSettingsSheet({
+    required this.room,
+    required this.onToggleBroadcast,
+    required this.onAddMembers,
+    required this.onRename,
+    required this.onChangeAvatar,
+    required this.onLeave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(Sp.md),
+      padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(Radii.cardLg),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            if (room.isAdmin) ...[
+              _tile(context,
+                icon: PhosphorIcons.userPlus(),
+                label: 'Ajouter des membres',
+                onTap: () { Navigator.pop(context); onAddMembers(); }),
+              _tile(context,
+                icon: PhosphorIcons.textAa(),
+                label: 'Renommer le groupe',
+                onTap: () { Navigator.pop(context); onRename(); }),
+              _tile(context,
+                icon: PhosphorIcons.image(),
+                label: 'Changer la photo',
+                onTap: () { Navigator.pop(context); onChangeAvatar(); }),
+              _tile(context,
+                icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
+                label: room.isBroadcast ? 'Ouvrir aux membres' : 'Seuls les admins écrivent',
+                subtitle: room.isBroadcast
+                    ? 'Les membres pourront écrire'
+                    : "Personne d'autre ne pourra écrire",
+                onTap: () { Navigator.pop(context); onToggleBroadcast(); }),
+              Divider(color: context.tpHair, height: 24),
+            ],
+            _tile(context,
+              icon: PhosphorIcons.signOut(),
+              label: 'Quitter le groupe',
+              danger: true,
+              onTap: () { Navigator.pop(context); onLeave(); }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tile(BuildContext context, {
+    required IconData icon,
+    required String label,
+    String? subtitle,
+    required VoidCallback onTap,
+    bool danger = false,
+  }) {
+    final color = danger ? const Color(0xFFEF4444) : context.tpInk;
+    return Semantics(
+      button: true, label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(children: [
+            Icon(icon, color: danger ? color : context.tpInkSub, size: 20),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+                  if (subtitle != null)
+                    Text(subtitle, style: TextStyle(fontSize: 12, color: context.tpInkSub)),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _GroupModeSheet extends StatelessWidget {
   final bool isBroadcast;
   final Future<void> Function() onToggle;
@@ -2506,4 +3114,82 @@ class _GroupModeSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Bottom sheet renommage groupe ────────────────────────────────────────────
+
+Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) {
+  final ctrl = TextEditingController(text: initialName);
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final bottom = MediaQuery.of(ctx).viewInsets.bottom +
+          MediaQuery.of(ctx).padding.bottom + 20;
+      return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
+        ),
+        padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44, height: 5,
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).dividerColor,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text('Renommer le groupe',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: 80,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'Nom du groupe',
+                filled: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Radii.md),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Radii.tag)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                  child: const Text('Enregistrer',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      );
+    },
+  );
 }

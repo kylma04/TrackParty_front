@@ -14,13 +14,15 @@ class CallKitService {
     required String roomId,
     String? callerId,
     String? callerAvatar,
+    bool isGroup = false,
   }) async {
+    final label = callType == 'video' ? 'Appel vidéo' : 'Appel audio';
     final params = CallKitParams(
       id: callId,
       nameCaller: callerName,
       appName: 'TrackParty',
       avatar: (callerAvatar != null && callerAvatar.isNotEmpty) ? callerAvatar : null,
-      handle: callType == 'video' ? 'Appel vidéo' : 'Appel audio',
+      handle: isGroup ? '$label de groupe' : label,
       type: callType == 'video' ? 1 : 0,
       duration: 45000,
       textAccept: 'Répondre',
@@ -32,6 +34,7 @@ class CallKitService {
         'caller_id': callerId ?? '',
         'caller_name': callerName,
         'caller_avatar': callerAvatar ?? '',
+        'is_group': isGroup.toString(),
       },
       android: const AndroidParams(
         isCustomNotification: true,

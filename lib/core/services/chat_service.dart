@@ -147,4 +147,36 @@ class ChatService {
         final list = res.data as List<dynamic>;
         return list.map((e) => RoomMemberModel.fromJson(e as Map<String, dynamic>)).toList();
       });
+
+  // ── Groupes personnalisés ─────────────────────────────────────────────────
+
+  /// Crée un groupe (façon WhatsApp) avec des membres pris parmi ses contacts
+  /// (DM existant). Le créateur devient admin.
+  Future<ChatRoomModel> createGroup(String name, List<String> memberIds) => _call(() async {
+        final res = await _dio.post('chat/rooms/group/', data: {
+          'name': name,
+          'member_ids': memberIds,
+        });
+        return ChatRoomModel.fromJson(res.data as Map<String, dynamic>);
+      });
+
+  /// Ajoute des membres à un groupe (admin uniquement, contacts uniquement).
+  Future<void> addGroupMembers(String roomId, List<String> memberIds) => _call(() async {
+        await _dio.post('chat/rooms/$roomId/members/add/', data: {'member_ids': memberIds});
+      });
+
+  /// Retire un membre du groupe (admin uniquement).
+  Future<void> removeGroupMember(String roomId, String userId) => _call(() async {
+        await _dio.delete('chat/rooms/$roomId/members/$userId/remove/');
+      });
+
+  /// Promeut/rétrograde un membre admin (admin uniquement).
+  Future<void> updateMemberRole(String roomId, String userId, String role) => _call(() async {
+        await _dio.patch('chat/rooms/$roomId/members/$userId/role/', data: {'role': role});
+      });
+
+  /// Quitte un groupe personnalisé.
+  Future<void> leaveGroup(String roomId) => _call(() async {
+        await _dio.post('chat/rooms/$roomId/leave/');
+      });
 }

@@ -517,6 +517,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
               child: TextField(
                 controller: _ctrl,
                 maxLines: null,
+                textCapitalization: TextCapitalization.sentences,
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
                 decoration: InputDecoration(
                   hintText: hintText,

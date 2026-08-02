@@ -21,6 +21,8 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_skeleton.dart';
+import '../../widgets/tp_toast.dart';
+import 'contact_picker_screen.dart';
 
 class ChatListScreen extends ConsumerStatefulWidget {
   const ChatListScreen({super.key});
@@ -32,13 +34,17 @@ class ChatListScreen extends ConsumerStatefulWidget {
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   int _tab = 0;
   final _pageCtrl = PageController();
+  final _searchCtrl = TextEditingController();
+  String _query = '';
 
-  static const _tabLabels = ['DM', 'Événements', 'Communautés'];
-  static const _tabTypes  = ['private', 'event', 'community'];
+  // null = pas de filtre par type (onglet "Toutes")
+  static const _tabLabels = ['Toutes', 'DM', 'Groupes', 'Événements', 'Communautés'];
+  static const _tabTypes  = <String?>[null, 'private', 'group', 'event', 'community'];
 
   @override
   void dispose() {
     _pageCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -57,8 +63,33 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       context: ctx,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const _NewConversationSheet(),
+      builder: (_) => _NewConversationSheet(onCreateGroup: () => _createGroup(ctx)),
     );
+  }
+
+  // ── Créer un groupe ─────────────────────────────────────────────────────────
+
+  Future<void> _createGroup(BuildContext context) async {
+    final memberIds = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => const ContactPickerScreen(
+          title: 'Nouveau groupe',
+          confirmLabel: 'Suivant',
+        ),
+      ),
+    );
+    if (memberIds == null || memberIds.isEmpty || !context.mounted) return;
+
+    final name = await _showGroupNameSheet(context);
+    if (name == null || name.trim().isEmpty || !context.mounted) return;
+
+    try {
+      final room = await ref.read(chatServiceProvider).createGroup(name.trim(), memberIds);
+      ref.read(chatRoomsProvider.notifier).refresh();
+      if (context.mounted) context.push('/chat/${room.id}');
+    } catch (_) {
+      if (context.mounted) TpToast.error(context, 'Impossible de créer le groupe');
+    }
   }
 
   @override
@@ -67,35 +98,97 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
     return Scaffold(
       backgroundColor: context.tpBg,
+      floatingActionButton: _buildFab(context),
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
             _buildHeader(context),
-            _buildTabs(context, roomsAsync),
+            _buildSearchField(context),
+            if (_query.isEmpty) _buildTabs(context, roomsAsync),
             Expanded(
               child: roomsAsync.when(
                 loading: () => SkList(count: 8, builder: (_) => const SkRowItem()),
                 error: (e, _) => _buildError(context),
-                data: (rooms) => PageView.builder(
-                  controller: _pageCtrl,
-                  // Swipe horizontal → change d'onglet (met à jour l'indicateur).
-                  onPageChanged: (i) => setState(() => _tab = i),
-                  itemCount: _tabTypes.length,
-                  itemBuilder: (_, i) {
-                    final filtered = rooms
-                        .where((r) => r.roomType == _tabTypes[i])
-                        .toList();
-                    if (filtered.isEmpty) return _buildEmpty(context, i);
-                    return _buildList(context, filtered);
-                  },
-                ),
+                data: (rooms) => _query.isNotEmpty
+                    ? _buildSearchResults(context, rooms)
+                    : PageView.builder(
+                        controller: _pageCtrl,
+                        // Swipe horizontal → change d'onglet (met à jour l'indicateur).
+                        onPageChanged: (i) => setState(() => _tab = i),
+                        itemCount: _tabTypes.length,
+                        itemBuilder: (_, i) {
+                          final type = _tabTypes[i];
+                          final filtered = rooms
+                              .where((r) => type == null || r.roomType == type)
+                              .toList();
+                          if (filtered.isEmpty) return _buildEmpty(context, i);
+                          return _buildList(context, filtered);
+                        },
+                      ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // ── Recherche ─────────────────────────────────────────────────────────────
+  Widget _buildSearchField(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.sm),
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.button),
+          border: Border.all(color: context.tpHair),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(children: [
+          Icon(PhosphorIcons.magnifyingGlass(), color: context.tpInkMute, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+              decoration: InputDecoration(
+                hintText: 'Rechercher une discussion…',
+                hintStyle: TextStyle(fontSize: 14, color: context.tpInkMute, fontWeight: FontWeight.w500),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              onChanged: (v) => setState(() => _query = v.trim()),
+            ),
+          ),
+          if (_query.isNotEmpty)
+            GestureDetector(
+              onTap: () => setState(() { _searchCtrl.clear(); _query = ''; }),
+              child: Icon(PhosphorIcons.x(), color: context.tpInkMute, size: 16),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildSearchResults(BuildContext context, List<ChatRoomModel> rooms) {
+    final q = _query.toLowerCase();
+    final filtered = rooms.where((r) => r.displayName.toLowerCase().contains(q)).toList();
+    if (filtered.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(PhosphorIcons.magnifyingGlass(), size: 40, color: context.tpInkMute),
+            const SizedBox(height: 12),
+            Text('Aucune discussion trouvée',
+                style: TextStyle(color: context.tpInkSub, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      );
+    }
+    return _buildList(context, filtered);
   }
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -123,20 +216,29 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Semantics(
-            button: true,
-            label: 'Nouvelle conversation',
-            child: GestureDetector(
-              onTap: () => _showNewConversationSheet(context),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(gradient: trackpartyGradient, borderRadius: BorderRadius.circular(Radii.md)),
-                child: Icon(PhosphorIcons.pencilSimple(), color: Colors.white, size: 18),
-              ),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  // ── Bouton flottant « nouvelle conversation » (façon WhatsApp) ─────────────
+  Widget _buildFab(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Nouvelle conversation',
+      child: GestureDetector(
+        onTap: () => _showNewConversationSheet(context),
+        child: Container(
+          width: 58, height: 58,
+          decoration: BoxDecoration(
+            gradient: trackpartyGradient,
+            shape: BoxShape.circle,
+            boxShadow: const [
+              BoxShadow(color: Color(0x407C3AED), blurRadius: 16, offset: Offset(0, 6)),
+            ],
+          ),
+          child: Icon(PhosphorIcons.chatCircleText(PhosphorIconsStyle.fill), color: Colors.white, size: 26),
+        ),
       ),
     );
   }
@@ -185,62 +287,51 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   Widget _buildTabs(BuildContext context, AsyncValue<List<ChatRoomModel>> roomsAsync) {
     final rooms = roomsAsync.valueOrNull ?? [];
     final counts = [
+      rooms.length,
       rooms.where((r) => r.isPrivate).length,
+      rooms.where((r) => r.isGroup).length,
       rooms.where((r) => r.isEvent).length,
       rooms.where((r) => r.isCommunity).length,
     ];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, 8),
-      child: Row(
-        children: List.generate(3, (i) {
-          final active = i == _tab;
-          return Expanded(
-            child: Semantics(
-              label: '${_tabLabels[i]}, ${counts[i]} conversations',
-              selected: active,
-              button: true,
-              child: GestureDetector(
-                onTap: () => _goToTab(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  height: 44,
-                  margin: EdgeInsets.only(right: i < 2 ? 8 : 0),
-                  decoration: BoxDecoration(
-                    gradient: active ? trackpartyGradient : null,
-                    color: active ? null : context.tpCard,
-                    borderRadius: BorderRadius.circular(Radii.md),
-                    border: active ? null : Border.all(color: context.tpHair),
-                    boxShadow: active
-                        ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 12, offset: Offset(0, 4))]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_tabLabels[i],
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
-                            color: active ? Colors.white : context.tpInk)),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? Colors.white.withValues(alpha: 0.25)
-                              : kPrimary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(Radii.pill),
-                        ),
-                        child: Text('${counts[i]}',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
-                              color: active ? Colors.white : kPrimary)),
-                      ),
-                    ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(_tabTypes.length, (i) {
+            final active = i == _tab;
+            return Padding(
+              padding: EdgeInsets.only(right: i < _tabTypes.length - 1 ? 8 : 0),
+              child: Semantics(
+                label: '${_tabLabels[i]}, ${counts[i]} conversations',
+                selected: active,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => _goToTab(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: active ? trackpartyGradient : null,
+                      color: active ? null : context.tpCard,
+                      borderRadius: BorderRadius.circular(Radii.pill),
+                      border: active ? null : Border.all(color: context.tpHair),
+                      boxShadow: active
+                          ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 12, offset: Offset(0, 4))]
+                          : null,
+                    ),
+                    child: Text(_tabLabels[i],
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                          color: active ? Colors.white : context.tpInk)),
                   ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -266,7 +357,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   Widget _buildEmpty(BuildContext context, int tab) {
-    final labels = ['conversation', 'groupe événement', 'communauté'];
+    final labels = ['conversation', 'DM', 'groupe', 'groupe événement', 'communauté'];
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -315,7 +406,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 // ── Nouvelle conversation ─────────────────────────────────────────────────────
 
 class _NewConversationSheet extends ConsumerStatefulWidget {
-  const _NewConversationSheet();
+  const _NewConversationSheet({required this.onCreateGroup});
+
+  final VoidCallback onCreateGroup;
 
   @override
   ConsumerState<_NewConversationSheet> createState() => _NewConversationSheetState();
@@ -515,6 +608,32 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
             ),
 
             const SizedBox(height: 16),
+
+            // Nouveau groupe
+            Semantics(
+              button: true,
+              label: 'Créer un nouveau groupe',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(Radii.md),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onCreateGroup();
+                },
+                child: Row(children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: const BoxDecoration(gradient: trackpartyGradient, shape: BoxShape.circle),
+                    child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('Nouveau groupe',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.tpInk)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Divider(color: context.tpHair, height: 1),
+            const SizedBox(height: 14),
 
             // Champ de recherche
             Container(
@@ -760,7 +879,9 @@ class _GroupAvatar extends StatelessWidget {
   Widget _fallback(BuildContext context) {
     final icon = room.isEvent
         ? PhosphorIcons.confetti()
-        : PhosphorIcons.users();
+        : room.isGroup
+            ? PhosphorIcons.usersThree()
+            : PhosphorIcons.users();
     return Container(
       width: 52, height: 52,
       decoration: BoxDecoration(
@@ -908,4 +1029,82 @@ class _ChatRow extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Bottom sheet nom du nouveau groupe ───────────────────────────────────────
+
+Future<String?> _showGroupNameSheet(BuildContext context) {
+  final ctrl = TextEditingController();
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final bottom = MediaQuery.of(ctx).viewInsets.bottom +
+          MediaQuery.of(ctx).padding.bottom + 20;
+      return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(ctx).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
+        ),
+        padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44, height: 5,
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).dividerColor,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text('Nommer le groupe',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: 80,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'Nom du groupe',
+                filled: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Radii.md),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Annuler',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Radii.tag)),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                  child: const Text('Créer',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      );
+    },
+  );
 }

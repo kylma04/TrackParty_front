@@ -125,6 +125,10 @@ class CheckinResult {
   final bool alreadyChecked;
   final DateTime? checkedInAt;
   final String message;
+  /// Billet en nature valide dont le staff doit encore vérifier la
+  /// contribution avant que l'entrée soit matérialisée (voir
+  /// TicketService.checkin(confirm:)).
+  final bool requiresConfirmation;
   final bool isInKind;
   final String? categoryName;
   final String? categoryColor; // hex #RRGGBB
@@ -138,6 +142,7 @@ class CheckinResult {
     required this.alreadyChecked,
     this.checkedInAt,
     required this.message,
+    this.requiresConfirmation = false,
     this.isInKind = false,
     this.categoryName,
     this.categoryColor,
@@ -154,6 +159,7 @@ class CheckinResult {
             ? DateTime.parse(j['checked_in_at'] as String)
             : null,
         message: (j['message'] as String?) ?? '',
+        requiresConfirmation: j['requires_confirmation'] as bool? ?? false,
         isInKind: j['is_in_kind'] as bool? ?? false,
         categoryName: j['category_name'] as String?,
         categoryColor: j['category_color'] as String?,

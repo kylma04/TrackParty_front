@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
+import '../../core/providers/chat_provider.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
@@ -12,6 +13,7 @@ import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_toast.dart';
 
 // ── Sheet membres d'une salle (communauté ou groupe événement) ────────────────
 
@@ -47,6 +49,89 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
     } on ApiException {
       if (mounted) setState(() { _sentTo.add(member.id); _sendingTo.remove(member.id); });
     }
+  }
+
+  // ── Gestion admin (groupe personnalisé) ─────────────────────────────────────
+
+  void _reload() {
+    setState(() {
+      _future = ref.read(chatServiceProvider).getRoomMembers(widget.room.id);
+    });
+  }
+
+  Future<void> _toggleAdmin(RoomMemberModel member) async {
+    final newRole = member.isAdmin ? 'member' : 'admin';
+    try {
+      await ref.read(chatServiceProvider).updateMemberRole(widget.room.id, member.id, newRole);
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) TpToast.error(context, e.message);
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Action impossible pour le moment');
+    }
+  }
+
+  Future<void> _removeMember(RoomMemberModel member) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: dCtx.tpCard,
+        title: Text('Retirer ${member.displayName} ?',
+            style: TextStyle(color: dCtx.tpInk, fontWeight: FontWeight.w800)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('Retirer', style: TextStyle(color: Color(0xFFEF4444)))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(chatServiceProvider).removeGroupMember(widget.room.id, member.id);
+      ref.read(chatRoomsProvider.notifier).refresh();
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) TpToast.error(context, e.message);
+    } catch (_) {
+      if (mounted) TpToast.error(context, 'Action impossible pour le moment');
+    }
+  }
+
+  void _showAdminActions(RoomMemberModel member) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: context.tpCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(width: 40, height: 4, decoration: BoxDecoration(
+                color: sheetCtx.tpHair, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 6),
+            ListTile(
+              leading: Icon(
+                member.isAdmin ? PhosphorIcons.shieldSlash() : PhosphorIcons.shieldCheck(),
+                color: sheetCtx.tpInk, size: 22,
+              ),
+              title: Text(member.isAdmin ? 'Retirer les droits admin' : 'Promouvoir admin',
+                  style: TextStyle(color: sheetCtx.tpInk, fontSize: 15, fontWeight: FontWeight.w700)),
+              onTap: () { Navigator.pop(sheetCtx); _toggleAdmin(member); },
+            ),
+            ListTile(
+              leading: const Icon(PhosphorIconsBold.userMinus, color: Color(0xFFEF4444), size: 22),
+              title: const Text('Retirer du groupe',
+                  style: TextStyle(color: Color(0xFFEF4444), fontSize: 15, fontWeight: FontWeight.w700)),
+              onTap: () { Navigator.pop(sheetCtx); _removeMember(member); },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -117,7 +202,9 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
                     member:    members[i],
                     sent:      _sentTo.contains(members[i].id),
                     sending:   _sendingTo.contains(members[i].id),
+                    canManage: widget.room.isGroup && widget.room.isAdmin,
                     onRequest: () => _sendRequest(members[i]),
+                    onManage:  () => _showAdminActions(members[i]),
                     onMessage: () {
                       Navigator.pop(context);
                       context.push('/chat/new', extra: {
@@ -144,16 +231,20 @@ class RoomMemberRow extends StatelessWidget {
   final RoomMemberModel member;
   final bool sent;
   final bool sending;
+  final bool canManage;
   final VoidCallback onRequest;
   final VoidCallback onMessage;
+  final VoidCallback? onManage;
 
   const RoomMemberRow({
     super.key,
     required this.member,
     required this.sent,
     required this.sending,
+    this.canManage = false,
     required this.onRequest,
     required this.onMessage,
+    this.onManage,
   });
 
   @override
@@ -247,6 +338,20 @@ class RoomMemberRow extends StatelessWidget {
             ),
             ),
           ),
+        if (canManage) ...[
+          const SizedBox(width: 6),
+          Semantics(
+            button: true,
+            label: 'Gérer ${member.displayName}',
+            child: GestureDetector(
+              onTap: onManage,
+              child: SizedBox(
+                width: 36, height: 36,
+                child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInkSub, size: 18),
+              ),
+            ),
+          ),
+        ],
       ]),
     );
   }

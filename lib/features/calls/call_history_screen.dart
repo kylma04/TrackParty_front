@@ -36,19 +36,25 @@ class _CallHistoryScreenState extends ConsumerState<CallHistoryScreen> {
   }
 
   Future<void> _callBack(BuildContext ctx, CallHistoryEntry e) async {
-    final name = e.otherUserName ?? 'Appel';
+    final name = e.displayName;
+    final avatar = e.participants.length == 1 ? e.participants.first.avatarUrl : e.otherUserAvatarUrl;
     try {
       await CallService().initiateCall(
         roomId: e.roomId,
         callType: e.callType,
         remoteUserName: name,
-        remoteUserAvatarUrl: e.otherUserAvatarUrl,
+        remoteUserAvatarUrl: avatar,
+        isGroup: e.isGroup,
+        invitees: [
+          for (final p in e.participants)
+            CallParticipant(userId: p.id, displayName: p.name, avatarUrl: p.avatarUrl),
+        ],
       );
       if (ctx.mounted) {
         ctx.push('/call/outgoing', extra: {
           'callType': e.callType,
           'remoteUserName': name,
-          'remoteUserAvatarUrl': e.otherUserAvatarUrl,
+          'remoteUserAvatarUrl': avatar,
         });
       }
     } catch (err) {
@@ -163,7 +169,7 @@ class _CallRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name    = entry.otherUserName ?? 'Inconnu';
+    final name    = entry.displayName;
     final missed  = entry.isMissed;
     final labelColor = missed ? _kMissedRed : context.tpInkSub;
 
@@ -230,11 +236,9 @@ class _CallRow extends StatelessWidget {
   String _subtitle() {
     final when = _fmtWhen(entry.startedAt);
     if (entry.isMissed) return 'Manqué · $when';
+    if (entry.isDeclined) return 'Refusé · $when';
     final d = entry.durationSeconds;
-    if (entry.status == 'accepted' || entry.status == 'ended') {
-      if (d != null && d > 0) return '${_fmtDur(d)} · $when';
-    }
-    if (entry.status == 'rejected') return 'Refusé · $when';
+    if (d != null && d > 0) return '${_fmtDur(d)} · $when';
     return '${entry.isIncoming ? 'Entrant' : 'Sortant'} · $when';
   }
 }

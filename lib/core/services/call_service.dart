@@ -16,15 +16,54 @@ const _kCleanupTimeout = Duration(seconds: 3);
 
 enum CallStatus { idle, outgoing, incoming, connecting, active }
 
+/// Un autre participant de l'appel (jamais moi-même) — DM (1 seul) ou appel
+/// de groupe (jusqu'à MAX_GROUP_CALL_PARTICIPANTS - 1 côté backend).
+class CallParticipant {
+  final String userId;
+  final String displayName;
+  final String? avatarUrl;
+  final MediaStream? remoteStream;
+  /// true dès que la RTCPeerConnection avec ce participant est connectée
+  /// (flux média en cours), false pendant que ça sonne/négocie encore.
+  final bool connected;
+
+  const CallParticipant({
+    required this.userId,
+    required this.displayName,
+    this.avatarUrl,
+    this.remoteStream,
+    this.connected = false,
+  });
+
+  CallParticipant copyWith({
+    String? displayName,
+    String? avatarUrl,
+    MediaStream? remoteStream,
+    bool? connected,
+  }) =>
+      CallParticipant(
+        userId: userId,
+        displayName: displayName ?? this.displayName,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
+        remoteStream: remoteStream ?? this.remoteStream,
+        connected: connected ?? this.connected,
+      );
+}
+
 class CallState {
   final CallStatus status;
   final String? callId;
   final String? callType;
   final String? roomId;
+  final bool isGroup;
+  /// DM : nom/avatar du partenaire. Groupe sortant : nom/avatar du groupe.
+  /// Groupe entrant : nom/avatar de la personne qui a démarré l'appel (seule
+  /// identité que CallKit sait afficher nativement).
   final String? remoteUserName;
   final String? remoteUserAvatarUrl;
+  /// Les AUTRES participants (jamais moi) — pour un DM, toujours 0 ou 1 élément.
+  final List<CallParticipant> participants;
   final MediaStream? localStream;
-  final MediaStream? remoteStream;
   final bool micEnabled;
   final bool videoEnabled;
   final bool isFrontCamera;
@@ -35,10 +74,11 @@ class CallState {
     this.callId,
     this.callType,
     this.roomId,
+    this.isGroup = false,
     this.remoteUserName,
     this.remoteUserAvatarUrl,
+    this.participants = const [],
     this.localStream,
-    this.remoteStream,
     this.micEnabled = true,
     this.videoEnabled = true,
     this.isFrontCamera = true,
@@ -52,10 +92,11 @@ class CallState {
     String? callId,
     String? callType,
     String? roomId,
+    bool? isGroup,
     String? remoteUserName,
     String? remoteUserAvatarUrl,
+    List<CallParticipant>? participants,
     MediaStream? localStream,
-    MediaStream? remoteStream,
     bool? micEnabled,
     bool? videoEnabled,
     bool? isFrontCamera,
@@ -66,10 +107,11 @@ class CallState {
         callId: callId ?? this.callId,
         callType: callType ?? this.callType,
         roomId: roomId ?? this.roomId,
+        isGroup: isGroup ?? this.isGroup,
         remoteUserName: remoteUserName ?? this.remoteUserName,
         remoteUserAvatarUrl: remoteUserAvatarUrl ?? this.remoteUserAvatarUrl,
+        participants: participants ?? this.participants,
         localStream: localStream ?? this.localStream,
-        remoteStream: remoteStream ?? this.remoteStream,
         micEnabled: micEnabled ?? this.micEnabled,
         videoEnabled: videoEnabled ?? this.videoEnabled,
         isFrontCamera: isFrontCamera ?? this.isFrontCamera,
@@ -93,13 +135,15 @@ class CallService {
   final ValueNotifier<CallState> stateNotifier = ValueNotifier(CallState.idle);
   CallState get state => stateNotifier.value;
 
-  RTCPeerConnection? _pc;
+  // Une RTCPeerConnection par AUTRE participant (maillage P2P) — pour un DM
+  // il n'y en a qu'une, exactement comme avant.
+  final Map<String, RTCPeerConnection> _peerConnections = {};
+  final Map<String, List<RTCIceCandidate>> _pendingCandidates = {};
+  final Map<String, bool> _remoteDescSet = {};
+
   MediaStream? _localStream;
-  bool _isOfferer = false;
   bool _initiating = false;
   bool _cleaningUp = false;
-  bool _remoteDescSet = false;
-  final List<RTCIceCandidate> _pendingCandidates = [];
   Timer? _ringTimer;
   WebSocketChannel? _sigWs;
   StreamSubscription? _sigSub;
@@ -218,11 +262,16 @@ class CallService {
 
   // ─── Appelant : initier ───────────────────────────────────────────────────
 
+  /// [invitees] : les AUTRES membres de la salle (DM : le partenaire seul ;
+  /// groupe : jusqu'à 3 autres) — pré-remplit `state.participants` en
+  /// "sonnerie" avant même qu'ils rejoignent le maillage WebRTC.
   Future<void> initiateCall({
     required String roomId,
     required String callType,
     required String remoteUserName,
     String? remoteUserAvatarUrl,
+    bool isGroup = false,
+    List<CallParticipant> invitees = const [],
   }) async {
     if (state.status != CallStatus.idle || _initiating) {
       throw Exception('Appel déjà en cours.');
@@ -248,20 +297,19 @@ class CallService {
         callId: callId,
         callType: callType,
         roomId: roomId,
+        isGroup: isGroup,
         remoteUserName: remoteUserName,
         remoteUserAvatarUrl: remoteUserAvatarUrl,
+        participants: invitees,
         localStream: stream,
         speakerEnabled: isVideo,
       );
 
-      _isOfferer = true;
       _startRingTimer();
       _playRing('sounds/ringback.wav'); // tonalité « ça sonne » pour l'appelant
-      // La peer connection doit exister AVANT de rejoindre la signalisation :
-      // si l'appelé rejoint dans la foulée, son `participant_joined` déclenche
-      // l'envoi de l'offre, or `_createAndSendOffer` exige `_pc != null`. Même
-      // logique de sûreté que côté `acceptCall`.
-      await _setupPeerConnection();
+      // Se connecter à la signalisation : les invités qui rejoignent déclenchent
+      // `participant_joined`, auquel on répond en leur envoyant une offre (cf
+      // `_onSignal`). Aucune offre n'est envoyée avant que quelqu'un rejoigne.
       await _connectSignaling(callId);
     } catch (e) {
       // Réinitialiser complètement si quelque chose échoue (ex: getUserMedia
@@ -290,12 +338,11 @@ class CallService {
       // state (pas s) pour conserver le statut `connecting` déjà posé ci-dessus.
       stateNotifier.value = state.copyWith(localStream: stream, speakerEnabled: isVideo);
 
-      _isOfferer = false;
-      // IMPORTANT : la peer connection doit être PRÊTE avant de rejoindre la
-      // signalisation. Sinon, en rejoignant, le serveur prévient l'appelant
-      // (participant_joined) qui envoie son offre immédiatement — et si _pc
-      // n'existe pas encore, l'offre est perdue → l'appel ne décroche jamais.
-      await _setupPeerConnection();
+      // Roster complet (appel de groupe) : le payload d'invitation ne connaît
+      // que l'appelant, pas les autres invités — on les récupère ici pour que
+      // l'écran d'appel actif affiche les bons noms/avatars dès la connexion.
+      if (s.isGroup) await _fetchAndMergeRoster(s.callId!);
+
       await _connectSignaling(s.callId!);
       _sendSignal({'type': 'call_accepted'});
     } catch (e) {
@@ -305,21 +352,32 @@ class CallService {
     }
   }
 
-  // ─── Appelé : refuser ─────────────────────────────────────────────────────
-
-  Future<void> rejectCall() async {
-    final callId = state.callId;
-    await _cleanup(); // Reset state immédiatement
-    if (callId == null) return;
+  Future<void> _fetchAndMergeRoster(String callId) async {
+    if (!_dioReady) return;
     try {
-      await _dio.post('chat/calls/$callId/reject/')
-          .timeout(const Duration(seconds: 5));
-    } catch (_) {}
+      final resp = await _dio.get('chat/calls/$callId/').timeout(const Duration(seconds: 5));
+      final list = (resp.data['participants'] as List)
+          .map((e) => CallParticipant(
+                userId: e['id'] as String,
+                displayName: e['name'] as String,
+                avatarUrl: e['avatar_url'] as String?,
+              ))
+          .toList();
+      // Fusionne : garde le flux/état déjà connu pour un participant déjà présent.
+      final existingById = {for (final p in state.participants) p.userId: p};
+      final merged = list
+          .map((p) => existingById[p.userId]?.copyWith(displayName: p.displayName, avatarUrl: p.avatarUrl) ?? p)
+          .toList();
+      stateNotifier.value = state.copyWith(participants: merged);
+    } catch (e) {
+      debugPrint('📞 ⚠️ Roster de l\'appel injoignable: $e');
+    }
   }
 
-  // ─── Raccrocher (toujours réussit — fire & forget depuis l'UI) ───────────
+  // ─── Quitter l'appel (annuler / refuser / raccrocher — toujours réussit,
+  // fire & forget depuis l'UI) ───────────────────────────────────────────────
 
-  Future<void> hangup() async {
+  Future<void> leaveCall() async {
     if (_cleaningUp) return;
 
     final callId = state.callId;
@@ -327,14 +385,15 @@ class CallService {
     // Bip de fin dès qu'on raccroche un appel en cours (sortant ou connecté).
     if (state.status != CallStatus.idle) _playEndTone();
 
-    // 1. Notifier le serveur (non bloquant)
+    // 1. Notifier le serveur (non bloquant) — couvre annuler/refuser/raccrocher,
+    // que l'appel sonne encore ou ait déjà été rejoint.
     unawaited(
-      _dio.post('chat/calls/${callId ?? ''}/cancel/')
+      _dio.post('chat/calls/${callId ?? ''}/leave/')
           .timeout(const Duration(seconds: 4))
           .catchError((_) => Response(requestOptions: RequestOptions())),
     );
 
-    // 2. Signal WS
+    // 2. Signal WS (pour les pairs déjà connectés au maillage)
     _sendSignal({'type': 'hangup'});
 
     // 3. Cleanup (réinitialise l'état → déclenche pop dans les écrans)
@@ -378,6 +437,7 @@ class CallService {
     required String callId,
     required String callType,
     required String roomId,
+    bool isGroup = false,
     String? callerName,
     String? callerAvatarUrl,
   }) {
@@ -387,6 +447,7 @@ class CallService {
       callId: callId,
       callType: callType,
       roomId: roomId,
+      isGroup: isGroup,
       remoteUserName: callerName,
       remoteUserAvatarUrl: callerAvatarUrl,
     );
@@ -404,7 +465,7 @@ class CallService {
   void _startRingTimer() {
     _ringTimer?.cancel();
     _ringTimer = Timer(_kRingTimeout, () {
-      if (state.status == CallStatus.outgoing) hangup();
+      if (state.status == CallStatus.outgoing) leaveCall();
     });
   }
 
@@ -430,28 +491,27 @@ class CallService {
   void _onSignal(dynamic raw) async {
     try {
       final data = jsonDecode(raw as String) as Map<String, dynamic>;
+      final sender = data['sender'] as String?;
       switch (data['type'] as String?) {
         case 'participant_joined':
-          if (_isOfferer && _pc != null) await _createAndSendOffer();
+          final peerId = (data['user_id'] ?? sender) as String?;
+          if (peerId != null) await _offerTo(peerId);
         case 'offer':
-          if (!_isOfferer) await _handleOffer(data);
+          if (sender != null) await _handleOffer(sender, data);
         case 'answer':
-          if (_isOfferer) await _handleAnswer(data);
+          if (sender != null) await _handleAnswer(sender, data);
+        case 'ice_candidate':
+          if (sender != null) await _handleIceCandidate(sender, data);
         case 'call_accepted':
-          // L'appelé a décroché : couper la tonalité de retour et afficher
-          // « Connexion… » le temps que le média WebRTC s'établisse.
-          if (_isOfferer && state.status == CallStatus.outgoing) {
+          // Au moins un invité a décroché : couper la tonalité de retour et
+          // afficher « Connexion… » le temps que le média WebRTC s'établisse.
+          if (state.status == CallStatus.outgoing) {
             await _stopRing();
             stateNotifier.value = state.copyWith(status: CallStatus.connecting);
           }
-        case 'ice_candidate':
-          await _handleIceCandidate(data);
         case 'hangup':
-          // L'interlocuteur a raccroché : bip de fin si un appel était en cours.
-          if (state.status != CallStatus.idle) _playEndTone();
-          await _cleanup();
-        case 'call_rejected':
-          await _cleanup();
+          final peerId = (data['user_id'] ?? sender) as String?;
+          if (peerId != null) await _removePeer(peerId);
       }
     } catch (_) {}
   }
@@ -464,81 +524,136 @@ class CallService {
     if (state.status != CallStatus.idle) _cleanup();
   }
 
-  // ─── WebRTC ───────────────────────────────────────────────────────────────
+  // ─── WebRTC (maillage : une RTCPeerConnection par autre participant) ──────
 
-  Future<void> _setupPeerConnection() async {
-    _pc = await createPeerConnection(await _getIceConfig());
-    _localStream?.getTracks().forEach((t) => _pc!.addTrack(t, _localStream!));
+  Future<RTCPeerConnection> _ensurePeerConnection(String peerId) async {
+    final existing = _peerConnections[peerId];
+    if (existing != null) return existing;
 
-    _pc!.onIceCandidate = (c) {
+    final pc = await createPeerConnection(await _getIceConfig());
+    _localStream?.getTracks().forEach((t) => pc.addTrack(t, _localStream!));
+    _peerConnections[peerId] = pc;
+    _remoteDescSet[peerId] = false;
+    _pendingCandidates[peerId] = [];
+
+    pc.onIceCandidate = (c) {
       if (c.candidate?.isNotEmpty == true) {
-        _sendSignal({'type': 'ice_candidate', 'candidate': c.toMap()});
+        _sendSignal({'type': 'ice_candidate', 'target': peerId, 'candidate': c.toMap()});
       }
     };
 
-    _pc!.onTrack = (event) {
-      if (event.streams.isNotEmpty) {
-        stateNotifier.value = state.copyWith(remoteStream: event.streams.first);
-      }
+    pc.onTrack = (event) {
+      if (event.streams.isEmpty) return;
+      _updateParticipant(peerId, remoteStream: event.streams.first);
     };
 
-    _pc!.onConnectionState = (s) {
-      debugPrint('📞 PeerConnection state: $s');
+    pc.onConnectionState = (s) {
+      debugPrint('📞 PeerConnection[$peerId] state: $s');
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-        _stopRing(); // connecté → plus de sonnerie/tonalité
-        stateNotifier.value = state.copyWith(status: CallStatus.active);
+        _stopRing(); // au moins un pair connecté → plus de sonnerie/tonalité
+        _updateParticipant(peerId, connected: true);
+        if (state.status != CallStatus.active) {
+          stateNotifier.value = state.copyWith(status: CallStatus.active);
+        }
       } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
           s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
         // 'failed' juste après la tentative = ICE n'a pas pu traverser le NAT
         // (manque un TURN). 'disconnected' = perte réseau en cours d'appel.
-        debugPrint('📞 ❌ Connexion WebRTC $s → fin de l\'appel '
+        debugPrint('📞 ❌ Connexion WebRTC vers $peerId $s '
             '(TURN configuré: ${Env.turnConfigured})');
-        _cleanup();
+        _removePeer(peerId);
       }
     };
+
+    return pc;
   }
 
-  Future<void> _createAndSendOffer() async {
-    if (_pc == null) return;
-    final offer = await _pc!.createOffer();
-    await _pc!.setLocalDescription(offer);
-    _sendSignal({'type': 'offer', 'sdp': offer.sdp, 'sdpType': offer.type});
+  /// Insère ou met à jour l'entrée d'un participant dans `state.participants`
+  /// (créé à la volée s'il n'était pas déjà connu — ex. rejoint sans figurer
+  /// dans la liste d'invités initiale).
+  void _updateParticipant(String peerId, {MediaStream? remoteStream, bool? connected}) {
+    final list = List<CallParticipant>.from(state.participants);
+    final i = list.indexWhere((p) => p.userId == peerId);
+    if (i >= 0) {
+      list[i] = list[i].copyWith(remoteStream: remoteStream, connected: connected);
+    } else {
+      list.add(CallParticipant(
+        userId: peerId,
+        displayName: 'Participant',
+        remoteStream: remoteStream,
+        connected: connected ?? false,
+      ));
+    }
+    stateNotifier.value = state.copyWith(participants: list);
   }
 
-  Future<void> _handleOffer(Map<String, dynamic> data) async {
-    if (_pc == null) return;
-    await _pc!.setRemoteDescription(RTCSessionDescription(data['sdp'], data['sdpType']));
-    _remoteDescSet = true;
-    await _flushPendingCandidates();
-    final answer = await _pc!.createAnswer();
-    await _pc!.setLocalDescription(answer);
-    _sendSignal({'type': 'answer', 'sdp': answer.sdp, 'sdpType': answer.type});
+  /// Je suis déjà connecté au maillage et [peerId] vient de le rejoindre
+  /// (`participant_joined`) → je lui envoie l'offre (lui ne fait que répondre).
+  Future<void> _offerTo(String peerId) async {
+    final pc = await _ensurePeerConnection(peerId);
+    final offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    _sendSignal({'type': 'offer', 'target': peerId, 'sdp': offer.sdp, 'sdpType': offer.type});
   }
 
-  Future<void> _handleAnswer(Map<String, dynamic> data) async {
-    if (_pc == null) return;
-    await _pc!.setRemoteDescription(RTCSessionDescription(data['sdp'], data['sdpType']));
-    _remoteDescSet = true;
-    await _flushPendingCandidates();
+  Future<void> _handleOffer(String sender, Map<String, dynamic> data) async {
+    final pc = await _ensurePeerConnection(sender);
+    await pc.setRemoteDescription(RTCSessionDescription(data['sdp'], data['sdpType']));
+    _remoteDescSet[sender] = true;
+    await _flushPendingCandidates(sender);
+    final answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    _sendSignal({'type': 'answer', 'target': sender, 'sdp': answer.sdp, 'sdpType': answer.type});
   }
 
-  Future<void> _handleIceCandidate(Map<String, dynamic> data) async {
+  Future<void> _handleAnswer(String sender, Map<String, dynamic> data) async {
+    final pc = _peerConnections[sender];
+    if (pc == null) return;
+    await pc.setRemoteDescription(RTCSessionDescription(data['sdp'], data['sdpType']));
+    _remoteDescSet[sender] = true;
+    await _flushPendingCandidates(sender);
+  }
+
+  Future<void> _handleIceCandidate(String sender, Map<String, dynamic> data) async {
     final m = data['candidate'] as Map<String, dynamic>?;
     if (m == null) return;
     final c = RTCIceCandidate(m['candidate'], m['sdpMid'], m['sdpMLineIndex']);
-    if (_remoteDescSet && _pc != null) {
-      await _pc!.addCandidate(c);
+    final pc = await _ensurePeerConnection(sender);
+    if (_remoteDescSet[sender] == true) {
+      await pc.addCandidate(c);
     } else {
-      _pendingCandidates.add(c);
+      (_pendingCandidates[sender] ??= []).add(c);
     }
   }
 
-  Future<void> _flushPendingCandidates() async {
-    if (_pc == null) return;
-    for (final c in _pendingCandidates) {
-      await _pc!.addCandidate(c);
+  Future<void> _flushPendingCandidates(String peerId) async {
+    final pc = _peerConnections[peerId];
+    final pending = _pendingCandidates[peerId];
+    if (pc == null || pending == null) return;
+    for (final c in pending) {
+      await pc.addCandidate(c);
     }
-    _pendingCandidates.clear();
+    pending.clear();
+  }
+
+  /// [peerId] a raccroché/refusé/été déconnecté : ferme sa RTCPeerConnection
+  /// et le retire de la liste. Si plus aucun participant ne reste, l'appel
+  /// est terminé pour moi aussi (sauf s'il sonne encore côté serveur : le
+  /// backend décide de la fin réelle, mais côté client un maillage vide n'a
+  /// plus de raison d'occuper l'écran d'appel actif).
+  Future<void> _removePeer(String peerId) async {
+    final pc = _peerConnections.remove(peerId);
+    _remoteDescSet.remove(peerId);
+    _pendingCandidates.remove(peerId);
+    try { await pc?.close(); } catch (_) {}
+
+    final remaining = state.participants.where((p) => p.userId != peerId).toList();
+    if (remaining.isEmpty) {
+      if (state.status != CallStatus.idle) _playEndTone();
+      await _cleanup();
+    } else {
+      stateNotifier.value = state.copyWith(participants: remaining);
+    }
   }
 
   void _sendSignal(Map<String, dynamic> data) {
@@ -570,16 +685,17 @@ class CallService {
     try { await _sigWs?.sink.close().timeout(_kCleanupTimeout); } catch (_) {}
     _sigWs = null;
 
-    try { await _pc?.close().timeout(_kCleanupTimeout); } catch (_) {}
-    _pc = null;
+    for (final pc in _peerConnections.values) {
+      try { await pc.close().timeout(_kCleanupTimeout); } catch (_) {}
+    }
+    _peerConnections.clear();
+    _remoteDescSet.clear();
+    _pendingCandidates.clear();
 
     _localStream?.getTracks().forEach((t) => t.stop());
     try { await _localStream?.dispose().timeout(_kCleanupTimeout); } catch (_) {}
     _localStream = null;
 
-    _remoteDescSet = false;
-    _pendingCandidates.clear();
-    _isOfferer = false;
     _initiating = false;
     _cleaningUp = false;
   }

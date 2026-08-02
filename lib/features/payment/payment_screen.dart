@@ -70,7 +70,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             method: _method,
           );
       _paymentId = init.paymentId;
-      // Ouvre la page de paiement GeniusPay dans le navigateur.
+      // Ouvre la page de paiement Jeko dans le navigateur.
       if (init.redirectUrl != null && init.redirectUrl!.isNotEmpty) {
         await launchUrl(Uri.parse(init.redirectUrl!),
             mode: LaunchMode.externalApplication);

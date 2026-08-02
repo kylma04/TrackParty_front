@@ -20,15 +20,18 @@ class ActiveCallScreen extends StatefulWidget {
 }
 
 class _ActiveCallScreenState extends State<ActiveCallScreen> {
-  final _localRenderer  = RTCVideoRenderer();
-  final _remoteRenderer = RTCVideoRenderer();
+  final _localRenderer = RTCVideoRenderer();
+  // Un renderer par AUTRE participant (maillage) — pour un DM il n'y en a
+  // qu'un, exactement comme avant.
+  final Map<String, RTCVideoRenderer> _remoteRenderers = {};
 
   int    _seconds = 0;
   Timer? _timer;
   bool   _controlsVisible = true;
   Timer? _hideTimer;
 
-  // PiP / vue swap
+  // PiP / vue swap — pertinent seulement pour un appel à un seul autre
+  // participant (DM). Au-delà, la grille remplace ce mécanisme.
   bool    _localIsFullscreen = false; // true = caméra locale plein écran, remote en PiP
   Offset? _pipPos;                    // position courante du PiP (null = défaut haut-droite)
   bool    _cameraFlipping = false;    // fade pendant le switch caméra
@@ -44,7 +47,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _initRenderers();
+    _localRenderer.initialize().then((_) {
+      _localRenderer.srcObject = CallService().state.localStream;
+      if (mounted) setState(() {});
+    });
+    _syncRemoteRenderers();
     CallService().stateNotifier.addListener(_onStateChanged);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _seconds++);
@@ -52,16 +59,28 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     _scheduleHideControls();
   }
 
-  Future<void> _initRenderers() async {
-    await _localRenderer.initialize();
-    await _remoteRenderer.initialize();
-    _updateStreams();
-  }
-
-  void _updateStreams() {
+  /// Crée/détruit les renderers au fil des participants qui rejoignent/partent,
+  /// et pousse le flux courant de chacun dans son renderer.
+  Future<void> _syncRemoteRenderers() async {
     final s = CallService().state;
-    _localRenderer.srcObject  = s.localStream;
-    _remoteRenderer.srcObject = s.remoteStream;
+    final currentIds = s.participants.map((p) => p.userId).toSet();
+
+    final gone = _remoteRenderers.keys.where((id) => !currentIds.contains(id)).toList();
+    for (final id in gone) {
+      final r = _remoteRenderers.remove(id);
+      await r?.dispose();
+    }
+
+    for (final p in s.participants) {
+      var r = _remoteRenderers[p.userId];
+      if (r == null) {
+        r = RTCVideoRenderer();
+        await r.initialize();
+        _remoteRenderers[p.userId] = r;
+      }
+      r.srcObject = p.remoteStream;
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -70,7 +89,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     _hideTimer?.cancel();
     CallService().stateNotifier.removeListener(_onStateChanged);
     _localRenderer.dispose();
-    _remoteRenderer.dispose();
+    for (final r in _remoteRenderers.values) {
+      r.dispose();
+    }
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
@@ -86,10 +107,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   void _onStateChanged() {
     if (!mounted || _popped) return;
     final s = CallService().state;
-    _localRenderer.srcObject  = s.localStream;
-    _remoteRenderer.srcObject = s.remoteStream;
-    if (mounted) setState(() {});
-    if (s.status == CallStatus.idle) _pop();
+    if (s.status == CallStatus.idle) { _pop(); return; }
+    _localRenderer.srcObject = s.localStream;
+    _syncRemoteRenderers();
   }
 
   String _formatDuration() {
@@ -100,6 +120,14 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
     }
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Nom(s) affiché(s) en en-tête : le seul autre participant (DM), ou la
+  /// liste des prénoms pour un appel de groupe.
+  String _headerLabel(CallState s) {
+    if (s.participants.isEmpty) return s.remoteUserName ?? '';
+    if (s.participants.length == 1) return s.participants.first.displayName;
+    return s.participants.map((p) => p.displayName).join(', ');
   }
 
   void _scheduleHideControls() {
@@ -116,7 +144,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
   void _hangup() {
     _pop();
-    CallService().hangup().catchError((_) {});
+    CallService().leaveCall().catchError((_) {});
   }
 
   Future<void> _onSwitchCamera() async {
@@ -144,17 +172,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   // ── Vidéo ─────────────────────────────────────────────────────────────────
 
   Widget _buildVideoUI(CallState s) {
-    // Quand _localIsFullscreen: local occupe le plein écran, remote va en PiP
-    final mainRenderer  = _localIsFullscreen ? _localRenderer  : _remoteRenderer;
-    final pipRenderer   = _localIsFullscreen ? _remoteRenderer : _localRenderer;
-    final mainMirror    = _localIsFullscreen && s.isFrontCamera;
-    final pipMirror     = !_localIsFullscreen && s.isFrontCamera;
-    final hasMainStream = _localIsFullscreen
-        ? s.localStream != null && s.videoEnabled
-        : s.remoteStream != null;
-    final hasPipStream = _localIsFullscreen
-        ? s.remoteStream != null
-        : s.localStream != null && s.videoEnabled;
+    final isGroupView = s.participants.length >= 2;
 
     return Semantics(
       label: 'Afficher les contrôles',
@@ -163,15 +181,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Flux principal plein écran
-            hasMainStream
-                ? RTCVideoView(mainRenderer,
-                    mirror: mainMirror,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-                : _Placeholder(name: _localIsFullscreen ? null : s.remoteUserName),
-
-            // PiP déplaçable
-            if (hasPipStream) _buildPip(s, pipRenderer, pipMirror),
+            isGroupView ? _buildRemoteGrid(s) : _buildSingleRemoteBackground(s),
+            isGroupView ? _buildLocalPipFixed(s) : _buildSingleRemotePip(s),
 
             // Overlay contrôles
             Positioned(
@@ -186,6 +197,37 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         ),
       ),
     );
+  }
+
+  // ── DM : fond plein écran + PiP déplaçable/inversable ──────────────────────
+
+  Widget _buildSingleRemoteBackground(CallState s) {
+    final other = s.participants.firstOrNull;
+    final remoteRenderer = other != null ? _remoteRenderers[other.userId] : null;
+    final mainRenderer = _localIsFullscreen ? _localRenderer : remoteRenderer;
+    final mainMirror   = _localIsFullscreen && s.isFrontCamera;
+    final hasMainStream = _localIsFullscreen
+        ? s.localStream != null && s.videoEnabled
+        : other?.remoteStream != null;
+
+    return hasMainStream && mainRenderer != null
+        ? RTCVideoView(mainRenderer,
+            mirror: mainMirror,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+        : _Placeholder(name: _localIsFullscreen ? null : (other?.displayName ?? s.remoteUserName));
+  }
+
+  Widget _buildSingleRemotePip(CallState s) {
+    final other = s.participants.firstOrNull;
+    final remoteRenderer = other != null ? _remoteRenderers[other.userId] : null;
+    final pipRenderer = _localIsFullscreen ? remoteRenderer : _localRenderer;
+    final pipMirror   = !_localIsFullscreen && s.isFrontCamera;
+    final hasPipStream = _localIsFullscreen
+        ? other?.remoteStream != null
+        : s.localStream != null && s.videoEnabled;
+
+    if (!hasPipStream || pipRenderer == null) return const SizedBox.shrink();
+    return _buildPip(s, pipRenderer, pipMirror);
   }
 
   Widget _buildPip(CallState s, RTCVideoRenderer renderer, bool mirror) {
@@ -254,18 +296,109 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     );
   }
 
+  // ── Groupe : grille + PiP local fixe ───────────────────────────────────────
+
+  Widget _buildRemoteGrid(CallState s) {
+    final tiles = s.participants;
+    return Padding(
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+      child: GridView.builder(
+        padding: EdgeInsets.zero,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+          childAspectRatio: 0.75,
+        ),
+        itemCount: tiles.length,
+        itemBuilder: (_, i) {
+          final p = tiles[i];
+          final renderer = _remoteRenderers[p.userId];
+          final hasStream = p.remoteStream != null;
+          return Container(
+            color: kCallBg,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                hasStream && renderer != null
+                    ? RTCVideoView(renderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+                    : _Placeholder(name: p.displayName),
+                Positioned(
+                  left: 8, bottom: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(p.displayName,
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLocalPipFixed(CallState s) {
+    final hasStream = s.localStream != null && s.videoEnabled;
+    return Positioned(
+      right: 16, top: MediaQuery.of(context).padding.top + 16,
+      child: Container(
+        width: _pipW, height: _pipH,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Radii.md),
+          boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 16)],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(Radii.md),
+          child: hasStream
+              ? RTCVideoView(_localRenderer,
+                  mirror: s.isFrontCamera,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+              : Container(
+                  color: kCallBg,
+                  child: Icon(PhosphorIcons.videoCameraSlash(), color: Colors.white24, size: 20),
+                ),
+        ),
+      ),
+    );
+  }
+
   // ── Audio ─────────────────────────────────────────────────────────────────
 
   Widget _buildAudioUI(CallState s) {
+    final others = s.participants;
+
     return SafeArea(
       child: Column(
         children: [
           const Spacer(flex: 2),
-          _RemoteAvatar(name: s.remoteUserName ?? '', avatarUrl: s.remoteUserAvatarUrl),
+          others.length <= 1
+              ? _RemoteAvatar(
+                  name: others.firstOrNull?.displayName ?? s.remoteUserName ?? '',
+                  avatarUrl: others.firstOrNull?.avatarUrl ?? s.remoteUserAvatarUrl,
+                )
+              : Wrap(
+                  spacing: 16, runSpacing: 16,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (final p in others)
+                      _RemoteAvatar(name: p.displayName, avatarUrl: p.avatarUrl, size: 72),
+                  ],
+                ),
           const SizedBox(height: 24),
-          Text(s.remoteUserName ?? '',
-            style: const TextStyle(
-                color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(_headerLabel(s),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+          ),
           const SizedBox(height: 8),
           Text(_formatDuration(),
             style: const TextStyle(color: Colors.white54, fontSize: 16)),
@@ -301,7 +434,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isVideo) ...[
-            Text(s.remoteUserName ?? '',
+            Text(_headerLabel(s),
+              textAlign: TextAlign.center,
               style: const TextStyle(
                   color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
@@ -408,7 +542,8 @@ class _Placeholder extends StatelessWidget {
 class _RemoteAvatar extends StatelessWidget {
   final String name;
   final String? avatarUrl;
-  const _RemoteAvatar({required this.name, this.avatarUrl});
+  final double size;
+  const _RemoteAvatar({required this.name, this.avatarUrl, this.size = 100});
 
   String _initials() {
     final p = name.trim().split(' ');
@@ -419,15 +554,15 @@ class _RemoteAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100, height: 100,
+      width: size, height: size,
       decoration: BoxDecoration(shape: BoxShape.circle, gradient: trackpartyGradient),
       child: avatarUrl != null && avatarUrl!.isNotEmpty
           ? ClipOval(child: CachedNetworkImage(
-              imageUrl: avatarUrl!, width: 100, height: 100, fit: BoxFit.cover))
+              imageUrl: avatarUrl!, width: size, height: size, fit: BoxFit.cover))
           : Center(
               child: Text(_initials(),
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800)),
+                style: TextStyle(
+                    color: Colors.white, fontSize: size * 0.36, fontWeight: FontWeight.w800)),
             ),
     );
   }

@@ -21,6 +21,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       roomId: (data['room_id'] ?? '').toString(),
       callerId: data['caller_id']?.toString(),
       callerAvatar: data['caller_avatar']?.toString(),
+      isGroup: (data['is_group'] ?? '').toString().toLowerCase() == 'true',
     );
   } else if (type == 'call_end') {
     await CallKitService.end((data['call_id'] ?? '').toString());

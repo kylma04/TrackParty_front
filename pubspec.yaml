@@ -43,6 +43,7 @@ dependencies:
   path_provider: ^2.1.0
   image_picker: ^1.0.7
   cached_network_image: ^3.3.0
+  pro_image_editor: 11.23.0
   record: 6.2.0
   audioplayers: ^6.0.0
   # Sonnerie système du téléphone pour les appels entrants (in-app, 1er plan)

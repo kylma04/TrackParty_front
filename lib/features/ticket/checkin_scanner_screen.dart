@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,9 @@ import '../../core/models/ticket_model.dart';
 import '../../core/services/ticket_service.dart';
 import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
+
+/// Délai d'affichage du résultat avant reprise automatique du scan.
+const Duration _kCheckinResetDelay = Duration(seconds: 18);
 
 class CheckinScannerScreen extends ConsumerStatefulWidget {
   final String eventId;
@@ -33,6 +37,10 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
   bool _processing = false;
   _ScanResult? _result;
   Timer? _resetTimer;
+  int _secondsLeft = 0;
+  // Billet en nature en attente de vérification par le staff : la caméra ne
+  // reprend pas tant qu'il n'a pas confirmé ou refusé.
+  String? _pendingToken;
 
   @override
   void dispose() {
@@ -48,11 +56,14 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
 
     setState(() { _processing = true; _result = null; });
     await _scanner.stop();
+    await _performCheckin(token, confirm: false);
+  }
 
+  Future<void> _performCheckin(String token, {required bool confirm}) async {
     try {
       final result = await ref
           .read(ticketServiceProvider)
-          .checkin(widget.eventId, token);
+          .checkin(widget.eventId, token, confirm: confirm);
       if (mounted) {
         setState(() => _result = _ScanResult.fromCheckin(result));
       }
@@ -66,12 +77,57 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
       }
     }
 
-    _resetTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() { _processing = false; _result = null; });
-        _scanner.start();
+    if (_result?.status == _ScanStatus.pendingConfirmation) {
+      // On attend une action explicite du staff (Confirmer/Refuser) : pas de
+      // reprise automatique de la caméra tant qu'il n'a pas tranché.
+      _pendingToken = token;
+      return;
+    }
+
+    _pendingToken = null;
+    _startResetCountdown();
+  }
+
+  /// Décompte (affiché en direct) avant reprise automatique de la caméra. Le
+  /// staff n'est pas obligé d'attendre : « Scanner un nouveau ticket » coupe
+  /// court via [_resetScanner].
+  void _startResetCountdown() {
+    _resetTimer?.cancel();
+    setState(() => _secondsLeft = _kCheckinResetDelay.inSeconds);
+    _resetTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) { timer.cancel(); return; }
+      if (_secondsLeft <= 1) {
+        timer.cancel();
+        _resetScanner();
+        return;
       }
+      setState(() => _secondsLeft--);
     });
+  }
+
+  /// Le staff confirme avoir vérifié que le participant apporte bien sa
+  /// contribution en nature : l'entrée est alors matérialisée côté serveur.
+  void _confirmInKind() {
+    final token = _pendingToken;
+    if (token == null) return;
+    setState(() => _result = null);
+    _performCheckin(token, confirm: true);
+  }
+
+  /// Le staff refuse (contribution absente) : rien n'est écrit côté serveur,
+  /// le billet reste valable et le participant pourra revenir se faire
+  /// scanner une fois sa contribution récupérée.
+  void _refuseInKind() {
+    _pendingToken = null;
+    _resetScanner();
+  }
+
+  /// Remet la caméra en route tout de suite — bouton « Scanner un nouveau
+  /// ticket » ou fin du décompte, sans attendre le reste du délai.
+  void _resetScanner() {
+    _resetTimer?.cancel();
+    setState(() { _processing = false; _result = null; });
+    _scanner.start();
   }
 
   @override
@@ -128,7 +184,13 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
         ),
         // Feedback overlay
         if (_result != null)
-          _ResultOverlay(result: _result!),
+          _ResultOverlay(
+            result: _result!,
+            secondsLeft: _secondsLeft,
+            onConfirm: _confirmInKind,
+            onRefuse: _refuseInKind,
+            onScanNext: _resetScanner,
+          ),
         // Indicateur de traitement
         if (_processing && _result == null)
           const Center(
@@ -141,7 +203,7 @@ class _CheckinScannerScreenState extends ConsumerState<CheckinScannerScreen> {
 
 // ── Résultat du scan ──────────────────────────────────────────────────────────
 
-enum _ScanStatus { success, alreadyChecked, invalid, error }
+enum _ScanStatus { success, alreadyChecked, pendingConfirmation, invalid, error }
 
 class _ScanResult {
   final _ScanStatus status;
@@ -199,6 +261,10 @@ class _ScanResult {
       return _ScanResult._ctx(r, _ScanStatus.alreadyChecked,
           holder: r.holderName, time: timeStr, message: 'Déjà scanné à $timeStr');
     }
+    if (r.requiresConfirmation) {
+      return _ScanResult._ctx(r, _ScanStatus.pendingConfirmation,
+          holder: r.holderName, message: 'Vérifie la contribution avant de valider');
+    }
     return _ScanResult._ctx(r, _ScanStatus.success,
         holder: r.holderName, message: 'Entrée validée');
   }
@@ -210,35 +276,49 @@ class _ScanResult {
       );
 
   Color get bgColor => switch (status) {
-        _ScanStatus.success      => kSuccess,
-        _ScanStatus.alreadyChecked => kAccent,
-        _ScanStatus.invalid      => kError,
-        _ScanStatus.error        => kError,
+        _ScanStatus.success            => kSuccess,
+        _ScanStatus.alreadyChecked     => kAccent,
+        _ScanStatus.pendingConfirmation => kAccent,
+        _ScanStatus.invalid            => kError,
+        _ScanStatus.error              => kError,
       };
 
   IconData get icon => switch (status) {
-        _ScanStatus.success        => Icons.check_circle_rounded,
-        _ScanStatus.alreadyChecked => Icons.warning_amber_rounded,
-        _ScanStatus.invalid        => Icons.cancel_rounded,
-        _ScanStatus.error          => Icons.error_rounded,
+        _ScanStatus.success            => Icons.check_circle_rounded,
+        _ScanStatus.alreadyChecked     => Icons.warning_amber_rounded,
+        _ScanStatus.pendingConfirmation => Icons.fact_check_rounded,
+        _ScanStatus.invalid            => Icons.cancel_rounded,
+        _ScanStatus.error              => Icons.error_rounded,
       };
 }
 
 class _ResultOverlay extends StatelessWidget {
   final _ScanResult result;
-  const _ResultOverlay({required this.result});
+  final int secondsLeft;
+  final VoidCallback onConfirm;
+  final VoidCallback onRefuse;
+  final VoidCallback onScanNext;
+  const _ResultOverlay({
+    required this.result,
+    required this.secondsLeft,
+    required this.onConfirm,
+    required this.onRefuse,
+    required this.onScanNext,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final pending = result.status == _ScanStatus.pendingConfirmation;
     final isValid = result.status == _ScanStatus.success ||
-        result.status == _ScanStatus.alreadyChecked;
+        result.status == _ScanStatus.alreadyChecked ||
+        pending;
     // Billet payant → cadre coloré de la catégorie autour de l'écran.
     final showFrame =
         !result.isInKind && result.categoryColor != null && isValid;
     // Billet nature encore valable → afficher ce qu'il doit apporter.
     final showNature = result.isInKind &&
         result.natureLabel != null &&
-        result.status == _ScanStatus.success;
+        (result.status == _ScanStatus.success || pending);
 
     return AnimatedOpacity(
       opacity: 1.0,
@@ -311,14 +391,53 @@ class _ResultOverlay extends StatelessWidget {
               ],
 
               const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(Radii.card)),
-                child: const Text('Reprend dans 3s…',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white70)),
-              ),
+              if (pending)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onRefuse,
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      label: const Text('Refuser'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: onConfirm,
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Confirmer'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: result.bgColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ])
+              else
+                Column(children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onScanNext,
+                      icon: const Icon(Icons.qr_code_scanner_rounded),
+                      label: const Text('Scanner un nouveau ticket'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: result.bgColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Reprise automatique dans ${secondsLeft}s…',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white70)),
+                ]),
             ]),
           ),
         ),
@@ -339,20 +458,13 @@ class _ScanOverlay extends StatelessWidget {
     final top  = (h - side) / 2 - 40;
 
     return Stack(children: [
-      // Fond semi-transparent
-      ColorFiltered(
-        colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.5), BlendMode.srcOut),
-        child: Stack(children: [
-          Container(decoration: const BoxDecoration(color: Colors.black, backgroundBlendMode: BlendMode.dstOut)),
-          Positioned(
-            left: left, top: top, width: side, height: side,
-            child: Container(
-              decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(Radii.lg)),
-            ),
-          ),
-        ]),
+      // Flou sur la caméra tout autour du viseur (zone de scan laissée nette)
+      ClipPath(
+        clipper: _OverlayHoleClipper(Rect.fromLTWH(left, top, side, side), Radii.lg),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(color: Colors.black.withValues(alpha: 0.35)),
+        ),
       ),
       // Coins du cadre
       Positioned(
@@ -368,6 +480,25 @@ class _ScanOverlay extends StatelessWidget {
       ),
     ]);
   }
+}
+
+/// Découpe l'écran plein moins un rectangle arrondi (le viseur) — pour que
+/// le flou appliqué au-dessus ne couvre pas la zone de scan.
+class _OverlayHoleClipper extends CustomClipper<Path> {
+  final Rect hole;
+  final double radius;
+  _OverlayHoleClipper(this.hole, this.radius);
+
+  @override
+  Path getClip(Size size) {
+    final outer = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final inner = Path()..addRRect(RRect.fromRectAndRadius(hole, Radius.circular(radius)));
+    return Path.combine(PathOperation.difference, outer, inner);
+  }
+
+  @override
+  bool shouldReclip(covariant _OverlayHoleClipper oldClipper) =>
+      oldClipper.hole != hole || oldClipper.radius != radius;
 }
 
 class _CornerPainter extends CustomPainter {

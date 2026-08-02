@@ -90,12 +90,13 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       final roomId = (extra['room_id'] ?? '').toString();
       final callerName = extra['caller_name']?.toString();
       final avatar = extra['caller_avatar']?.toString();
+      final isGroup = (extra['is_group']?.toString().toLowerCase() ?? '') == 'true';
 
       switch (event.event) {
         case Event.actionCallAccept:
           if (callId.isEmpty) return;
           CallService().notifyIncomingCall(
-            callId: callId, callType: callType, roomId: roomId,
+            callId: callId, callType: callType, roomId: roomId, isGroup: isGroup,
             callerName: callerName,
             callerAvatarUrl: (avatar?.isNotEmpty ?? false) ? avatar : null,
           );
@@ -103,14 +104,14 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
         case Event.actionCallDecline:
           if (callId.isEmpty) return;
           CallService().notifyIncomingCall(
-            callId: callId, callType: callType, roomId: roomId,
+            callId: callId, callType: callType, roomId: roomId, isGroup: isGroup,
             callerName: callerName,
           );
-          await CallService().rejectCall();
+          await CallService().leaveCall();
         case Event.actionCallEnded:
         case Event.actionCallTimeout:
           if (CallService().state.status == CallStatus.incoming) {
-            await CallService().rejectCall();
+            await CallService().leaveCall();
           }
         default:
           break;

@@ -70,6 +70,7 @@ class UserChannelService with WidgetsBindingObserver {
           callId:          data['call_id'] as String,
           callType:        data['call_type'] as String,
           roomId:          data['room_id'] as String,
+          isGroup:         data['is_group'] as bool? ?? false,
           callerName:      data['caller_name'] as String?,
           callerAvatarUrl: data['caller_avatar'] as String?,
         );

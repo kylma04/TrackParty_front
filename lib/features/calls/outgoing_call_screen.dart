@@ -83,12 +83,13 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
   void _hangup() {
     Haptics.heavy();
     _pop();
-    CallService().hangup().catchError((_) {});
+    CallService().leaveCall().catchError((_) {});
   }
 
   @override
   Widget build(BuildContext context) {
     final isVideo = widget.callType == 'video';
+    final isGroup = CallService().state.isGroup;
 
     return PopScope(
       canPop: false,
@@ -124,7 +125,10 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        isVideo ? 'Appel vidéo' : 'Appel audio',
+                        [
+                          isVideo ? 'Appel vidéo' : 'Appel audio',
+                          if (isGroup) 'de groupe',
+                        ].join(' '),
                         style: const TextStyle(color: Colors.white38, fontSize: 13),
                       ),
                     ],

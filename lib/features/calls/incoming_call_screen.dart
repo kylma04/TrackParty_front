@@ -69,7 +69,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   void _reject() {
     Haptics.heavy();
     _pop();
-    CallService().rejectCall().catchError((_) {});
+    CallService().leaveCall().catchError((_) {});
   }
 
   // Abandon pendant la connexion : l'appel est déjà accepté → raccrocher
@@ -77,7 +77,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   void _cancel() {
     Haptics.heavy();
     _pop();
-    CallService().hangup().catchError((_) {});
+    CallService().leaveCall().catchError((_) {});
   }
 
   @override
@@ -110,7 +110,10 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    isVideo ? 'Appel vidéo entrant' : 'Appel audio entrant',
+                    [
+                      isVideo ? 'Appel vidéo entrant' : 'Appel audio entrant',
+                      if (s.isGroup) 'de groupe',
+                    ].join(' '),
                     style: const TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ],

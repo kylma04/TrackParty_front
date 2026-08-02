@@ -4,34 +4,46 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
 
-/// Moyens de paiement supportés par GeniusPay (https://geniuspay.ci/docs/api).
-enum PayMethod { wave, orange, mtn, moov, card }
+/// Moyens de paiement supportés par Jeko (https://developer.jeko.africa).
+enum PayMethod { wave, orange, mtn, moov, djamo }
 
 extension PayMethodX on PayMethod {
-  /// Code `payment_method` attendu par l'API GeniusPay.
+  /// Code `payment_method` attendu par l'API Jeko.
   String get api => switch (this) {
         PayMethod.wave => 'wave',
-        PayMethod.orange => 'orange_money',
-        PayMethod.mtn => 'mtn_money',
-        PayMethod.moov => 'moov_money',
-        PayMethod.card => 'card',
+        PayMethod.orange => 'orange',
+        PayMethod.mtn => 'mtn',
+        PayMethod.moov => 'moov',
+        PayMethod.djamo => 'djamo',
       };
   String get label => switch (this) {
         PayMethod.wave => 'Wave',
         PayMethod.orange => 'Orange Money',
         PayMethod.mtn => 'MTN MoMo',
         PayMethod.moov => 'Moov Money',
-        PayMethod.card => 'Carte bancaire',
+        PayMethod.djamo => 'Djamo',
       };
-  /// Logo officiel du moyen de paiement (fichiers à déposer dans
-  /// assets/icons/payments/). Un fallback emoji est affiché s'il manque.
-  String get logoAsset => 'assets/icons/payments/$name.png';
+  /// Logo officiel (assets/icons/payments/) — SVG ou PNG selon le fichier
+  /// disponible. `null` → l'UI retombe sur l'emoji.
+  String? get logoAsset => switch (this) {
+        PayMethod.wave => 'assets/icons/payments/wave.svg',
+        PayMethod.orange => 'assets/icons/payments/orange.svg',
+        PayMethod.mtn => 'assets/icons/payments/mtn.svg',
+        // Recadré en cercle depuis moov_money.webp (voir scripts d'origine
+        // dans l'historique) : l'asset brut est un bandeau rectangulaire.
+        PayMethod.moov => 'assets/icons/payments/moov.png',
+        PayMethod.djamo => 'assets/icons/payments/Djamo.svg',
+      };
+
+  /// Djamo n'a qu'un logo NOIR (wordmark) : sans fond clair derrière, il
+  /// devient invisible sur les surfaces sombres de l'app (thème dark-first).
+  bool get logoNeedsLightBackdrop => this == PayMethod.djamo;
   String get emoji => switch (this) {
         PayMethod.wave => '🌊',
         PayMethod.orange => '🟠',
         PayMethod.mtn => '🟡',
         PayMethod.moov => '🔵',
-        PayMethod.card => '💳',
+        PayMethod.djamo => '💜',
       };
 }
 
@@ -91,7 +103,7 @@ class PaymentService {
   final Dio _dio;
   PaymentService(this._dio);
 
-  /// Démarre l'achat d'un billet payant : réserve la place + renvoie l'URL GeniusPay.
+  /// Démarre l'achat d'un billet payant : réserve la place + renvoie l'URL Jeko.
   Future<PaymentInit> purchaseTicket({
     required String eventId,
     required String categoryId,

@@ -15,7 +15,7 @@ import '../../widgets/pay_method_logo.dart';
 /// Feuille de paiement réutilisable (abonnement Pro, boost…).
 ///
 /// Choix du moyen de paiement → POST /payments/create/ → ouverture de la page
-/// GeniusPay → polling du statut. Renvoie `true` si le paiement est confirmé.
+/// Jeko → polling du statut. Renvoie `true` si le paiement est confirmé.
 ///
 /// En pré-lancement (`PAYMENTS_ENABLED=False`), le backend renvoie
 /// `payments_disabled` → la feuille affiche « bientôt disponible » et renvoie `false`.
@@ -90,6 +90,13 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             objectId: widget.objectId,
           );
       _paymentId = init.paymentId;
+      // Pré-lancement (PAYMENTS_ENABLED=False + PAYMENTS_AUTO_APPROVE=True) :
+      // le paiement revient déjà « success », rien à ouvrir ni à attendre.
+      if (init.status == 'success') {
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+        return;
+      }
       if (init.redirectUrl != null && init.redirectUrl!.isNotEmpty) {
         await launchUrl(Uri.parse(init.redirectUrl!),
             mode: LaunchMode.externalApplication);
