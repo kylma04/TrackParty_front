@@ -141,6 +141,11 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => TpActionSheet(items: [
         TpActionSheetItem(
+          icon: PhosphorIcons.userPlus(),
+          label: 'Ajouter des membres',
+          onTap: () => addRoomMembers(context, ref, room),
+        ),
+        TpActionSheetItem(
           icon: PhosphorIcons.textAa(),
           label: 'Renommer la communauté',
           onTap: () => _renameCommunity(room),

@@ -23,7 +23,6 @@ import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../core/services/moderation_service.dart';
 import '../profile/report_sheet.dart';
-import 'contact_picker_screen.dart';
 import 'image_viewer_screen.dart';
 import 'multi_image_preview_screen.dart';
 import 'room_members_sheet.dart';
@@ -667,7 +666,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           TpActionSheetItem(
             icon: PhosphorIcons.userPlus(),
             label: 'Ajouter des membres',
-            onTap: () => _addGroupMembers(room),
+            onTap: () => addRoomMembers(context, ref, room),
           ),
           TpActionSheetItem(
             icon: PhosphorIcons.textAa(),
@@ -705,6 +704,11 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => TpActionSheet(items: [
         TpActionSheetItem(
+          icon: PhosphorIcons.userPlus(),
+          label: 'Ajouter des membres',
+          onTap: () => addRoomMembers(context, ref, room),
+        ),
+        TpActionSheetItem(
           icon: PhosphorIcons.textAa(),
           label: 'Renommer la conversation',
           onTap: () => _renameGroup(
@@ -727,38 +731,6 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         ),
       ]),
     );
-  }
-
-  Future<void> _addGroupMembers(ChatRoomModel room) async {
-    List<RoomMemberModel> members;
-    try {
-      members = await ref.read(chatServiceProvider).getRoomMembers(room.id);
-    } catch (e) {
-      debugPrint('Chat: échec _addGroupMembers (chargement) — $e');
-      if (mounted) TpToast.error(context, 'Impossible de charger les membres');
-      return;
-    }
-    if (!mounted) return;
-
-    final excludeIds = {?_myId, ...members.map((m) => m.id)};
-    final memberIds = await Navigator.of(context).push<List<String>>(
-      MaterialPageRoute(
-        builder: (_) => ContactPickerScreen(
-          title: 'Ajouter des membres',
-          confirmLabel: 'Ajouter',
-          excludeIds: excludeIds,
-        ),
-      ),
-    );
-    if (memberIds == null || memberIds.isEmpty || !mounted) return;
-
-    try {
-      await ref.read(chatServiceProvider).addGroupMembers(room.id, memberIds);
-      if (mounted) TpToast.success(context, 'Membres ajoutés');
-    } catch (e) {
-      debugPrint('Chat: échec _addGroupMembers (ajout) — $e');
-      if (mounted) TpToast.error(context, "Impossible d'ajouter ces membres");
-    }
   }
 
   Future<void> _renameGroup(

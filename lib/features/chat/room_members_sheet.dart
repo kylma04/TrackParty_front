@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
+import '../../core/providers/auth_provider.dart' show authNotifierProvider, AuthAuthenticated;
 import '../../core/providers/chat_provider.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
@@ -13,8 +14,45 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_toast.dart';
+import 'contact_picker_screen.dart';
 
-// ── Sheet membres d'une salle (communauté ou groupe événement) ────────────────
+/// Ouvre le sélecteur de contacts et ajoute les membres choisis à [room] —
+/// partagé par les menus "⋮" groupe / événement / communauté.
+Future<void> addRoomMembers(BuildContext context, WidgetRef ref, ChatRoomModel room) async {
+  List<RoomMemberModel> members;
+  try {
+    members = await ref.read(chatServiceProvider).getRoomMembers(room.id);
+  } catch (e) {
+    debugPrint('Chat: échec addRoomMembers (chargement) — $e');
+    if (context.mounted) TpToast.error(context, 'Impossible de charger les membres');
+    return;
+  }
+  if (!context.mounted) return;
+
+  final me = ref.read(authNotifierProvider).valueOrNull;
+  final myId = me is AuthAuthenticated ? me.user.id : null;
+  final excludeIds = {?myId, ...members.map((m) => m.id)};
+  final memberIds = await Navigator.of(context).push<List<String>>(
+    MaterialPageRoute(
+      builder: (_) => ContactPickerScreen(
+        title: 'Ajouter des membres',
+        confirmLabel: 'Ajouter',
+        excludeIds: excludeIds,
+      ),
+    ),
+  );
+  if (memberIds == null || memberIds.isEmpty || !context.mounted) return;
+
+  try {
+    await ref.read(chatServiceProvider).addGroupMembers(room.id, memberIds);
+    if (context.mounted) TpToast.success(context, 'Membres ajoutés');
+  } catch (e) {
+    debugPrint('Chat: échec addRoomMembers (ajout) — $e');
+    if (context.mounted) TpToast.error(context, "Impossible d'ajouter ces membres");
+  }
+}
+
+// ── Sheet membres d'une salle (communauté, groupe ou événement) ───────────────
 
 class RoomMembersSheet extends ConsumerStatefulWidget {
   final ChatRoomModel room;
@@ -96,6 +134,12 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
     }
   }
 
+  String get _removeLabel {
+    if (widget.room.isEvent) return 'Retirer de la conversation';
+    if (widget.room.isCommunity) return 'Retirer de la communauté';
+    return 'Retirer du groupe';
+  }
+
   // Menu contextuel (pas un 2e bottom sheet empilé sur celui déjà ouvert) —
   // positionné au point de tap grâce à l'Offset transmis par onTapUp.
   Future<void> _showAdminActions(RoomMemberModel member, Offset tapPosition) async {
@@ -126,8 +170,8 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
           child: Row(children: [
             const Icon(PhosphorIconsBold.userMinus, color: kError, size: 20),
             const SizedBox(width: 12),
-            const Text('Retirer du groupe',
-                style: TextStyle(color: kError, fontSize: 14, fontWeight: FontWeight.w700)),
+            Text(_removeLabel,
+                style: const TextStyle(color: kError, fontSize: 14, fontWeight: FontWeight.w700)),
           ]),
         ),
       ],
@@ -204,7 +248,8 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
                     member:    members[i],
                     sent:      _sentTo.contains(members[i].id),
                     sending:   _sendingTo.contains(members[i].id),
-                    canManage: widget.room.isGroup && widget.room.isAdmin,
+                    canManage: (widget.room.isGroup || widget.room.isEvent || widget.room.isCommunity) &&
+                        widget.room.isAdmin,
                     onRequest: () => _sendRequest(members[i]),
                     onManage:  (pos) => _showAdminActions(members[i], pos),
                     onMessage: () {
