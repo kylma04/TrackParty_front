@@ -32,6 +32,8 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/image_editor_screen.dart';
+import '../../widgets/tp_action_sheet.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_toast.dart';
 
@@ -647,43 +649,83 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     );
   }
 
-  // ── Mode groupe ───────────────────────────────────────────────────────────
-
-  Future<void> _showGroupModeSheet(ChatRoomModel room) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _GroupModeSheet(
-        isBroadcast: room.isBroadcast,
-        onToggle: () async {
-          final newMode = room.isBroadcast ? 'open' : 'broadcast';
-          await ref.read(groupModeUpdateProvider)(room.id, newMode);
-          if (!mounted) return;
-          await ref.read(chatRoomsProvider.notifier).refresh();
-        },
-      ),
-    );
-  }
-
   // ── Groupe personnalisé ────────────────────────────────────────────────────
+
+  Future<void> _toggleBroadcast(ChatRoomModel room) async {
+    final newMode = room.isBroadcast ? 'open' : 'broadcast';
+    await ref.read(groupModeUpdateProvider)(room.id, newMode);
+    if (!mounted) return;
+    await ref.read(chatRoomsProvider.notifier).refresh();
+  }
 
   Future<void> _showGroupSettingsSheet(ChatRoomModel room) async {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _GroupSettingsSheet(
-        room: room,
-        onToggleBroadcast: () async {
-          final newMode = room.isBroadcast ? 'open' : 'broadcast';
-          await ref.read(groupModeUpdateProvider)(room.id, newMode);
-          if (!mounted) return;
-          await ref.read(chatRoomsProvider.notifier).refresh();
-        },
-        onAddMembers: () => _addGroupMembers(room),
-        onRename: () => _renameGroup(room),
-        onChangeAvatar: () => _changeGroupAvatar(room),
-        onLeave: () => _leaveGroup(room),
-      ),
+      builder: (_) => TpActionSheet(items: [
+        if (room.isAdmin) ...[
+          TpActionSheetItem(
+            icon: PhosphorIcons.userPlus(),
+            label: 'Ajouter des membres',
+            onTap: () => _addGroupMembers(room),
+          ),
+          TpActionSheetItem(
+            icon: PhosphorIcons.textAa(),
+            label: 'Renommer le groupe',
+            onTap: () => _renameGroup(room),
+          ),
+          TpActionSheetItem(
+            icon: PhosphorIcons.image(),
+            label: 'Changer la photo',
+            onTap: () => _changeGroupAvatar(room),
+          ),
+          TpActionSheetItem(
+            icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
+            label: room.isBroadcast ? 'Ouvrir aux membres' : 'Seuls les admins écrivent',
+            subtitle: room.isBroadcast ? 'Les membres pourront écrire' : "Personne d'autre ne pourra écrire",
+            onTap: () => _toggleBroadcast(room),
+          ),
+        ],
+        TpActionSheetItem(
+          icon: PhosphorIcons.signOut(),
+          label: 'Quitter le groupe',
+          danger: true,
+          dividerBefore: room.isAdmin,
+          onTap: () => _leaveGroup(room),
+        ),
+      ]),
+    );
+  }
+
+  // ── Événement (organisateur uniquement) ────────────────────────────────────
+
+  Future<void> _showEventSettingsSheet(ChatRoomModel room) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TpActionSheet(items: [
+        TpActionSheetItem(
+          icon: PhosphorIcons.textAa(),
+          label: 'Renommer la conversation',
+          onTap: () => _renameGroup(
+            room,
+            title: 'Renommer la conversation',
+            hint: 'Nom de la conversation',
+            errorMsg: 'Impossible de renommer la conversation',
+          ),
+        ),
+        TpActionSheetItem(
+          icon: PhosphorIcons.image(),
+          label: 'Changer la photo',
+          onTap: () => _changeGroupAvatar(room),
+        ),
+        TpActionSheetItem(
+          icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
+          label: room.isBroadcast ? 'Ouvrir aux participants' : 'Seuls les organisateurs écrivent',
+          subtitle: room.isBroadcast ? 'Les participants pourront écrire' : "Personne d'autre ne pourra écrire",
+          onTap: () => _toggleBroadcast(room),
+        ),
+      ]),
     );
   }
 
@@ -719,24 +761,34 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     }
   }
 
-  Future<void> _renameGroup(ChatRoomModel room) async {
-    final newName = await _showRenameGroupSheet(context, room.displayName);
+  Future<void> _renameGroup(
+    ChatRoomModel room, {
+    String title = 'Renommer le groupe',
+    String hint = 'Nom du groupe',
+    String errorMsg = 'Impossible de renommer le groupe',
+  }) async {
+    final newName = await _showRenameGroupSheet(context, room.displayName, title: title, hint: hint);
     if (newName == null || newName.trim().isEmpty || !mounted) return;
     try {
       await ref.read(chatServiceProvider).updateCommunityName(room.id, newName.trim());
       await ref.read(chatRoomsProvider.notifier).refresh();
     } catch (e) {
       debugPrint('Chat: échec _renameGroup — $e');
-      if (mounted) TpToast.error(context, 'Impossible de renommer le groupe');
+      if (mounted) TpToast.error(context, errorMsg);
     }
   }
 
   Future<void> _changeGroupAvatar(ChatRoomModel room) async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null || !mounted) return;
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !mounted) return;
+    final cropped = await pickAndCropSquareAvatar(context, File(picked.path));
+    if (cropped == null || !mounted) return;
     try {
-      await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, file);
-      await ref.read(chatRoomsProvider.notifier).refresh();
+      final url = await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, XFile(cropped.path));
+      if (!mounted) return;
+      await precacheFreshAvatar(context, url);
+      if (!mounted) return;
+      ref.read(chatRoomsProvider.notifier).updateRoomAvatarLocally(room.id, url);
     } catch (e) {
       debugPrint('Chat: échec _changeGroupAvatar — $e');
       if (mounted) TpToast.error(context, 'Impossible de mettre à jour la photo');
@@ -866,7 +918,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   child: GestureDetector(
                     onTap: () => room!.isGroup
                         ? _showGroupSettingsSheet(room)
-                        : _showGroupModeSheet(room),
+                        : _showEventSettingsSheet(room),
                     child: Container(
                       width: 44, height: 44,
                       decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
@@ -1868,8 +1920,13 @@ class _ImageContent extends StatelessWidget {
         imageUrl: url,
         width: width,
         height: height,
+        // Un seul des deux memCacheWidth/Height doit être fourni : si on borne
+        // les deux à la taille (carrée) de la case, le décodeur redimensionne
+        // l'image source à ces dimensions exactes et la déforme quand son ratio
+        // natif n'est pas 1:1 — BoxFit.cover ne peut rien corriger après coup
+        // puisque le bitmap est déjà étiré. En ne bornant que la largeur, le
+        // ratio d'origine est préservé au décodage et le crop carré reste net.
         memCacheWidth: width == null ? null : (width * dpr).round(),
-        memCacheHeight: height == null ? null : (height * dpr).round(),
         fit: BoxFit.cover,
         placeholder: (_, _) => Container(
           width: width, height: height, color: context.tpHair,
@@ -1895,7 +1952,7 @@ class _ImageContent extends StatelessWidget {
           label: 'Voir l\'image',
           child: GestureDetector(
             onTap: () => onTapIndex(0),
-            child: _tile(context, imageUrls[0], width: width, height: 200),
+            child: _AutoAspectImage(url: imageUrls[0], maxWidth: width),
           ),
         ),
       );
@@ -1949,6 +2006,86 @@ class _ImageContent extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+// ── Image de chat à ratio automatique (évite le recadrage en boîte fixe) ────
+// Le backend ne fournit pas les dimensions de l'image dans le message : on
+// résout le ratio réel via l'ImageStream avant de figer width/height.
+
+class _AutoAspectImage extends StatefulWidget {
+  static const _minHeight = 120.0;
+
+  final String url;
+  final double maxWidth;
+  final double maxHeight;
+  const _AutoAspectImage({
+    required this.url,
+    required this.maxWidth,
+    this.maxHeight = 280,
+  });
+
+  @override
+  State<_AutoAspectImage> createState() => _AutoAspectImageState();
+}
+
+class _AutoAspectImageState extends State<_AutoAspectImage> {
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  double? _ratio;
+
+  @override
+  void initState() {
+    super.initState();
+    final stream = CachedNetworkImageProvider(widget.url).resolve(const ImageConfiguration());
+    final listener = ImageStreamListener((info, _) {
+      final w = info.image.width.toDouble();
+      final h = info.image.height.toDouble();
+      if (mounted && h > 0) setState(() => _ratio = w / h);
+    }, onError: (_, _) {
+      if (mounted) setState(() => _ratio = 4 / 3);
+    });
+    stream.addListener(listener);
+    _stream = stream;
+    _listener = listener;
+  }
+
+  @override
+  void dispose() {
+    if (_listener != null) _stream?.removeListener(_listener!);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final ratio = _ratio ?? 4 / 3;
+    var width = widget.maxWidth;
+    var height = width / ratio;
+    if (height > widget.maxHeight) {
+      height = widget.maxHeight;
+      width = height * ratio;
+    }
+    if (height < _AutoAspectImage._minHeight) {
+      height = _AutoAspectImage._minHeight;
+      width = (height * ratio).clamp(0, widget.maxWidth);
+    }
+    return CachedNetworkImage(
+      imageUrl: widget.url,
+      width: width,
+      height: height,
+      memCacheWidth: (width * dpr).round(),
+      memCacheHeight: (height * dpr).round(),
+      fit: BoxFit.cover,
+      placeholder: (_, _) => Container(
+        width: width, height: height, color: context.tpHair,
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      errorWidget: (_, _, _) => Container(
+        width: width, height: height, color: context.tpHair,
+        child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute),
       ),
     );
   }
@@ -2582,17 +2719,12 @@ class _AnnouncementBubble extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(Radii.button),
-                child: CachedNetworkImage(
-                  imageUrl: message.imageUrl!,
-                  width: double.infinity,
-                  height: 200,
-                  memCacheWidth: (MediaQuery.of(context).size.width * MediaQuery.of(context).devicePixelRatio).round(),
-                  memCacheHeight: (200 * MediaQuery.of(context).devicePixelRatio).round(),
-                  fit: BoxFit.cover,
-                  placeholder: (_, _) => Container(height: 200, color: context.tpHair,
-                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                  errorWidget: (_, _, _) => Container(height: 80, color: context.tpHair,
-                    child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute)),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => _AutoAspectImage(
+                    url: message.imageUrl!,
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: 320,
+                  ),
                 ),
               ),
             ),
@@ -2963,212 +3095,15 @@ class EventModeBanner extends StatelessWidget {
   }
 }
 
-class _GroupSettingsSheet extends StatelessWidget {
-  final ChatRoomModel room;
-  final Future<void> Function() onToggleBroadcast;
-  final VoidCallback onAddMembers;
-  final VoidCallback onRename;
-  final VoidCallback onChangeAvatar;
-  final VoidCallback onLeave;
-
-  const _GroupSettingsSheet({
-    required this.room,
-    required this.onToggleBroadcast,
-    required this.onAddMembers,
-    required this.onRename,
-    required this.onChangeAvatar,
-    required this.onLeave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(Sp.md),
-      padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: BorderRadius.circular(Radii.cardLg),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            if (room.isAdmin) ...[
-              _tile(context,
-                icon: PhosphorIcons.userPlus(),
-                label: 'Ajouter des membres',
-                onTap: () { Navigator.pop(context); onAddMembers(); }),
-              _tile(context,
-                icon: PhosphorIcons.textAa(),
-                label: 'Renommer le groupe',
-                onTap: () { Navigator.pop(context); onRename(); }),
-              _tile(context,
-                icon: PhosphorIcons.image(),
-                label: 'Changer la photo',
-                onTap: () { Navigator.pop(context); onChangeAvatar(); }),
-              _tile(context,
-                icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
-                label: room.isBroadcast ? 'Ouvrir aux membres' : 'Seuls les admins écrivent',
-                subtitle: room.isBroadcast
-                    ? 'Les membres pourront écrire'
-                    : "Personne d'autre ne pourra écrire",
-                onTap: () { Navigator.pop(context); onToggleBroadcast(); }),
-              Divider(color: context.tpHair, height: 24),
-            ],
-            _tile(context,
-              icon: PhosphorIcons.signOut(),
-              label: 'Quitter le groupe',
-              danger: true,
-              onTap: () { Navigator.pop(context); onLeave(); }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tile(BuildContext context, {
-    required IconData icon,
-    required String label,
-    String? subtitle,
-    required VoidCallback onTap,
-    bool danger = false,
-  }) {
-    final color = danger ? kError : context.tpInk;
-    return Semantics(
-      button: true, label: label,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(children: [
-            Icon(icon, color: danger ? color : context.tpInkSub, size: 20),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
-                  if (subtitle != null)
-                    Text(subtitle, style: TextStyle(fontSize: 12, color: context.tpInkSub)),
-                ],
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _GroupModeSheet extends StatelessWidget {
-  final bool isBroadcast;
-  final Future<void> Function() onToggle;
-  const _GroupModeSheet({required this.isBroadcast, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(Sp.md),
-      padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: BorderRadius.circular(Radii.cardLg),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40, height: 4,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
-          ),
-          Row(children: [
-            Icon(
-              isBroadcast
-                ? PhosphorIcons.megaphone(PhosphorIconsStyle.fill)
-                : PhosphorIcons.megaphone(),
-              color: isBroadcast ? kPrimary : context.tpInkSub,
-              size: 22,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Paramètres du groupe',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
-                  const SizedBox(height: 2),
-                  Text(
-                    isBroadcast
-                      ? 'Mode diffusion — seuls les admins peuvent écrire'
-                      : 'Groupe ouvert — tout le monde peut écrire',
-                    style: TextStyle(fontSize: 12, color: context.tpInkSub),
-                  ),
-                ],
-              ),
-            ),
-          ]),
-          const SizedBox(height: 16),
-          Semantics(
-            button: true,
-            label: isBroadcast ? 'Ouvrir aux participants' : 'Passer en mode diffusion',
-            child: GestureDetector(
-            onTap: () {
-              Navigator.pop(context);
-              onToggle();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 14),
-              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.lg)),
-              child: Row(children: [
-                Icon(
-                  isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
-                  color: isBroadcast ? kSuccess : kWarning,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isBroadcast ? 'Ouvrir aux participants' : 'Passer en mode diffusion',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInk),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isBroadcast
-                          ? 'Les participants pourront envoyer des messages'
-                          : 'Seuls les admins pourront envoyer des messages',
-                        style: TextStyle(fontSize: 12, color: context.tpInkSub),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(PhosphorIcons.caretRight(), color: context.tpInkSub, size: 16),
-              ]),
-            ),
-            ),
-          ),
-          const SizedBox(height: Sp.sm),
-        ],
-      ),
-    );
-  }
-}
 
 // ── Bottom sheet renommage groupe ────────────────────────────────────────────
 
-Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) {
+Future<String?> _showRenameGroupSheet(
+  BuildContext context,
+  String initialName, {
+  String title = 'Renommer le groupe',
+  String hint = 'Nom du groupe',
+}) {
   final ctrl = TextEditingController(text: initialName);
   return showModalBottomSheet<String>(
     context: context,
@@ -3197,8 +3132,8 @@ Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) 
               ),
             ),
             const SizedBox(height: 18),
-            const Text('Renommer le groupe',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            Text(title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
             const SizedBox(height: 14),
             TextField(
               controller: ctrl,
@@ -3206,7 +3141,7 @@ Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) 
               maxLength: 80,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               decoration: InputDecoration(
-                hintText: 'Nom du groupe',
+                hintText: hint,
                 filled: true,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(Radii.md),

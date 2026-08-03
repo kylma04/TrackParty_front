@@ -871,7 +871,11 @@ class _GroupAvatar extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: url,
           width: 52, height: 52,
-          memCacheWidth: (52 * dpr).round(), memCacheHeight: (52 * dpr).round(),
+          // Ne borner que la largeur au décodage : fournir width ET height à
+          // memCache force un redimensionnement exact qui déforme toute photo
+          // dont le ratio natif n'est pas carré (BoxFit.cover ne peut pas
+          // rattraper une image déjà étirée au décodage).
+          memCacheWidth: (52 * dpr).round(),
           fit: BoxFit.cover,
           errorWidget: (ctx, url, err) => _fallback(ctx),
           placeholder: (ctx, url) => _fallback(ctx),

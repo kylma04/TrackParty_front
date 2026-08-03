@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,8 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/image_editor_screen.dart';
+import '../../widgets/tp_action_sheet.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_toast.dart';
 
@@ -101,10 +104,16 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
 
   Future<void> _changeAvatar(ChatRoomModel room) async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null || !mounted) return;
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !mounted) return;
+    final cropped = await pickAndCropSquareAvatar(context, File(picked.path));
+    if (cropped == null || !mounted) return;
     try {
-      await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, file);
+      final url = await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, XFile(cropped.path));
+      if (!mounted) return;
+      await precacheFreshAvatar(context, url);
+      if (!mounted) return;
+      ref.read(chatRoomsProvider.notifier).updateRoomAvatarLocally(room.id, url);
       ref.invalidate(communityRoomProvider(widget.promoterId));
     } catch (_) {
       if (mounted) {
@@ -124,6 +133,25 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
         TpToast.error(context, 'Impossible de renommer la communauté');
       }
     }
+  }
+
+  void _showCommunitySettingsSheet(BuildContext context, ChatRoomModel room) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TpActionSheet(items: [
+        TpActionSheetItem(
+          icon: PhosphorIcons.textAa(),
+          label: 'Renommer la communauté',
+          onTap: () => _renameCommunity(room),
+        ),
+        TpActionSheetItem(
+          icon: PhosphorIcons.image(),
+          label: 'Changer la photo',
+          onTap: () => _changeAvatar(room),
+        ),
+      ]),
+    );
   }
 
   void _showMembers(BuildContext context, ChatRoomModel room) {
@@ -272,35 +300,10 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Semantics(
-                    button: true,
-                    label: 'Changer l\'avatar de la communauté',
-                    child: GestureDetector(
-                    onTap: room?.isAdmin == true ? () => _changeAvatar(room!) : null,
-                    child: Stack(
-                      children: [
-                        TpAvatar(
-                          name: name,
-                          imageUrl: room?.roomAvatarUrl ?? room?.promoterAvatarUrl,
-                          size: 44,
-                        ),
-                        if (room?.isAdmin == true)
-                          Positioned(
-                            right: 0, bottom: 0,
-                            child: Container(
-                              width: 16, height: 16,
-                              decoration: BoxDecoration(
-                                color: kPrimary,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
-                              ),
-                              child: Icon(PhosphorIcons.camera(PhosphorIconsStyle.fill),
-                                  color: Colors.white, size: 8),
-                            ),
-                          ),
-                      ],
-                    ),
-                    ),
+                  TpAvatar(
+                    name: name,
+                    imageUrl: room?.roomAvatarUrl ?? room?.promoterAvatarUrl,
+                    size: 44,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -326,22 +329,6 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                             child: const Text('★',
                               style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w900)),
                           ),
-                          if (room?.isAdmin == true) ...[
-                            const SizedBox(width: 6),
-                            Semantics(
-                              button: true,
-                              label: 'Renommer la communauté',
-                              child: GestureDetector(
-                                onTap: () => _renameCommunity(room!),
-                                child: Container(
-                                  width: 28, height: 28,
-                                  alignment: Alignment.center,
-                                  child: Icon(PhosphorIcons.pencilSimple(),
-                                      color: Colors.white.withValues(alpha: 0.8), size: 14),
-                                ),
-                              ),
-                            ),
-                          ],
                         ]),
                         if (room != null)
                           Text(
@@ -367,6 +354,23 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
                       ),
                     ),
                   ),
+                  if (room?.isAdmin == true) ...[
+                    const SizedBox(width: 4),
+                    Semantics(
+                      button: true, label: 'Paramètres de la communauté',
+                      child: GestureDetector(
+                        onTap: () => _showCommunitySettingsSheet(context, room!),
+                        child: Container(
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(Radii.md),
+                          ),
+                          child: Icon(PhosphorIcons.dotsThreeVertical(), color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

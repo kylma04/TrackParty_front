@@ -11,7 +11,7 @@ import '../../core/providers/chat_provider.dart';
 import '../../theme/spacing.dart';
 import '../../widgets/tp_button.dart';
 import '../../widgets/tp_toast.dart';
-import 'image_editor_screen.dart';
+import '../../widgets/image_editor_screen.dart';
 
 /// Revue des images sélectionnées avant envoi en chat : chaque image peut
 /// être éditée (recadrage/dessin) ou retirée individuellement, puis toutes

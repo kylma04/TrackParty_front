@@ -136,6 +136,26 @@ class ChatRoomModel {
   bool get isGroup => roomType == 'group';
   bool get isBroadcast => groupMode == 'broadcast';
   bool get isAdmin => myRole == 'admin';
+
+  ChatRoomModel copyWith({String? displayName, String? roomAvatarUrl}) => ChatRoomModel(
+    id: id,
+    roomType: roomType,
+    displayName: displayName ?? this.displayName,
+    groupMode: groupMode,
+    myRole: myRole,
+    eventId: eventId,
+    eventTitle: eventTitle,
+    lastMessage: lastMessage,
+    unreadCount: unreadCount,
+    membersCount: membersCount,
+    membersPreview: membersPreview,
+    createdAt: createdAt,
+    promoterId: promoterId,
+    promoterName: promoterName,
+    promoterAvatarUrl: promoterAvatarUrl,
+    roomAvatarUrl: roomAvatarUrl ?? this.roomAvatarUrl,
+    isMuted: isMuted,
+  );
 }
 
 class MessageReaction {
