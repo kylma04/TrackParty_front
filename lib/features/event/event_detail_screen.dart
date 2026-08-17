@@ -1621,27 +1621,41 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 ),
               ),
               const SizedBox(width: Sp.md),
-              Semantics(
-                button: true,
-                label: 'Inviter un ami',
-                child: GestureDetector(
-                  onTap: () => _showInviteSheet(context),
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade700.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(Radii.lg),
-                      border: Border.all(color: context.tpHair),
-                    ),
-                    child: Icon(
-                      PhosphorIcons.userPlus(),
-                      color: Colors.white,
-                      size: 22,
+              Builder(builder: (context) {
+                // Organisateur / co-organisateur → invite directement (sheet de
+                // recherche ou écran bulk pour un event privé). Participant simple
+                // → partage le lien de l'event (pas de pouvoir d'invitation).
+                final canInviteDirectly = isOrganizer || event.isCoOrganizer;
+                return Semantics(
+                  button: true,
+                  label: canInviteDirectly ? 'Inviter un ami' : 'Partager l\'événement',
+                  child: GestureDetector(
+                    onTap: () => canInviteDirectly
+                        ? _showInviteSheet(context)
+                        : showEventShareSheet(
+                            context,
+                            eventId: event.id,
+                            eventTitle: event.title,
+                          ),
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade700.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(Radii.lg),
+                        border: Border.all(color: context.tpHair),
+                      ),
+                      child: Icon(
+                        canInviteDirectly
+                            ? PhosphorIcons.userPlus()
+                            : PhosphorIcons.shareNetwork(),
+                        color: Colors.white,
+                        size: 22,
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              }),
               const SizedBox(width: Sp.sm),
               Expanded(
                 child: TpButton(

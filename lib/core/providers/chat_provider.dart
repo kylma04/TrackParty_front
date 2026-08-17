@@ -292,7 +292,7 @@ class InvitationsNotifier extends AsyncNotifier<List<InvitationModel>> {
     );
   }
 
-  Future<void> respondToInvitation(
+  Future<InvitationRespondResult> respondToInvitation(
     String invitationId,
     String action, {
     String? contributionItemId,
@@ -303,7 +303,7 @@ class InvitationsNotifier extends AsyncNotifier<List<InvitationModel>> {
     state = AsyncData(current.where((inv) => inv.id != invitationId).toList());
 
     try {
-      await ref.read(invitationServiceProvider).respondToInvitation(
+      return await ref.read(invitationServiceProvider).respondToInvitation(
         invitationId,
         action,
         contributionItemId: contributionItemId,

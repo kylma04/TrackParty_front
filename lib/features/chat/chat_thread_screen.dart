@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
+
 import 'package:path_provider/path_provider.dart';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -1789,10 +1791,90 @@ class _MessageBubble extends ConsumerWidget {
 
 // ── Contenu texte ─────────────────────────────────────────────────────────────
 
-class _TextContent extends StatelessWidget {
+class _TextContent extends StatefulWidget {
   final String text;
   final bool isMe;
   const _TextContent({required this.text, required this.isMe});
+
+  @override
+  State<_TextContent> createState() => _TextContentState();
+}
+
+class _TextContentState extends State<_TextContent> {
+  // Détecte trackparty://event/{id} ET https://trackparty.ci/event/{id}
+  // collés en texte libre dans le chat (les invitations structurées ont déjà
+  // leur propre navigation ailleurs — ceci ne couvre que le texte brut).
+  static final _eventLinkRegex = RegExp(
+    r'(https?:\/\/trackparty\.ci\/event\/[a-zA-Z0-9\-]+|trackparty:\/\/event\/[a-zA-Z0-9\-]+)',
+  );
+
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void didUpdateWidget(covariant _TextContent old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) _disposeRecognizers();
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  String? _extractEventId(String link) {
+    final uri = Uri.tryParse(link);
+    if (uri == null) return null;
+    final segments = uri.pathSegments;
+    final idx = segments.indexOf('event');
+    if (idx == -1 || idx + 1 >= segments.length) return null;
+    return segments[idx + 1];
+  }
+
+  List<InlineSpan> _buildSpans(BuildContext context) {
+    final baseStyle = TextStyle(
+      fontSize: 14, fontWeight: FontWeight.w600,
+      color: widget.isMe ? Colors.white : context.tpInk,
+      height: 1.4,
+    );
+    final linkStyle = baseStyle.copyWith(
+      color: widget.isMe ? Colors.white : kPrimary,
+      decoration: TextDecoration.underline,
+      decorationColor: widget.isMe ? Colors.white : kPrimary,
+      fontWeight: FontWeight.w800,
+    );
+
+    final text = widget.text;
+    final matches = _eventLinkRegex.allMatches(text);
+    if (matches.isEmpty) return [TextSpan(text: text, style: baseStyle)];
+
+    _disposeRecognizers();
+    final spans = <InlineSpan>[];
+    var last = 0;
+    for (final m in matches) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: text.substring(last, m.start), style: baseStyle));
+      }
+      final link = m.group(0)!;
+      final eventId = _extractEventId(link);
+      final recognizer = TapGestureRecognizer()
+        ..onTap = eventId != null ? () => context.push('/event/$eventId') : null;
+      _recognizers.add(recognizer);
+      spans.add(TextSpan(text: link, style: linkStyle, recognizer: recognizer));
+      last = m.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last), style: baseStyle));
+    }
+    return spans;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1800,24 +1882,17 @@ class _TextContent extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.68),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        gradient: isMe ? trackpartyGradient : null,
-        color: isMe ? null : context.tpCard,
+        gradient: widget.isMe ? trackpartyGradient : null,
+        color: widget.isMe ? null : context.tpCard,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(Radii.card),
           topRight: const Radius.circular(Radii.card),
-          bottomLeft: Radius.circular(isMe ? 20 : 6),
-          bottomRight: Radius.circular(isMe ? 6 : 20),
+          bottomLeft: Radius.circular(widget.isMe ? 20 : 6),
+          bottomRight: Radius.circular(widget.isMe ? 6 : 20),
         ),
-        boxShadow: isMe ? Shadows.brand : Shadows.sm,
+        boxShadow: widget.isMe ? Shadows.brand : Shadows.sm,
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 14, fontWeight: FontWeight.w600,
-          color: isMe ? Colors.white : context.tpInk,
-          height: 1.4,
-        ),
-      ),
+      child: RichText(text: TextSpan(children: _buildSpans(context))),
     );
   }
 }
