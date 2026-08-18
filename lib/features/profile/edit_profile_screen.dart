@@ -10,6 +10,7 @@ import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/image_editor_screen.dart';
 import '../../widgets/tp_avatar.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -61,12 +62,18 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _pickAvatar() async {
     if (_avatarLoading) return;
+    final service = ref.read(cloudinaryServiceProvider);
+    final picked = await service.pickImage();
+    if (picked == null || !mounted) return;
+    final cropped = await pickAndCropSquareAvatar(context, picked);
+    if (cropped == null || !mounted) return;
+
     setState(() => _avatarLoading = true);
     try {
-      final url = await ref
-          .read(cloudinaryServiceProvider)
-          .pickAndUpload(folder: 'avatars');
-      if (url != null && mounted) {
+      final url = await service.uploadFile(cropped, folder: 'avatars');
+      if (!mounted) return;
+      await precacheFreshAvatar(context, url);
+      if (mounted) {
         await ref.read(authNotifierProvider.notifier).updateProfile({
           'avatar_cloud_url': url,
         });

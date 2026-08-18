@@ -6,7 +6,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
@@ -109,10 +108,19 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     ],
                   ),
                 ),
+                // Taille fixe (14×5, l'empreinte max) + transform.scale plutôt
+                // que d'animer width/height : évite un relayout à chaque
+                // frame, l'effet d'ombre qui s'étale reste identique.
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  width: _moving ? 14 : 8,
-                  height: _moving ? 3 : 5,
+                  width: 14,
+                  height: 5,
+                  transformAlignment: Alignment.center,
+                  transform: Matrix4.diagonal3Values(
+                    _moving ? 1.0 : 8 / 14,
+                    _moving ? 3 / 5 : 1.0,
+                    1,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(Radii.pill),
@@ -208,11 +216,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                             child: Container(
                               width: 52, height: 52,
                               decoration: BoxDecoration(
-                                gradient: trackpartyGradient,
+                                color: kPrimary,
                                 borderRadius: BorderRadius.circular(Radii.button),
-                                boxShadow: const [
-                                  BoxShadow(color: Color(0x4D7C3AED), blurRadius: 12, offset: Offset(0, 4)),
-                                ],
                               ),
                               child: Icon(PhosphorIcons.crosshair(), color: Colors.white, size: 22),
                             ),

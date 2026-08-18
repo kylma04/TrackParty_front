@@ -690,12 +690,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         event = await svc.createEvent(data);
       }
 
+      var failedCoOrgInvites = 0;
       if (!widget.isEditing && _pendingCoOrgs.isNotEmpty) {
         final coOrgSvc = ref.read(coOrganizerServiceProvider);
         for (final coOrg in _pendingCoOrgs) {
           try {
             await coOrgSvc.invite(event.id, coOrg.id);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('EventCreate: échec invitation co-organisateur ${coOrg.id} — $e');
+            failedCoOrgInvites++;
+          }
         }
       }
 
@@ -710,14 +714,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
       if (mounted) {
         setState(() => _publishState = TpButtonState.idle);
+        final baseMsg = widget.isEditing ? 'Événement mis à jour !' : 'Événement publié !';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              widget.isEditing
-                  ? 'Événement mis à jour !'
-                  : 'Événement publié !',
+              failedCoOrgInvites > 0
+                  ? '$baseMsg $failedCoOrgInvites invitation${failedCoOrgInvites > 1 ? 's' : ''} '
+                      'co-organisateur ${failedCoOrgInvites > 1 ? 'ont' : 'a'} échoué.'
+                  : baseMsg,
             ),
-            backgroundColor: kSuccess,
+            backgroundColor: failedCoOrgInvites > 0 ? kWarning : kSuccess,
           ),
         );
         if (widget.isEditing)
@@ -775,14 +781,18 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           _buildHeader(context),
           _buildStepIndicator(context),
           Expanded(
-            child: PageView(
+            // .builder (pas la liste `children`) : ne construit que l'étape
+            // affichée, au lieu de reconstruire les 3 étapes du formulaire à
+            // chaque frappe/toggle ailleurs dans l'écran.
+            child: PageView.builder(
               controller: _pageCtrl,
               physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildStep1(context),
-                _buildStep2(context),
-                _buildStep3(context),
-              ],
+              itemCount: 3,
+              itemBuilder: (context, i) => switch (i) {
+                0 => _buildStep1(context),
+                1 => _buildStep2(context),
+                _ => _buildStep3(context),
+              },
             ),
           ),
           _buildBottomNav(context),
@@ -858,6 +868,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   // ── Step indicator ────────────────────────────────────────────────────────
 
+  static const _stepLabels = ['Infos générales', 'Détails pratiques', 'Récapitulatif'];
+
   Widget _buildStepIndicator(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 8, Sp.md, 4),
@@ -866,25 +878,35 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           final done = i < _step;
           final active = i == _step;
           return Expanded(
-            child: GestureDetector(
-              onTap: done ? () => _goToStep(i) : null,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                height: 4,
-                margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  gradient: active || done ? trackpartyGradient : null,
-                  color: (active || done) ? null : context.tpHair,
-                  boxShadow: active
-                      ? [
-                          const BoxShadow(
-                            color: Color(0x337C3AED),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ]
-                      : null,
+            child: Semantics(
+              button: done,
+              label: 'Étape ${i + 1} : ${_stepLabels[i]}',
+              selected: active,
+              child: GestureDetector(
+                onTap: done ? () => _goToStep(i) : null,
+                child: SizedBox(
+                  height: 44,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: double.infinity,
+                      height: 4,
+                      margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        color: (active || done) ? kPrimary : context.tpHair,
+                        boxShadow: active
+                            ? [
+                                const BoxShadow(
+                                  color: Color(0x337C3AED),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1187,8 +1209,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    gradient: isCustomActive ? trackpartyGradient : null,
-                    color: isCustomActive ? null : context.tpCard,
+                    color: isCustomActive ? kPrimary : context.tpCard,
                     borderRadius: BorderRadius.circular(Radii.md),
                     border: isCustomActive
                         ? null
@@ -1459,7 +1480,6 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             child: TextField(
               controller: _amountCtrl,
               keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -1630,13 +1650,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1B1A2E),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        boxShadow: Shadows.card,
       ),
       child: Column(
         children: [
@@ -1662,7 +1676,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
+                      color: kPrimary,
                       borderRadius: BorderRadius.circular(Radii.tag),
                     ),
                     child: Row(
@@ -1749,7 +1763,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    gradient: trackpartyGradient,
+                    color: kPrimary,
                     borderRadius: BorderRadius.circular(Radii.tag),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1943,7 +1957,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  gradient: trackpartyGradient,
+                  color: kPrimary,
                   borderRadius: BorderRadius.circular(Radii.md),
                 ),
                 alignment: Alignment.center,
@@ -2021,13 +2035,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1B1A2E),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        boxShadow: Shadows.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2047,7 +2055,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
+                      color: kPrimary,
                       borderRadius: BorderRadius.circular(Radii.tag),
                     ),
                     child: Row(
@@ -2176,13 +2184,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             decoration: BoxDecoration(
               color: context.tpCard,
               borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0A1B1A2E),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+              boxShadow: Shadows.card,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2226,13 +2228,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             decoration: BoxDecoration(
               color: context.tpCard,
               borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0A1B1A2E),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+              boxShadow: Shadows.card,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2274,13 +2270,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             decoration: BoxDecoration(
               color: context.tpCard,
               borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0A1B1A2E),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+              boxShadow: Shadows.card,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2324,13 +2314,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
               decoration: BoxDecoration(
                 color: context.tpCard,
                 borderRadius: BorderRadius.circular(18),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0A1B1A2E),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+                boxShadow: Shadows.card,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2586,6 +2570,141 @@ class _RecapRow extends StatelessWidget {
 // Composants locaux (identiques à l'original)
 // ════════════════════════════════════════════════════════════════════════════
 
+/// Sélecteur d'emoji (avatar 76×76 + champ de saisie) partagé entre
+/// _CustomCategorySheet et _ItemSheet — factorisé pour éviter la duplication.
+/// Se reconstruit lui-même (AnimatedBuilder sur le controller + le focus) au
+/// lieu de dépendre d'un setState() de l'écran parent à chaque frappe.
+class _EmojiPickerField extends StatelessWidget {
+  final TextEditingController emojiCtrl;
+  final FocusNode emojiFocus;
+  final FocusNode labelFocus;
+  final String helperText;
+  final String fallbackEmoji;
+
+  const _EmojiPickerField({
+    required this.emojiCtrl,
+    required this.emojiFocus,
+    required this.labelFocus,
+    this.helperText = 'Utilise le clavier emoji de ton téléphone',
+    this.fallbackEmoji = '✨',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([emojiCtrl, emojiFocus]),
+      builder: (context, _) {
+        final preview = emojiCtrl.text.trim().isEmpty ? fallbackEmoji : emojiCtrl.text.trim();
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Semantics(
+              button: true,
+              label: 'Sélectionner un emoji',
+              child: GestureDetector(
+                onTap: () => emojiFocus.requestFocus(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: kPrimary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(Radii.card),
+                    border: Border.all(
+                      color: emojiFocus.hasFocus
+                          ? kPrimary
+                          : kPrimary.withValues(alpha: 0.18),
+                      width: 2,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: Text(
+                      preview,
+                      key: ValueKey(preview),
+                      style: const TextStyle(fontSize: 40),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'EMOJI',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: context.tpInkSub,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(Radii.md),
+                      border: Border.all(color: context.tpHair),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: emojiCtrl,
+                            focusNode: emojiFocus,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              height: 1.2,
+                            ),
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => labelFocus.requestFocus(),
+                            decoration: InputDecoration(
+                              hintText: '😀',
+                              hintStyle: TextStyle(
+                                fontSize: 24,
+                                color: context.tpInkMute,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.emoji_emotions_outlined,
+                          color: context.tpInkMute,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    helperText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: context.tpInkMute,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _CustomCategorySheet extends StatefulWidget {
   final String? initialLabel;
   final String? initialEmoji;
@@ -2619,11 +2738,6 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
     _emojiFocus.dispose();
     _labelFocus.dispose();
     super.dispose();
-  }
-
-  String get _preview {
-    final t = _emojiCtrl.text.trim();
-    return t.isEmpty ? '✨' : t;
   }
 
   void _confirm() {
@@ -2688,112 +2802,10 @@ class _CustomCategorySheetState extends State<_CustomCategorySheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Semantics(
-                    button: true,
-                    label: 'Sélectionner un emoji',
-                    child: GestureDetector(
-                      onTap: () => _emojiFocus.requestFocus(),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          color: kPrimary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(Radii.card),
-                          border: Border.all(
-                            color: _emojiFocus.hasFocus
-                                ? kPrimary
-                                : kPrimary.withValues(alpha: 0.18),
-                            width: 2,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          child: Text(
-                            _preview,
-                            key: ValueKey(_preview),
-                            style: const TextStyle(fontSize: 40),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'EMOJI',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: context.tpInkSub,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: context.tpBg,
-                            borderRadius: BorderRadius.circular(Radii.md),
-                            border: Border.all(color: context.tpHair),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _emojiCtrl,
-                                  focusNode: _emojiFocus,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    height: 1.2,
-                                  ),
-                                  textInputAction: TextInputAction.next,
-                                  onChanged: (_) => setState(() {}),
-                                  onSubmitted: (_) =>
-                                      _labelFocus.requestFocus(),
-                                  decoration: InputDecoration(
-                                    hintText: '😀',
-                                    hintStyle: TextStyle(
-                                      fontSize: 24,
-                                      color: context.tpInkMute,
-                                    ),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                Icons.emoji_emotions_outlined,
-                                color: context.tpInkMute,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Utilise le clavier emoji de ton téléphone',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: context.tpInkMute,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              _EmojiPickerField(
+                emojiCtrl: _emojiCtrl,
+                emojiFocus: _emojiFocus,
+                labelFocus: _labelFocus,
               ),
               const SizedBox(height: 16),
               Text(
@@ -2913,11 +2925,6 @@ class _ItemSheetState extends State<_ItemSheet> {
     super.dispose();
   }
 
-  String get _preview {
-    final t = _emojiCtrl.text.trim();
-    return t.isEmpty ? '❓' : t;
-  }
-
   void _setQty(int v) => setState(() {
         _qty = v.clamp(1, 9999);
         _qtyCtrl.text = '$_qty';
@@ -2990,113 +2997,12 @@ class _ItemSheetState extends State<_ItemSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Semantics(
-                    button: true,
-                    label: 'Sélectionner un emoji',
-                    child: GestureDetector(
-                      onTap: () => _emojiFocus.requestFocus(),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          color: kPrimary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(Radii.card),
-                          border: Border.all(
-                            color: _emojiFocus.hasFocus
-                                ? kPrimary
-                                : kPrimary.withValues(alpha: 0.18),
-                            width: 2,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 180),
-                          child: Text(
-                            _preview,
-                            key: ValueKey(_preview),
-                            style: const TextStyle(fontSize: 40),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'EMOJI',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: context.tpInkSub,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: context.tpBg,
-                            borderRadius: BorderRadius.circular(Radii.md),
-                            border: Border.all(color: context.tpHair),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _emojiCtrl,
-                                  focusNode: _emojiFocus,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    height: 1.2,
-                                  ),
-                                  keyboardType: TextInputType.text,
-                                  textInputAction: TextInputAction.next,
-                                  onChanged: (_) => setState(() {}),
-                                  onSubmitted: (_) =>
-                                      _labelFocus.requestFocus(),
-                                  decoration: InputDecoration(
-                                    hintText: '😀',
-                                    hintStyle: TextStyle(
-                                      fontSize: 24,
-                                      color: context.tpInkMute,
-                                    ),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                Icons.emoji_emotions_outlined,
-                                color: context.tpInkMute,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Utilise le clavier emoji de ton téléphone 😊',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: context.tpInkMute,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              _EmojiPickerField(
+                emojiCtrl: _emojiCtrl,
+                emojiFocus: _emojiFocus,
+                labelFocus: _labelFocus,
+                helperText: 'Utilise le clavier emoji de ton téléphone 😊',
+                fallbackEmoji: '❓',
               ),
               const SizedBox(height: 16),
               Text(
@@ -3312,8 +3218,7 @@ class _QtyBtn extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            gradient: enabled ? trackpartyGradient : null,
-            color: enabled ? null : context.tpHair,
+            color: enabled ? kPrimary : context.tpHair,
             borderRadius: BorderRadius.circular(Radii.tag),
           ),
           alignment: Alignment.center,
@@ -3359,13 +3264,7 @@ class _CreateField extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.tpCard,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1B1A2E),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        boxShadow: Shadows.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3393,6 +3292,37 @@ class _CreateField extends StatelessWidget {
   }
 }
 
+/// GestureDetector avec un léger effet d'échelle au press (0.97, 100ms —
+/// même signature que TpButton) : retour tactile visuel cohérent, réutilisé
+/// par les cartes de sélection du formulaire qui n'en avaient aucun.
+class _PressableScale extends StatefulWidget {
+  final VoidCallback onTap;
+  final Widget child;
+  const _PressableScale({required this.onTap, required this.child});
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class _SelectCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -3414,20 +3344,14 @@ class _SelectCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: GestureDetector(
+      child: _PressableScale(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: context.tpCard,
             borderRadius: BorderRadius.circular(Radii.lg),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0A1B1A2E),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
+            boxShadow: Shadows.card,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3494,14 +3418,13 @@ class _VisCard extends StatelessWidget {
       button: true,
       label: title,
       selected: active,
-      child: GestureDetector(
+      child: _PressableScale(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            gradient: active ? trackpartyGradient : null,
-            color: active ? null : context.tpCard,
+            color: active ? kPrimary : context.tpCard,
             borderRadius: BorderRadius.circular(Radii.lg),
             border: active
                 ? null
@@ -3568,14 +3491,13 @@ class _ModeCard extends StatelessWidget {
       button: true,
       label: title,
       selected: active,
-      child: GestureDetector(
+      child: _PressableScale(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
-            gradient: active ? trackpartyGradient : null,
-            color: active ? null : context.tpCard,
+            color: active ? kPrimary : context.tpCard,
             borderRadius: BorderRadius.circular(Radii.lg),
             border: active
                 ? null
@@ -3643,6 +3565,12 @@ const _catPalette = [
   '#EF4444', '#FACC15',
 ];
 
+const _catPaletteNames = {
+  '#4F46E5': 'Indigo', '#7C3AED': 'Violet', '#EC4899': 'Rose', '#F97316': 'Orange',
+  '#22A865': 'Vert', '#06B6D4': 'Cyan', '#F59E0B': 'Ambre', '#8B5CF6': 'Mauve',
+  '#EF4444': 'Rouge', '#FACC15': 'Jaune',
+};
+
 Color _hexColor(String c, [Color fallback = kPrimary]) {
   if (c.length == 7 && c.startsWith('#')) {
     final v = int.tryParse(c.substring(1), radix: 16);
@@ -3693,7 +3621,10 @@ class _CatRow extends StatelessWidget {
       if (draft.advantages.isNotEmpty)
         '${draft.advantages.length} avantage${draft.advantages.length > 1 ? 's' : ''}',
     ].join(' · ');
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: 'Modifier la catégorie ${draft.name}',
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -3726,14 +3657,20 @@ class _CatRow extends StatelessWidget {
                       color: context.tpInkSub)),
             ]),
           ),
-          GestureDetector(
-            onTap: onRemove,
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(PhosphorIcons.trash(), color: kError, size: 18),
+          Semantics(
+            button: true,
+            label: 'Supprimer la catégorie ${draft.name}',
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                width: 44, height: 44,
+                alignment: Alignment.center,
+                child: Icon(PhosphorIcons.trash(), color: kError, size: 18),
+              ),
             ),
           ),
         ]),
+      ),
       ),
     );
   }
@@ -3900,21 +3837,32 @@ class _CategorySheetState extends State<_CategorySheet> {
                 runSpacing: 10,
                 children: _catPalette.map((c) {
                   final selected = _color == c;
-                  return GestureDetector(
-                    onTap: () => setState(() => _color = c),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: _hexColor(c),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: selected ? context.tpInk : Colors.transparent,
-                            width: 2.5),
+                  return Semantics(
+                    button: true,
+                    label: _catPaletteNames[c] ?? 'Couleur',
+                    selected: selected,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _color = c),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: _hexColor(c),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: selected ? context.tpInk : Colors.transparent,
+                                  width: 2.5),
+                            ),
+                            child: selected
+                                ? Icon(PhosphorIconsBold.check, color: Colors.white, size: 16)
+                                : null,
+                          ),
+                        ),
                       ),
-                      child: selected
-                          ? const Icon(Icons.check, color: Colors.white, size: 16)
-                          : null,
                     ),
                   );
                 }).toList(),
@@ -3932,15 +3880,19 @@ class _CategorySheetState extends State<_CategorySheet> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _addAdvantage,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                        gradient: trackpartyGradient,
-                        borderRadius: BorderRadius.circular(Radii.md)),
-                    child: Icon(PhosphorIcons.plus(), color: Colors.white, size: 18),
+                Semantics(
+                  button: true,
+                  label: 'Ajouter un avantage',
+                  child: GestureDetector(
+                    onTap: _addAdvantage,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                          color: kPrimary,
+                          borderRadius: BorderRadius.circular(Radii.md)),
+                      child: Icon(PhosphorIcons.plus(), color: Colors.white, size: 18),
+                    ),
                   ),
                 ),
               ]),
@@ -3958,10 +3910,18 @@ class _CategorySheetState extends State<_CategorySheet> {
                                   fontWeight: FontWeight.w600,
                                   color: context.tpInk)),
                         ),
-                        GestureDetector(
-                          onTap: () => setState(() => _advantages.removeAt(e.key)),
-                          child: Icon(PhosphorIcons.x(),
-                              color: context.tpInkMute, size: 16),
+                        Semantics(
+                          button: true,
+                          label: 'Retirer l\'avantage ${e.value}',
+                          child: GestureDetector(
+                            onTap: () => setState(() => _advantages.removeAt(e.key)),
+                            child: Container(
+                              width: 44, height: 44,
+                              alignment: Alignment.center,
+                              child: Icon(PhosphorIcons.x(),
+                                  color: context.tpInkMute, size: 16),
+                            ),
+                          ),
                         ),
                       ]),
                     )),
@@ -4102,10 +4062,15 @@ class _ItemRow extends StatelessWidget {
                     label: 'Supprimer ${item.label}',
                     child: GestureDetector(
                       onTap: onRemove,
-                      child: Icon(
-                        PhosphorIcons.minusCircle(),
-                        color: kError,
-                        size: 20,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          PhosphorIcons.minusCircle(),
+                          color: kError,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
@@ -4156,7 +4121,10 @@ class _CoOrgChip extends StatelessWidget {
             label: 'Retirer ${user.displayName}',
             child: GestureDetector(
               onTap: onRemove,
-              child: Icon(PhosphorIcons.x(), color: kPrimary, size: 14),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(PhosphorIcons.x(), color: kPrimary, size: 14),
+              ),
             ),
           ),
         ],
@@ -4432,8 +4400,7 @@ class _CoOrgSearchSheetState extends ConsumerState<_CoOrgSearchSheet> {
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  gradient: added ? null : trackpartyGradient,
-                                  color: added ? context.tpHair : null,
+                                  color: added ? context.tpHair : kPrimary,
                                   borderRadius: BorderRadius.circular(
                                     Radii.tag,
                                   ),

@@ -25,7 +25,6 @@ import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../core/services/moderation_service.dart';
 import '../profile/report_sheet.dart';
-import 'contact_picker_screen.dart';
 import 'image_viewer_screen.dart';
 import 'multi_image_preview_screen.dart';
 import 'room_members_sheet.dart';
@@ -34,6 +33,8 @@ import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/image_editor_screen.dart';
+import '../../widgets/tp_action_sheet.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_toast.dart';
 
@@ -339,10 +340,20 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   @override
   Widget build(BuildContext context) {
     final messagesAsync    = ref.watch(chatThreadProvider(widget.roomId));
-    if (messagesAsync.hasValue) _messages = messagesAsync.value!;
+    if (messagesAsync.hasValue) {
+      _messages = messagesAsync.value!;
+      // Purge les GlobalKey des messages qui ne sont plus dans la fenêtre
+      // chargée (au-delà de _msgKeys.length, ça grossirait indéfiniment sur
+      // une session longue).
+      if (_msgKeys.length > _messages.length) {
+        final ids = _messages.map((m) => m.id).toSet();
+        _msgKeys.removeWhere((id, _) => !ids.contains(id));
+      }
+    }
     final room             = ref.watch(chatRoomByIdProvider(widget.roomId));
-    final authState        = ref.watch(authNotifierProvider).valueOrNull;
-    final me               = authState is AuthAuthenticated ? authState.user : null;
+    final me = ref.watch(authNotifierProvider.select(
+      (s) => s.valueOrNull is AuthAuthenticated ? (s.valueOrNull as AuthAuthenticated).user : null,
+    ));
     if (me?.id != null) _myId = me!.id;
     // DM collant : ne repasse jamais à false même si `room` devient null pendant
     // un rechargement → les accusés de lecture restent affichés en continu.
@@ -503,7 +514,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
 
   Widget _menuTile(BuildContext ctx, {required IconData icon, required String label,
       required VoidCallback onTap, bool danger = false}) {
-    final color = danger ? const Color(0xFFEF4444) : ctx.tpInk;
+    final color = danger ? kError : ctx.tpInk;
     return ListTile(
       leading: Icon(icon, color: color, size: 22),
       title: Text(label,
@@ -522,7 +533,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             ? 'Notifications coupées pour cette conversation'
             : 'Notifications réactivées');
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Chat: échec _toggleMute — $e');
       if (mounted) TpToast.error(context, 'Action impossible pour le moment');
     }
   }
@@ -539,7 +551,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
           TextButton(onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('Bloquer', style: TextStyle(color: Color(0xFFEF4444)))),
+              child: const Text('Bloquer', style: TextStyle(color: kError))),
         ],
       ),
     );
@@ -550,7 +562,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         TpToast.success(context, '${other.displayName} a été bloqué');
         context.pop();
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Chat: échec _confirmBlock — $e');
       if (mounted) TpToast.error(context, 'Impossible de bloquer');
     }
   }
@@ -637,94 +650,121 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     );
   }
 
-  // ── Mode groupe ───────────────────────────────────────────────────────────
-
-  Future<void> _showGroupModeSheet(ChatRoomModel room) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _GroupModeSheet(
-        isBroadcast: room.isBroadcast,
-        onToggle: () async {
-          final newMode = room.isBroadcast ? 'open' : 'broadcast';
-          await ref.read(groupModeUpdateProvider)(room.id, newMode);
-          if (!mounted) return;
-          await ref.read(chatRoomsProvider.notifier).refresh();
-        },
-      ),
-    );
-  }
-
   // ── Groupe personnalisé ────────────────────────────────────────────────────
+
+  Future<void> _toggleBroadcast(ChatRoomModel room) async {
+    final newMode = room.isBroadcast ? 'open' : 'broadcast';
+    await ref.read(groupModeUpdateProvider)(room.id, newMode);
+    if (!mounted) return;
+    await ref.read(chatRoomsProvider.notifier).refresh();
+  }
 
   Future<void> _showGroupSettingsSheet(ChatRoomModel room) async {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _GroupSettingsSheet(
-        room: room,
-        onToggleBroadcast: () async {
-          final newMode = room.isBroadcast ? 'open' : 'broadcast';
-          await ref.read(groupModeUpdateProvider)(room.id, newMode);
-          if (!mounted) return;
-          await ref.read(chatRoomsProvider.notifier).refresh();
-        },
-        onAddMembers: () => _addGroupMembers(room),
-        onRename: () => _renameGroup(room),
-        onChangeAvatar: () => _changeGroupAvatar(room),
-        onLeave: () => _leaveGroup(room),
-      ),
-    );
-  }
-
-  Future<void> _addGroupMembers(ChatRoomModel room) async {
-    List<RoomMemberModel> members;
-    try {
-      members = await ref.read(chatServiceProvider).getRoomMembers(room.id);
-    } catch (_) {
-      if (mounted) TpToast.error(context, 'Impossible de charger les membres');
-      return;
-    }
-    if (!mounted) return;
-
-    final excludeIds = {?_myId, ...members.map((m) => m.id)};
-    final memberIds = await Navigator.of(context).push<List<String>>(
-      MaterialPageRoute(
-        builder: (_) => ContactPickerScreen(
-          title: 'Ajouter des membres',
-          confirmLabel: 'Ajouter',
-          excludeIds: excludeIds,
+      builder: (_) => TpActionSheet(items: [
+        if (room.isAdmin) ...[
+          TpActionSheetItem(
+            icon: PhosphorIcons.userPlus(),
+            label: 'Ajouter des membres',
+            onTap: () => addRoomMembers(context, ref, room),
+          ),
+          TpActionSheetItem(
+            icon: PhosphorIcons.textAa(),
+            label: 'Renommer le groupe',
+            onTap: () => _renameGroup(room),
+          ),
+          TpActionSheetItem(
+            icon: PhosphorIcons.image(),
+            label: 'Changer la photo',
+            onTap: () => _changeGroupAvatar(room),
+          ),
+          TpActionSheetItem(
+            icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
+            label: room.isBroadcast ? 'Ouvrir aux membres' : 'Seuls les admins écrivent',
+            subtitle: room.isBroadcast ? 'Les membres pourront écrire' : "Personne d'autre ne pourra écrire",
+            onTap: () => _toggleBroadcast(room),
+          ),
+        ],
+        TpActionSheetItem(
+          icon: PhosphorIcons.signOut(),
+          label: 'Quitter le groupe',
+          danger: true,
+          dividerBefore: room.isAdmin,
+          onTap: () => _leaveGroup(room),
         ),
-      ),
+      ]),
     );
-    if (memberIds == null || memberIds.isEmpty || !mounted) return;
-
-    try {
-      await ref.read(chatServiceProvider).addGroupMembers(room.id, memberIds);
-      if (mounted) TpToast.success(context, 'Membres ajoutés');
-    } catch (_) {
-      if (mounted) TpToast.error(context, "Impossible d'ajouter ces membres");
-    }
   }
 
-  Future<void> _renameGroup(ChatRoomModel room) async {
-    final newName = await _showRenameGroupSheet(context, room.displayName);
+  // ── Événement (organisateur uniquement) ────────────────────────────────────
+
+  Future<void> _showEventSettingsSheet(ChatRoomModel room) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TpActionSheet(items: [
+        TpActionSheetItem(
+          icon: PhosphorIcons.userPlus(),
+          label: 'Ajouter des membres',
+          onTap: () => addRoomMembers(context, ref, room),
+        ),
+        TpActionSheetItem(
+          icon: PhosphorIcons.textAa(),
+          label: 'Renommer la conversation',
+          onTap: () => _renameGroup(
+            room,
+            title: 'Renommer la conversation',
+            hint: 'Nom de la conversation',
+            errorMsg: 'Impossible de renommer la conversation',
+          ),
+        ),
+        TpActionSheetItem(
+          icon: PhosphorIcons.image(),
+          label: 'Changer la photo',
+          onTap: () => _changeGroupAvatar(room),
+        ),
+        TpActionSheetItem(
+          icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
+          label: room.isBroadcast ? 'Ouvrir aux participants' : 'Seuls les organisateurs écrivent',
+          subtitle: room.isBroadcast ? 'Les participants pourront écrire' : "Personne d'autre ne pourra écrire",
+          onTap: () => _toggleBroadcast(room),
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _renameGroup(
+    ChatRoomModel room, {
+    String title = 'Renommer le groupe',
+    String hint = 'Nom du groupe',
+    String errorMsg = 'Impossible de renommer le groupe',
+  }) async {
+    final newName = await _showRenameGroupSheet(context, room.displayName, title: title, hint: hint);
     if (newName == null || newName.trim().isEmpty || !mounted) return;
     try {
       await ref.read(chatServiceProvider).updateCommunityName(room.id, newName.trim());
       await ref.read(chatRoomsProvider.notifier).refresh();
-    } catch (_) {
-      if (mounted) TpToast.error(context, 'Impossible de renommer le groupe');
+    } catch (e) {
+      debugPrint('Chat: échec _renameGroup — $e');
+      if (mounted) TpToast.error(context, errorMsg);
     }
   }
 
   Future<void> _changeGroupAvatar(ChatRoomModel room) async {
-    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (file == null || !mounted) return;
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !mounted) return;
+    final cropped = await pickAndCropSquareAvatar(context, File(picked.path));
+    if (cropped == null || !mounted) return;
     try {
-      await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, file);
-      await ref.read(chatRoomsProvider.notifier).refresh();
-    } catch (_) {
+      final url = await ref.read(chatServiceProvider).updateCommunityAvatar(room.id, XFile(cropped.path));
+      if (!mounted) return;
+      await precacheFreshAvatar(context, url);
+      if (!mounted) return;
+      ref.read(chatRoomsProvider.notifier).updateRoomAvatarLocally(room.id, url);
+    } catch (e) {
+      debugPrint('Chat: échec _changeGroupAvatar — $e');
       if (mounted) TpToast.error(context, 'Impossible de mettre à jour la photo');
     }
   }
@@ -741,7 +781,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
           TextButton(onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('Quitter', style: TextStyle(color: Color(0xFFEF4444)))),
+              child: const Text('Quitter', style: TextStyle(color: kError))),
         ],
       ),
     );
@@ -750,7 +790,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       await ref.read(chatServiceProvider).leaveGroup(room.id);
       await ref.read(chatRoomsProvider.notifier).refresh();
       if (mounted) context.pop();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Chat: échec _leaveGroup — $e');
       if (mounted) TpToast.error(context, 'Impossible de quitter le groupe');
     }
   }
@@ -851,7 +892,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   child: GestureDetector(
                     onTap: () => room!.isGroup
                         ? _showGroupSettingsSheet(room)
-                        : _showGroupModeSheet(room),
+                        : _showEventSettingsSheet(room),
                     child: Container(
                       width: 44, height: 44,
                       decoration: BoxDecoration(borderRadius: BorderRadius.circular(Radii.md)),
@@ -941,9 +982,15 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   onPressed: matches.isEmpty || activeIdx >= matches.length - 1 ? null : () => _goToMatch(1),
                 ),
               ),
-              GestureDetector(
-                onTap: () => setState(() { _searchQuery = ''; _activeMatchId = null; _searchCtrl.clear(); }),
-                child: Icon(PhosphorIcons.x(), color: context.tpInkSub, size: 18),
+              Semantics(
+                button: true, label: 'Effacer la recherche',
+                child: IconButton(
+                  icon: Icon(PhosphorIcons.x(), size: 18),
+                  color: context.tpInkSub,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: () => setState(() { _searchQuery = ''; _activeMatchId = null; _searchCtrl.clear(); }),
+                ),
               ),
             ],
           ],
@@ -1107,7 +1154,6 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
   // ── Composer ──────────────────────────────────────────────────────────────
 
   Widget _buildComposer(BuildContext context, {bool isAdmin = false}) {
-    final hasText  = _ctrl.text.isNotEmpty;
     final hintText = isAdmin
         ? (_attachEvent ? 'Poster une annonce…' : 'Écris un message…')
         : 'Écris un message…';
@@ -1125,101 +1171,109 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           Padding(
             padding: EdgeInsets.fromLTRB(Sp.md, 10, Sp.md,
                 10 + MediaQuery.of(context).padding.bottom),
-            child: Row(
-        children: [
-          // Image picker
-          if (!hasText)
-            Semantics(
-              button: true, label: 'Joindre une image',
-              child: GestureDetector(
-                onTap: _pickImage,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      color: context.tpBg,
-                      borderRadius: BorderRadius.circular(Radii.button),
-                      border: Border.all(color: context.tpHair),
-                    ),
-                    child: Icon(PhosphorIcons.image(), color: context.tpInkSub, size: 20),
-                  ),
-                ),
-              ),
-            ),
+            // Scopé au ValueListenableBuilder pour ne reconstruire que la barre
+            // de saisie (icône image / envoyer-micro) à chaque frappe, plutôt
+            // que tout l'écran via un setState() global.
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _ctrl,
+              builder: (context, value, _) {
+                final hasText = value.text.isNotEmpty;
+                return Row(
+                  children: [
+                    // Image picker
+                    if (!hasText)
+                      Semantics(
+                        button: true, label: 'Joindre une image',
+                        child: GestureDetector(
+                          onTap: _pickImage,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Container(
+                              width: 44, height: 44,
+                              decoration: BoxDecoration(
+                                color: context.tpBg,
+                                borderRadius: BorderRadius.circular(Radii.button),
+                                border: Border.all(color: context.tpHair),
+                              ),
+                              child: Icon(PhosphorIcons.image(), color: context.tpInkSub, size: 20),
+                            ),
+                          ),
+                        ),
+                      ),
 
-          // Champ de texte
-          Expanded(
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
-              decoration: BoxDecoration(
-                color: context.tpBg,
-                borderRadius: BorderRadius.circular(22),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 4),
-              child: TextField(
-                controller: _ctrl,
-                maxLines: null,
-                textCapitalization: TextCapitalization.sentences,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
-                  border: InputBorder.none,
-                  isDense: true,
-                ),
-                onSubmitted: (_) => _sendText(),
-                textInputAction: TextInputAction.send,
-                onChanged: (_) => setState(() {}),
-              ),
+                    // Champ de texte
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(maxHeight: 120),
+                        decoration: BoxDecoration(
+                          color: context.tpBg,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 4),
+                        child: TextField(
+                          controller: _ctrl,
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInk),
+                          decoration: InputDecoration(
+                            hintText: hintText,
+                            hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.tpInkMute),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _sendText(),
+                          textInputAction: TextInputAction.send,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Envoyer ou micro
+                    hasText
+                        ? Semantics(
+                            button: true, label: 'Envoyer le message',
+                            child: GestureDetector(
+                              onTap: _sendText,
+                              child: Container(
+                                width: 44, height: 44,
+                                decoration: BoxDecoration(
+                                  gradient: trackpartyGradient,
+                                  borderRadius: BorderRadius.circular(Radii.button),
+                                  boxShadow: Shadows.brand,
+                                ),
+                                child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
+                              ),
+                            ),
+                          )
+                        : Semantics(
+                            button: true, label: 'Enregistrer un message vocal',
+                            child: GestureDetector(
+                              onTap:                  _onMicTap,
+                              onLongPressStart:       _onHoldStart,
+                              onLongPressMoveUpdate:  _onHoldMove,
+                              onLongPressEnd:         _onHoldEnd,
+                            // onLongPressCancel fire aussi après un tap simple → ne cancel que si
+                            // on est vraiment en mode hold (pas en mode locked déclenché par tap)
+                            onLongPressCancel: () {
+                              if (_voiceMode == _VoiceMode.holding) _cancelVoice();
+                            },
+                            child: Container(
+                              width: 44, height: 44,
+                              decoration: BoxDecoration(
+                                color: context.tpBg,
+                                borderRadius: BorderRadius.circular(Radii.button),
+                                border: Border.all(color: context.tpHair),
+                              ),
+                              child: Icon(PhosphorIcons.microphone(), color: context.tpInkSub, size: 20),
+                            ),
+                          ),
+                          ),
+                  ],
+                );
+              },
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          // Envoyer ou micro
-          hasText
-              ? Semantics(
-                  button: true, label: 'Envoyer le message',
-                  child: GestureDetector(
-                    onTap: _sendText,
-                    child: Container(
-                      width: 44, height: 44,
-                      decoration: BoxDecoration(
-                        gradient: trackpartyGradient,
-                        borderRadius: BorderRadius.circular(Radii.button),
-                        boxShadow: Shadows.brand,
-                      ),
-                      child: Icon(PhosphorIcons.paperPlaneTilt(), color: Colors.white, size: 20),
-                    ),
-                  ),
-                )
-              : Semantics(
-                  button: true, label: 'Enregistrer un message vocal',
-                  child: GestureDetector(
-                    onTap:                  _onMicTap,
-                    onLongPressStart:       _onHoldStart,
-                    onLongPressMoveUpdate:  _onHoldMove,
-                    onLongPressEnd:         _onHoldEnd,
-                  // onLongPressCancel fire aussi après un tap simple → ne cancel que si
-                  // on est vraiment en mode hold (pas en mode locked déclenché par tap)
-                  onLongPressCancel: () {
-                    if (_voiceMode == _VoiceMode.holding) _cancelVoice();
-                  },
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      color: context.tpBg,
-                      borderRadius: BorderRadius.circular(Radii.button),
-                      border: Border.all(color: context.tpHair),
-                    ),
-                    child: Icon(PhosphorIcons.microphone(), color: context.tpInkSub, size: 20),
-                  ),
-                ),
-                ),
-          ],
-        ),
-        ),
         ],
       ),
     );
@@ -1350,14 +1404,14 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
             _fmtDuration(_recordSecs),
             style: TextStyle(
               fontSize: 15, fontWeight: FontWeight.w800,
-              color: _recordPaused ? context.tpInkMute : kError,
+              color: _recordPaused ? context.tpInkSub : kError,
             ),
           ),
           if (_recordPaused)
             Padding(
               padding: const EdgeInsets.only(left: 6),
               child: Text('En pause',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
             ),
           const Spacer(),
           _VoiceActionBtn(
@@ -1639,6 +1693,15 @@ class _RecordingDotsState extends State<_RecordingDots>
 
 // ── Bulle de message ──────────────────────────────────────────────────────────
 
+// Coin pointu du côté de l'expéditeur (bas-gauche pour l'autre, bas-droite
+// pour moi), partagé par tous les types de contenu de bulle.
+BorderRadius bubbleBorderRadius(bool isMe) => BorderRadius.only(
+      topLeft: const Radius.circular(Radii.card),
+      topRight: const Radius.circular(Radii.card),
+      bottomLeft: Radius.circular(isMe ? 20 : 6),
+      bottomRight: Radius.circular(isMe ? 6 : 20),
+    );
+
 class _MessageBubble extends ConsumerWidget {
   final ChatMessage message;
   final bool isMe;
@@ -1701,12 +1764,7 @@ class _MessageBubble extends ConsumerWidget {
     // Même forme (coins asymétriques) que la bulle elle-même pour épouser son
     // contour exact plutôt qu'un rectangle générique autour.
     if (isActiveSearchMatch) {
-      final bubbleRadius = BorderRadius.only(
-        topLeft: const Radius.circular(Radii.card),
-        topRight: const Radius.circular(Radii.card),
-        bottomLeft: Radius.circular(isMe ? 20 : 6),
-        bottomRight: Radius.circular(isMe ? 6 : 20),
-      );
+      final bubbleRadius = bubbleBorderRadius(isMe);
       content = AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
@@ -1763,8 +1821,8 @@ class _MessageBubble extends ConsumerWidget {
                       Icon(
                         // Envoyé (hors ligne) = 1 coche ; livré / lu = 2 coches.
                         status == _MsgStatus.sent
-                            ? Icons.done_rounded
-                            : Icons.done_all_rounded,
+                            ? PhosphorIcons.check(PhosphorIconsStyle.bold)
+                            : PhosphorIcons.checks(PhosphorIconsStyle.bold),
                         size: 14,
                         // Lu = bleu plein ; envoyé / livré = gris.
                         color: status == _MsgStatus.read ? kInfo : context.tpInkMute,
@@ -1907,17 +1965,21 @@ class _ImageContent extends StatelessWidget {
 
   static const _maxTiles = 4;
 
-  BorderRadius get _radius => BorderRadius.only(
-        topLeft: const Radius.circular(Radii.card),
-        topRight: const Radius.circular(Radii.card),
-        bottomLeft: Radius.circular(isMe ? 20 : 6),
-        bottomRight: Radius.circular(isMe ? 6 : 20),
-      );
+  BorderRadius get _radius => bubbleBorderRadius(isMe);
 
-  Widget _tile(BuildContext context, String url, {double? width, double? height}) => CachedNetworkImage(
+  Widget _tile(BuildContext context, String url, {double? width, double? height}) {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    return CachedNetworkImage(
         imageUrl: url,
         width: width,
         height: height,
+        // Un seul des deux memCacheWidth/Height doit être fourni : si on borne
+        // les deux à la taille (carrée) de la case, le décodeur redimensionne
+        // l'image source à ces dimensions exactes et la déforme quand son ratio
+        // natif n'est pas 1:1 — BoxFit.cover ne peut rien corriger après coup
+        // puisque le bitmap est déjà étiré. En ne bornant que la largeur, le
+        // ratio d'origine est préservé au décodage et le crop carré reste net.
+        memCacheWidth: width == null ? null : (width * dpr).round(),
         fit: BoxFit.cover,
         placeholder: (_, _) => Container(
           width: width, height: height, color: context.tpHair,
@@ -1928,6 +1990,7 @@ class _ImageContent extends StatelessWidget {
           child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute),
         ),
       );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1937,15 +2000,23 @@ class _ImageContent extends StatelessWidget {
     if (imageUrls.length == 1) {
       return ClipRRect(
         borderRadius: _radius,
-        child: GestureDetector(
-          onTap: () => onTapIndex(0),
-          child: _tile(context, imageUrls[0], width: width, height: 200),
+        child: Semantics(
+          button: true,
+          label: 'Voir l\'image',
+          child: GestureDetector(
+            onTap: () => onTapIndex(0),
+            child: _AutoAspectImage(url: imageUrls[0], maxWidth: width),
+          ),
         ),
       );
     }
 
     final shown = imageUrls.length > _maxTiles ? _maxTiles : imageUrls.length;
     final extra = imageUrls.length - _maxTiles;
+    // Taille réelle d'une cellule de la grille (2 colonnes, ratio carré) —
+    // sert à borner memCacheWidth/Height dans _tile plutôt que de décoder
+    // chaque miniature à sa résolution native.
+    final cellSize = (width - 2) / 2;
 
     return ClipRRect(
       borderRadius: _radius,
@@ -1964,24 +2035,110 @@ class _ImageContent extends StatelessWidget {
           itemCount: shown,
           itemBuilder: (_, i) {
             final isLastVisibleTile = i == shown - 1 && extra > 0;
-            return GestureDetector(
-              onTap: () => onTapIndex(i),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _tile(context, imageUrls[i]),
-                  if (isLastVisibleTile)
-                    Container(
-                      color: Colors.black54,
-                      alignment: Alignment.center,
-                      child: Text('+$extra',
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-                    ),
-                ],
+            return Semantics(
+              button: true,
+              label: isLastVisibleTile
+                  ? 'Voir $extra image${extra > 1 ? 's' : ''} de plus'
+                  : 'Voir l\'image ${i + 1}/${imageUrls.length}',
+              child: GestureDetector(
+                onTap: () => onTapIndex(i),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _tile(context, imageUrls[i], width: cellSize, height: cellSize),
+                    if (isLastVisibleTile)
+                      Container(
+                        color: Colors.black54,
+                        alignment: Alignment.center,
+                        child: Text('+$extra',
+                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                      ),
+                  ],
+                ),
               ),
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+// ── Image de chat à ratio automatique (évite le recadrage en boîte fixe) ────
+// Le backend ne fournit pas les dimensions de l'image dans le message : on
+// résout le ratio réel via l'ImageStream avant de figer width/height.
+
+class _AutoAspectImage extends StatefulWidget {
+  static const _minHeight = 120.0;
+
+  final String url;
+  final double maxWidth;
+  final double maxHeight;
+  const _AutoAspectImage({
+    required this.url,
+    required this.maxWidth,
+    this.maxHeight = 280,
+  });
+
+  @override
+  State<_AutoAspectImage> createState() => _AutoAspectImageState();
+}
+
+class _AutoAspectImageState extends State<_AutoAspectImage> {
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  double? _ratio;
+
+  @override
+  void initState() {
+    super.initState();
+    final stream = CachedNetworkImageProvider(widget.url).resolve(const ImageConfiguration());
+    final listener = ImageStreamListener((info, _) {
+      final w = info.image.width.toDouble();
+      final h = info.image.height.toDouble();
+      if (mounted && h > 0) setState(() => _ratio = w / h);
+    }, onError: (_, _) {
+      if (mounted) setState(() => _ratio = 4 / 3);
+    });
+    stream.addListener(listener);
+    _stream = stream;
+    _listener = listener;
+  }
+
+  @override
+  void dispose() {
+    if (_listener != null) _stream?.removeListener(_listener!);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final ratio = _ratio ?? 4 / 3;
+    var width = widget.maxWidth;
+    var height = width / ratio;
+    if (height > widget.maxHeight) {
+      height = widget.maxHeight;
+      width = height * ratio;
+    }
+    if (height < _AutoAspectImage._minHeight) {
+      height = _AutoAspectImage._minHeight;
+      width = (height * ratio).clamp(0, widget.maxWidth);
+    }
+    return CachedNetworkImage(
+      imageUrl: widget.url,
+      width: width,
+      height: height,
+      memCacheWidth: (width * dpr).round(),
+      memCacheHeight: (height * dpr).round(),
+      fit: BoxFit.cover,
+      placeholder: (_, _) => Container(
+        width: width, height: height, color: context.tpHair,
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      errorWidget: (_, _, _) => Container(
+        width: width, height: height, color: context.tpHair,
+        child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute),
       ),
     );
   }
@@ -2115,15 +2272,9 @@ class _VoiceContentState extends State<_VoiceContent> {
       width: MediaQuery.of(context).size.width * 0.68,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        gradient: widget.isMe ? trackpartyGradient : null,
-        color: widget.isMe ? null : context.tpCard,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(Radii.card),
-          topRight: const Radius.circular(Radii.card),
-          bottomLeft: Radius.circular(widget.isMe ? 20 : 6),
-          bottomRight: Radius.circular(widget.isMe ? 6 : 20),
-        ),
-        boxShadow: widget.isMe ? Shadows.brand : Shadows.sm,
+        color: widget.isMe ? kPrimary : context.tpCard,
+        borderRadius: bubbleBorderRadius(widget.isMe),
+        boxShadow: Shadows.sm,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -2207,27 +2358,32 @@ class _VoiceWaveform extends StatelessWidget {
             final fraction = constraints.maxWidth == 0 ? 0.0 : (dx / constraints.maxWidth).clamp(0.0, 1.0);
             onSeek?.call(fraction);
           }
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: onSeek == null ? null : (d) => handleSeek(d.localPosition.dx),
-            onHorizontalDragUpdate: onSeek == null ? null : (d) => handleSeek(d.localPosition.dx),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                for (var i = 0; i < bars.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 3),
-                  Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      height: (bars[i] * 18).clamp(4, 18),
-                      decoration: BoxDecoration(
-                        color: (i / bars.length) <= progress ? activeColor : trackColor,
-                        borderRadius: BorderRadius.circular(2),
+          return Semantics(
+            slider: onSeek != null,
+            label: 'Position de lecture',
+            value: '${(progress * 100).round()}%',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: onSeek == null ? null : (d) => handleSeek(d.localPosition.dx),
+              onHorizontalDragUpdate: onSeek == null ? null : (d) => handleSeek(d.localPosition.dx),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < bars.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 3),
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        height: (bars[i] * 18).clamp(4, 18),
+                        decoration: BoxDecoration(
+                          color: (i / bars.length) <= progress ? activeColor : trackColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           );
         },
@@ -2250,12 +2406,7 @@ class _EventInviteContent extends StatelessWidget {
       width: MediaQuery.of(context).size.width * 0.72,
       decoration: BoxDecoration(
         color: context.tpCard,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(Radii.card),
-          topRight: const Radius.circular(Radii.card),
-          bottomLeft: Radius.circular(isMe ? 20 : 6),
-          bottomRight: Radius.circular(isMe ? 6 : 20),
-        ),
+        borderRadius: bubbleBorderRadius(isMe),
         boxShadow: Shadows.sm,
         border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
       ),
@@ -2373,18 +2524,25 @@ class _InvitationDmBubble extends ConsumerWidget {
                   child: Text(catLabel,
                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white)),
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(Radii.card),
-                  ),
-                  child: Text(
-                    'Invitation · ${message.sender.displayName}',
-                    style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w800,
-                      color: kPrimary,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(Radii.card),
+                      ),
+                      child: Text(
+                        'Invitation · ${message.sender.displayName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800,
+                          color: kPrimary,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -2614,15 +2772,12 @@ class _AnnouncementBubble extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(Radii.button),
-                child: CachedNetworkImage(
-                  imageUrl: message.imageUrl!,
-                  width: double.infinity,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  placeholder: (_, _) => Container(height: 200, color: context.tpHair,
-                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                  errorWidget: (_, _, _) => Container(height: 80, color: context.tpHair,
-                    child: Icon(PhosphorIcons.imageBroken(), color: context.tpInkMute)),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => _AutoAspectImage(
+                    url: message.imageUrl!,
+                    maxWidth: constraints.maxWidth,
+                    maxHeight: 320,
+                  ),
                 ),
               ),
             ),
@@ -2725,7 +2880,7 @@ class _ReactionRow extends ConsumerWidget {
               onTap: () => ref.read(chatThreadProvider(roomId).notifier)
                   .reactToMessage(message.id, emoji),
               child: Padding(
-                padding: const EdgeInsets.only(left: 4),
+                padding: const EdgeInsets.all(6),
                 child: Text(emoji, style: const TextStyle(fontSize: 18)),
               ),
               ),
@@ -2751,7 +2906,7 @@ class _ReactionChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           margin: const EdgeInsets.only(right: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: kPrimary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(Radii.card),
@@ -2855,7 +3010,7 @@ class _InlineReactionRow extends ConsumerWidget {
             onTap: () => ref.read(chatThreadProvider(roomId).notifier)
                 .reactToMessage(message.id, r.emoji),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
               decoration: BoxDecoration(
                 color: kPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(Radii.card),
@@ -2894,11 +3049,11 @@ class _BroadcastBanner extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(PhosphorIcons.megaphone(), color: context.tpInkMute, size: 16),
+          Icon(PhosphorIcons.megaphone(), color: context.tpInkSub, size: 16),
           const SizedBox(width: 8),
           Text(
             'Seuls les organisateurs peuvent envoyer des messages',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkSub),
           ),
         ],
       ),
@@ -2944,8 +3099,7 @@ class EventModeBanner extends StatelessWidget {
           Container(
             width: 28, height: 28,
             decoration: BoxDecoration(
-              gradient: attachEvent ? trackpartyGradient : null,
-              color: attachEvent ? null : context.tpHair,
+              color: attachEvent ? kPrimary : context.tpHair,
               borderRadius: BorderRadius.circular(Radii.sm),
             ),
             child: Icon(
@@ -2981,7 +3135,9 @@ class EventModeBanner extends StatelessWidget {
             ),
           ),
           Icon(
-            attachEvent ? Icons.toggle_on_rounded : Icons.toggle_off_rounded,
+            attachEvent
+                ? PhosphorIcons.toggleRight(PhosphorIconsStyle.fill)
+                : PhosphorIcons.toggleLeft(PhosphorIconsStyle.fill),
             color: attachEvent ? kPrimary : context.tpInkMute,
             size: 28,
           ),
@@ -2992,212 +3148,15 @@ class EventModeBanner extends StatelessWidget {
   }
 }
 
-class _GroupSettingsSheet extends StatelessWidget {
-  final ChatRoomModel room;
-  final Future<void> Function() onToggleBroadcast;
-  final VoidCallback onAddMembers;
-  final VoidCallback onRename;
-  final VoidCallback onChangeAvatar;
-  final VoidCallback onLeave;
-
-  const _GroupSettingsSheet({
-    required this.room,
-    required this.onToggleBroadcast,
-    required this.onAddMembers,
-    required this.onRename,
-    required this.onChangeAvatar,
-    required this.onLeave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(Sp.md),
-      padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: BorderRadius.circular(Radii.cardLg),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40, height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            if (room.isAdmin) ...[
-              _tile(context,
-                icon: PhosphorIcons.userPlus(),
-                label: 'Ajouter des membres',
-                onTap: () { Navigator.pop(context); onAddMembers(); }),
-              _tile(context,
-                icon: PhosphorIcons.textAa(),
-                label: 'Renommer le groupe',
-                onTap: () { Navigator.pop(context); onRename(); }),
-              _tile(context,
-                icon: PhosphorIcons.image(),
-                label: 'Changer la photo',
-                onTap: () { Navigator.pop(context); onChangeAvatar(); }),
-              _tile(context,
-                icon: room.isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
-                label: room.isBroadcast ? 'Ouvrir aux membres' : 'Seuls les admins écrivent',
-                subtitle: room.isBroadcast
-                    ? 'Les membres pourront écrire'
-                    : "Personne d'autre ne pourra écrire",
-                onTap: () { Navigator.pop(context); onToggleBroadcast(); }),
-              Divider(color: context.tpHair, height: 24),
-            ],
-            _tile(context,
-              icon: PhosphorIcons.signOut(),
-              label: 'Quitter le groupe',
-              danger: true,
-              onTap: () { Navigator.pop(context); onLeave(); }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tile(BuildContext context, {
-    required IconData icon,
-    required String label,
-    String? subtitle,
-    required VoidCallback onTap,
-    bool danger = false,
-  }) {
-    final color = danger ? const Color(0xFFEF4444) : context.tpInk;
-    return Semantics(
-      button: true, label: label,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(children: [
-            Icon(icon, color: danger ? color : context.tpInkSub, size: 20),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
-                  if (subtitle != null)
-                    Text(subtitle, style: TextStyle(fontSize: 12, color: context.tpInkSub)),
-                ],
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _GroupModeSheet extends StatelessWidget {
-  final bool isBroadcast;
-  final Future<void> Function() onToggle;
-  const _GroupModeSheet({required this.isBroadcast, required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(Sp.md),
-      padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, Sp.md),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: BorderRadius.circular(Radii.cardLg),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40, height: 4,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: context.tpHair, borderRadius: BorderRadius.circular(2)),
-          ),
-          Row(children: [
-            Icon(
-              isBroadcast
-                ? PhosphorIcons.megaphone(PhosphorIconsStyle.fill)
-                : PhosphorIcons.megaphone(),
-              color: isBroadcast ? kPrimary : context.tpInkSub,
-              size: 22,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Paramètres du groupe',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: context.tpInk)),
-                  const SizedBox(height: 2),
-                  Text(
-                    isBroadcast
-                      ? 'Mode diffusion — seuls les admins peuvent écrire'
-                      : 'Groupe ouvert — tout le monde peut écrire',
-                    style: TextStyle(fontSize: 12, color: context.tpInkSub),
-                  ),
-                ],
-              ),
-            ),
-          ]),
-          const SizedBox(height: 16),
-          Semantics(
-            button: true,
-            label: isBroadcast ? 'Ouvrir aux participants' : 'Passer en mode diffusion',
-            child: GestureDetector(
-            onTap: () {
-              Navigator.pop(context);
-              onToggle();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: Sp.md, vertical: 14),
-              decoration: BoxDecoration(color: context.tpBg, borderRadius: BorderRadius.circular(Radii.lg)),
-              child: Row(children: [
-                Icon(
-                  isBroadcast ? PhosphorIcons.lockKeyOpen() : PhosphorIcons.lock(),
-                  color: isBroadcast ? kSuccess : kWarning,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isBroadcast ? 'Ouvrir aux participants' : 'Passer en mode diffusion',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.tpInk),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isBroadcast
-                          ? 'Les participants pourront envoyer des messages'
-                          : 'Seuls les admins pourront envoyer des messages',
-                        style: TextStyle(fontSize: 12, color: context.tpInkSub),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(PhosphorIcons.caretRight(), color: context.tpInkSub, size: 16),
-              ]),
-            ),
-            ),
-          ),
-          const SizedBox(height: Sp.sm),
-        ],
-      ),
-    );
-  }
-}
 
 // ── Bottom sheet renommage groupe ────────────────────────────────────────────
 
-Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) {
+Future<String?> _showRenameGroupSheet(
+  BuildContext context,
+  String initialName, {
+  String title = 'Renommer le groupe',
+  String hint = 'Nom du groupe',
+}) {
   final ctrl = TextEditingController(text: initialName);
   return showModalBottomSheet<String>(
     context: context,
@@ -3208,7 +3167,7 @@ Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) 
           MediaQuery.of(ctx).padding.bottom + 20;
       return Container(
         decoration: BoxDecoration(
-          color: Theme.of(ctx).cardColor,
+          color: ctx.tpCard,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
         padding: EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, bottom),
@@ -3220,14 +3179,14 @@ Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) 
               child: Container(
                 width: 44, height: 5,
                 decoration: BoxDecoration(
-                  color: Theme.of(ctx).dividerColor,
+                  color: ctx.tpHair,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
             ),
             const SizedBox(height: 18),
-            const Text('Renommer le groupe',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            Text(title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
             const SizedBox(height: 14),
             TextField(
               controller: ctrl,
@@ -3235,7 +3194,7 @@ Future<String?> _showRenameGroupSheet(BuildContext context, String initialName) 
               maxLength: 80,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               decoration: InputDecoration(
-                hintText: 'Nom du groupe',
+                hintText: hint,
                 filled: true,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(Radii.md),

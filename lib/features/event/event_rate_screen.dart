@@ -184,7 +184,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                       const SizedBox(height: 2),
                       Text('organisé par $organizerName',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
                     ],
                   ],
                 ),
@@ -278,7 +278,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: context.tpInk)),
                         TextSpan(
                           text: ' (optionnel)',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                       ]),
                     ),
                     const SizedBox(height: 8),
@@ -306,7 +306,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: Text('${_ctrl.text.length} / 280',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
                           ),
                         ],
                       ),
@@ -328,8 +328,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                           duration: const Duration(milliseconds: 180),
                           width: 22, height: 22,
                           decoration: BoxDecoration(
-                            gradient: _public ? trackpartyGradient : null,
-                            color: _public ? null : context.tpCard,
+                            color: _public ? kPrimary : context.tpCard,
                             borderRadius: BorderRadius.circular(7),
                             border: _public ? null : Border.all(color: context.tpHair, width: 1.5),
                           ),

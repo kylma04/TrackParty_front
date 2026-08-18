@@ -5,17 +5,54 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
+import '../../core/providers/auth_provider.dart' show authNotifierProvider, AuthAuthenticated;
 import '../../core/providers/chat_provider.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_toast.dart';
+import 'contact_picker_screen.dart';
 
-// ── Sheet membres d'une salle (communauté ou groupe événement) ────────────────
+/// Ouvre le sélecteur de contacts et ajoute les membres choisis à [room] —
+/// partagé par les menus "⋮" groupe / événement / communauté.
+Future<void> addRoomMembers(BuildContext context, WidgetRef ref, ChatRoomModel room) async {
+  List<RoomMemberModel> members;
+  try {
+    members = await ref.read(chatServiceProvider).getRoomMembers(room.id);
+  } catch (e) {
+    debugPrint('Chat: échec addRoomMembers (chargement) — $e');
+    if (context.mounted) TpToast.error(context, 'Impossible de charger les membres');
+    return;
+  }
+  if (!context.mounted) return;
+
+  final me = ref.read(authNotifierProvider).valueOrNull;
+  final myId = me is AuthAuthenticated ? me.user.id : null;
+  final excludeIds = {?myId, ...members.map((m) => m.id)};
+  final memberIds = await Navigator.of(context).push<List<String>>(
+    MaterialPageRoute(
+      builder: (_) => ContactPickerScreen(
+        title: 'Ajouter des membres',
+        confirmLabel: 'Ajouter',
+        excludeIds: excludeIds,
+      ),
+    ),
+  );
+  if (memberIds == null || memberIds.isEmpty || !context.mounted) return;
+
+  try {
+    await ref.read(chatServiceProvider).addGroupMembers(room.id, memberIds);
+    if (context.mounted) TpToast.success(context, 'Membres ajoutés');
+  } catch (e) {
+    debugPrint('Chat: échec addRoomMembers (ajout) — $e');
+    if (context.mounted) TpToast.error(context, "Impossible d'ajouter ces membres");
+  }
+}
+
+// ── Sheet membres d'une salle (communauté, groupe ou événement) ───────────────
 
 class RoomMembersSheet extends ConsumerStatefulWidget {
   final ChatRoomModel room;
@@ -81,7 +118,7 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Annuler')),
           TextButton(onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('Retirer', style: TextStyle(color: Color(0xFFEF4444)))),
+              child: const Text('Retirer', style: TextStyle(color: kError))),
         ],
       ),
     );
@@ -97,41 +134,50 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
     }
   }
 
-  void _showAdminActions(RoomMemberModel member) {
-    showModalBottomSheet<void>(
+  String get _removeLabel {
+    if (widget.room.isEvent) return 'Retirer de la conversation';
+    if (widget.room.isCommunity) return 'Retirer de la communauté';
+    return 'Retirer du groupe';
+  }
+
+  // Menu contextuel (pas un 2e bottom sheet empilé sur celui déjà ouvert) —
+  // positionné au point de tap grâce à l'Offset transmis par onTapUp.
+  Future<void> _showAdminActions(RoomMemberModel member, Offset tapPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final action = await showMenu<String>(
       context: context,
-      backgroundColor: context.tpCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      color: context.tpCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+      position: RelativeRect.fromLTRB(
+        tapPosition.dx, tapPosition.dy,
+        overlay.size.width - tapPosition.dx, overlay.size.height - tapPosition.dy,
       ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(width: 40, height: 4, decoration: BoxDecoration(
-                color: sheetCtx.tpHair, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 6),
-            ListTile(
-              leading: Icon(
-                member.isAdmin ? PhosphorIcons.shieldSlash() : PhosphorIcons.shieldCheck(),
-                color: sheetCtx.tpInk, size: 22,
-              ),
-              title: Text(member.isAdmin ? 'Retirer les droits admin' : 'Promouvoir admin',
-                  style: TextStyle(color: sheetCtx.tpInk, fontSize: 15, fontWeight: FontWeight.w700)),
-              onTap: () { Navigator.pop(sheetCtx); _toggleAdmin(member); },
+      items: [
+        PopupMenuItem(
+          value: 'toggleAdmin',
+          child: Row(children: [
+            Icon(
+              member.isAdmin ? PhosphorIcons.shieldSlash() : PhosphorIcons.shieldCheck(),
+              color: context.tpInk, size: 20,
             ),
-            ListTile(
-              leading: const Icon(PhosphorIconsBold.userMinus, color: Color(0xFFEF4444), size: 22),
-              title: const Text('Retirer du groupe',
-                  style: TextStyle(color: Color(0xFFEF4444), fontSize: 15, fontWeight: FontWeight.w700)),
-              onTap: () { Navigator.pop(sheetCtx); _removeMember(member); },
-            ),
-            const SizedBox(height: 8),
-          ],
+            const SizedBox(width: 12),
+            Text(member.isAdmin ? 'Retirer les droits admin' : 'Promouvoir admin',
+                style: TextStyle(color: context.tpInk, fontSize: 14, fontWeight: FontWeight.w700)),
+          ]),
         ),
-      ),
+        PopupMenuItem(
+          value: 'remove',
+          child: Row(children: [
+            const Icon(PhosphorIconsBold.userMinus, color: kError, size: 20),
+            const SizedBox(width: 12),
+            Text(_removeLabel,
+                style: const TextStyle(color: kError, fontSize: 14, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      ],
     );
+    if (action == 'toggleAdmin') _toggleAdmin(member);
+    if (action == 'remove') _removeMember(member);
   }
 
   @override
@@ -202,9 +248,10 @@ class _RoomMembersSheetState extends ConsumerState<RoomMembersSheet> {
                     member:    members[i],
                     sent:      _sentTo.contains(members[i].id),
                     sending:   _sendingTo.contains(members[i].id),
-                    canManage: widget.room.isGroup && widget.room.isAdmin,
+                    canManage: (widget.room.isGroup || widget.room.isEvent || widget.room.isCommunity) &&
+                        widget.room.isAdmin,
                     onRequest: () => _sendRequest(members[i]),
-                    onManage:  () => _showAdminActions(members[i]),
+                    onManage:  (pos) => _showAdminActions(members[i], pos),
                     onMessage: () {
                       Navigator.pop(context);
                       context.push('/chat/new', extra: {
@@ -234,7 +281,7 @@ class RoomMemberRow extends StatelessWidget {
   final bool canManage;
   final VoidCallback onRequest;
   final VoidCallback onMessage;
-  final VoidCallback? onManage;
+  final ValueChanged<Offset>? onManage;
 
   const RoomMemberRow({
     super.key,
@@ -269,7 +316,7 @@ class RoomMemberRow extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
+                      color: kPrimary,
                       borderRadius: BorderRadius.circular(Radii.xs),
                     ),
                     child: const Text('Admin',
@@ -318,35 +365,40 @@ class RoomMemberRow extends StatelessWidget {
             button: true,
             label: 'Demander en ami',
             child: GestureDetector(
-            onTap: sending ? null : onRequest,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: context.tpBg,
-                borderRadius: BorderRadius.circular(Radii.tag),
-                border: Border.all(color: context.tpHair),
+              onTap: sending ? null : onRequest,
+              child: SizedBox(
+                height: 44,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(Radii.tag),
+                      border: Border.all(color: context.tpHair),
+                    ),
+                    child: sending
+                        ? SizedBox(width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: context.tpInkSub))
+                        : Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(PhosphorIcons.userPlus(), color: context.tpInk, size: 14),
+                            const SizedBox(width: 4),
+                            Text('Demander',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInk)),
+                          ]),
+                  ),
+                ),
               ),
-              child: sending
-                  ? SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: context.tpInkSub))
-                  : Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(PhosphorIcons.userPlus(), color: context.tpInk, size: 14),
-                      const SizedBox(width: 4),
-                      Text('Demander',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInk)),
-                    ]),
-            ),
             ),
           ),
         if (canManage) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: 2),
           Semantics(
             button: true,
             label: 'Gérer ${member.displayName}',
             child: GestureDetector(
-              onTap: onManage,
+              onTapUp: onManage == null ? null : (d) => onManage!(d.globalPosition),
               child: SizedBox(
-                width: 36, height: 36,
+                width: 44, height: 44,
                 child: Icon(PhosphorIcons.dotsThreeVertical(), color: context.tpInkSub, size: 18),
               ),
             ),

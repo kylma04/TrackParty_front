@@ -9,6 +9,7 @@ import '../../theme/colors.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_screen_header.dart';
 
 class EventDashboardScreen extends ConsumerWidget {
   final String eventId;
@@ -29,51 +30,24 @@ class EventDashboardScreen extends ConsumerWidget {
       body: SafeArea(
         bottom: false,
         child: Column(children: [
-          // App bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
-            child: Row(children: [
-              Semantics(
-                button: true,
-                label: 'Retour',
-                child: GestureDetector(
-                  onTap: () => context.pop(),
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                        color: context.tpCard,
-                        borderRadius: BorderRadius.circular(Radii.md),
-                        boxShadow: Shadows.sm),
-                    child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-                  ),
+          TpScreenHeader(
+            title: 'Dashboard',
+            subtitle: eventTitle,
+            trailing: Semantics(
+              button: true,
+              label: 'Actualiser',
+              child: GestureDetector(
+                onTap: () => ref.invalidate(eventStatsProvider(eventId)),
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                      color: context.tpCard,
+                      borderRadius: BorderRadius.circular(Radii.tag),
+                      boxShadow: Shadows.sm),
+                  child: Icon(PhosphorIcons.arrowClockwise(), color: context.tpInkSub, size: 16),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Dashboard',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: context.tpInk)),
-                  Text(eventTitle,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-                ]),
-              ),
-              Semantics(
-                button: true,
-                label: 'Actualiser',
-                child: GestureDetector(
-                  onTap: () => ref.invalidate(eventStatsProvider(eventId)),
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                        color: context.tpCard,
-                        borderRadius: BorderRadius.circular(Radii.tag),
-                        boxShadow: Shadows.sm),
-                    child: Icon(PhosphorIcons.arrowClockwise(), color: context.tpInkSub, size: 16),
-                  ),
-                ),
-              ),
-            ]),
+            ),
           ),
 
           // Content

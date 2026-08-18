@@ -76,6 +76,19 @@ class ChatRoomsNotifier extends AsyncNotifier<List<ChatRoomModel>> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(_load);
   }
+
+  // Patch immédiat de l'avatar d'une room dans le state local, sans repasser
+  // par un aller-retour réseau — utilisé juste après un upload réussi pour
+  // afficher la nouvelle photo sans délai ni clignotement (AsyncLoading viderait
+  // temporairement chatRoomByIdProvider).
+  void updateRoomAvatarLocally(String roomId, String avatarUrl) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    state = AsyncData([
+      for (final r in current)
+        if (r.id == roomId) r.copyWith(roomAvatarUrl: avatarUrl) else r,
+    ]);
+  }
 }
 
 // ── Thread d'un room (messages + WebSocket) ───────────────────────────────────
@@ -232,12 +245,15 @@ class ChatThreadNotifier extends AutoDisposeFamilyAsyncNotifier<List<ChatMessage
     }
   }
 
-  Future<void> sendImageMessage(XFile image, {bool attachEvent = true}) async {
+  Future<bool> sendImageMessage(XFile image, {bool attachEvent = true}) async {
     try {
       final msg = await ref.read(chatServiceProvider)
           .sendImageMessage(roomId, image, attachEvent: attachEvent);
       _addMessage(msg);
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> sendVoiceMessage(String filePath, int durationSeconds, {bool attachEvent = true}) async {

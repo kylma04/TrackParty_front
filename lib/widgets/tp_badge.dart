@@ -6,6 +6,9 @@ import '../theme/theme_ext.dart';
 
 enum TpBadgeVariant { category, contrib, promoter, custom }
 
+// Fond pastel associé à kWarning — catégorie par défaut + badge "Privé".
+const _kWarningBg = Color(0xFFFFF3E0);
+
 class TpBadge extends StatelessWidget {
   final String label;
   final Color textColor;
@@ -25,7 +28,7 @@ class TpBadge extends StatelessWidget {
   factory TpBadge.category(String category) {
     final styles =
         _categoryStyles[category.toLowerCase()] ??
-        (bg: const Color(0xFFFFF3E0), text: kWarning, emoji: '🎉');
+        (bg: _kWarningBg, text: kWarning, emoji: '🎉');
     return TpBadge(
       label: category,
       textColor: styles.text,
@@ -44,7 +47,7 @@ class TpBadge extends StatelessWidget {
   }) {
     final styles =
         _categoryStyles[category.toLowerCase()] ??
-        (bg: const Color(0xFFFFF3E0), text: kWarning, emoji: emoji);
+        (bg: _kWarningBg, text: kWarning, emoji: emoji);
     return TpBadge(
       label: label,
       textColor: styles.text,
@@ -68,6 +71,22 @@ class TpBadge extends StatelessWidget {
         emoji: '💸',
       ),
     };
+  }
+
+  factory TpBadge.visibility(bool isPrivate) {
+    return isPrivate
+        ? const TpBadge(
+            label: 'Privé',
+            textColor: kWarning,
+            backgroundColor: _kWarningBg,
+            emoji: '🔒',
+          )
+        : const TpBadge(
+            label: 'Public',
+            textColor: kContribFreeText,
+            backgroundColor: kContribFreeBg,
+            emoji: '🌍',
+          );
   }
 
   factory TpBadge.promoter() {

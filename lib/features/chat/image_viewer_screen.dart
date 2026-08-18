@@ -53,6 +53,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
             left: 4,
             child: IconButton(
               icon: const Icon(PhosphorIconsBold.x, color: Colors.white),
+              tooltip: 'Fermer',
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),

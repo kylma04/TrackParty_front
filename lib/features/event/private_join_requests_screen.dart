@@ -14,6 +14,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../theme/shadows.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../core/providers/event_provider.dart';
+import '../../widgets/tp_screen_header.dart';
+import '../../widgets/tp_toast.dart';
 
 class PrivateJoinRequestsScreen extends ConsumerStatefulWidget {
   final String eventId;
@@ -53,9 +55,11 @@ class _PrivateJoinRequestsScreenState
         _requests = data;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('PrivateJoinRequests: échec chargement — $e');
       if (!mounted) return;
       setState(() => _loading = false);
+      TpToast.error(context, 'Impossible de charger les demandes.');
     }
   }
 
@@ -79,92 +83,28 @@ class _PrivateJoinRequestsScreenState
       ref.invalidate(nearbyEventsFeedProvider);
       ref.invalidate(trendingEventsFeedProvider);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            accept ? 'Demande acceptée' : 'Demande refusée',
-          ),
-        ),
-      );
-    } catch (_) {
+      TpToast.success(context, accept ? 'Demande acceptée' : 'Demande refusée');
+    } catch (e) {
+      debugPrint('PrivateJoinRequests: échec _respond — $e');
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur'),
-          backgroundColor: kError,
-        ),
-      );
+      TpToast.error(context, 'Erreur');
     }
   }
-
-  void _showRequesterProfile(PrivateJoinRequestModel req) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (_) => Container(
-      padding: const EdgeInsets.all(Sp.md),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(Radii.cardLg),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TpAvatar(
-              name: req.userName,
-              imageUrl: req.userAvatarUrl,
-              size: 72,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Profil utilisateur',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.tpInkSub,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: const Text('Nom'),
-              subtitle: Text(req.userName),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Demande de participation à cet événement privé',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.tpInkSub,
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    ),
-  );
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.tpBg,
-      appBar: AppBar(
-        title: const Text('Demandes privées'),
-        backgroundColor: context.tpCard,
-        elevation: 0,
-      ),
-      body: _loading
+      body: SafeArea(child: Column(children: [
+        const TpScreenHeader(title: 'Demandes privées'),
+        Expanded(child: _buildBody(context)),
+      ])),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    return _loading
           ? const Center(child: CircularProgressIndicator())
           : _requests.isEmpty
               ? Center(
@@ -199,13 +139,7 @@ class _PrivateJoinRequestsScreenState
                       decoration: BoxDecoration(
                         color: context.tpCard,
                         borderRadius: BorderRadius.circular(Radii.lg),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x0A1B1A2E),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
+                        boxShadow: Shadows.card,
                       ),
                       child: Row(
                         children: [
@@ -215,7 +149,7 @@ class _PrivateJoinRequestsScreenState
                             label: 'Voir le profil de ${req.userName}',
                             child: GestureDetector(
                               onTap: () =>
-                                  _showRequesterProfile(req),
+                                  context.push('/promoter/${req.userId}'),
                               child: TpAvatar(
                                 name: req.userName,
                                 imageUrl: req.userAvatarUrl,
@@ -267,6 +201,8 @@ class _PrivateJoinRequestsScreenState
                                 child: GestureDetector(
                                   onTap: () => _respond(req, false),
                                   child: Container(
+                                    constraints: const BoxConstraints(minHeight: 44),
+                                    alignment: Alignment.center,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 14,
                                       vertical: 8,
@@ -297,6 +233,8 @@ class _PrivateJoinRequestsScreenState
                                 child: GestureDetector(
                                   onTap: () => _respond(req, true),
                                   child: Container(
+                                    constraints: const BoxConstraints(minHeight: 44),
+                                    alignment: Alignment.center,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 14,
                                       vertical: 8,
@@ -326,7 +264,6 @@ class _PrivateJoinRequestsScreenState
                       ),
                     );
                   },
-                ),
-    );
+                );
   }
 }

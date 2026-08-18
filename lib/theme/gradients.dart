@@ -13,6 +13,9 @@ const coralGradient = LinearGradient(
   colors: [kAccent, kTertiary],
 );
 
+// Réservé aux features "boost"/sponsoring (event_boost_screen.dart, boost_popup.dart).
+const goldGradient = LinearGradient(colors: [kWarning, kTertiary]);
+
 // 0.12 × 255 ≈ 31 = 0x1F — const-safe version
 const gradientSoft = LinearGradient(
   begin: Alignment.topLeft,

@@ -20,8 +20,7 @@ import 'tp_toast.dart';
 
 // ── URL helpers ───────────────────────────────────────────────────────────────
 
-String eventDeepLink(String eventId) => 'trackparty://event/$eventId';
-String eventWebLink(String eventId)  => 'https://trackparty.ci/event/$eventId';
+String eventWebLink(String eventId) => 'https://trackparty.ci/event/$eventId';
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -76,7 +75,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
       '${eventWebLink(widget.eventId)}';
 
   void _copyLink() {
-    Clipboard.setData(ClipboardData(text: eventDeepLink(widget.eventId)));
+    Clipboard.setData(ClipboardData(text: eventWebLink(widget.eventId)));
     TpToast.success(context, 'Lien copié !');
   }
 
@@ -106,10 +105,8 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
     try {
       final chatSvc = ref.read(chatServiceProvider);
       final room    = await chatSvc.getOrCreatePrivateRoom(user.id);
-      final msg     = '🎉 Hey ! Regarde cet événement :\n'
-                      '« ${widget.eventTitle} »\n'
-                      '${eventDeepLink(widget.eventId)}';
-      await chatSvc.sendMessage(room.id, msg);
+      await chatSvc.sendMessage(room.id, '',
+          messageType: 'event_invite', eventInviteId: widget.eventId);
       if (!mounted) return;
       Navigator.of(context).pop();
       context.push('/chat/${room.id}');
@@ -193,7 +190,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
               Icon(PhosphorIcons.link(), color: context.tpInkMute, size: 16),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(eventDeepLink(widget.eventId),
+                child: Text(eventWebLink(widget.eventId),
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ),

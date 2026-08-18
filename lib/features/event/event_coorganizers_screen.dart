@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/chat_model.dart';
@@ -17,6 +16,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_confirm_sheet.dart';
+import '../../widgets/tp_screen_header.dart';
 import '../../widgets/tp_toast.dart';
 
 class EventCoOrganizersScreen extends ConsumerWidget {
@@ -39,48 +39,23 @@ class EventCoOrganizersScreen extends ConsumerWidget {
         bottom: false,
         child: Column(children: [
           // App bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Sp.md, 12, Sp.md, 12),
-            child: Row(children: [
-              Semantics(
-                button: true, label: 'Retour',
-                child: GestureDetector(
-                onTap: () => context.pop(),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      color: context.tpCard,
-                      borderRadius: BorderRadius.circular(Radii.md),
-                      boxShadow: Shadows.sm),
-                  child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-                ),
-                ),
+          TpScreenHeader(
+            title: 'Co-organisateurs',
+            subtitle: eventTitle,
+            trailing: Semantics(
+              button: true, label: 'Inviter un co-organisateur',
+              child: GestureDetector(
+              onTap: () => _showInviteSheet(context, ref),
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                    gradient: trackpartyGradient,
+                    borderRadius: BorderRadius.circular(Radii.tag),
+                    boxShadow: Shadows.sm),
+                child: const Icon(PhosphorIconsBold.plus, color: Colors.white, size: 20),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Co-organisateurs',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: context.tpInk)),
-                  Text(eventTitle,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub)),
-                ]),
               ),
-              Semantics(
-                button: true, label: 'Inviter un co-organisateur',
-                child: GestureDetector(
-                onTap: () => _showInviteSheet(context, ref),
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      gradient: trackpartyGradient,
-                      borderRadius: BorderRadius.circular(Radii.tag),
-                      boxShadow: Shadows.sm),
-                  child: const Icon(Icons.add, color: Colors.white, size: 20),
-                ),
-                ),
-              ),
-            ]),
+            ),
           ),
 
           // Info banner
@@ -145,6 +120,8 @@ class EventCoOrganizersScreen extends ConsumerWidget {
                         child: GestureDetector(
                         onTap: () => _showInviteSheet(context, ref),
                         child: Container(
+                          constraints: const BoxConstraints(minHeight: 44),
+                          alignment: Alignment.center,
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           decoration: BoxDecoration(
                               gradient: trackpartyGradient,

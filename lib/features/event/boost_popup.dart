@@ -10,6 +10,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/event_model.dart';
 import '../../core/providers/event_provider.dart';
+import '../../core/utils/format.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
@@ -129,11 +130,11 @@ class _BoostPopupDialog extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFFF59E0B), Color(0xFFEC4899)]),
+                    gradient: goldGradient,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.star_rounded, size: 13, color: Colors.white),
+                    Icon(PhosphorIconsBold.star, size: 13, color: Colors.white),
                     SizedBox(width: 3),
                     Text('Sponsorisé',
                         style: TextStyle(
@@ -142,21 +143,26 @@ class _BoostPopupDialog extends StatelessWidget {
                 ),
               ),
               Positioned(
-                top: 8,
-                right: 8,
+                top: 0,
+                right: 0,
                 child: Semantics(
                   button: true,
                   label: 'Fermer',
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        shape: BoxShape.circle,
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(PhosphorIconsBold.x, color: Colors.white, size: 18),
                       ),
-                      child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
                     ),
                   ),
                 ),
@@ -203,10 +209,9 @@ class _BoostPopupDialog extends StatelessWidget {
                     const SizedBox(width: 5),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                            colors: [Color(0xFFF59E0B), Color(0xFFEC4899)]),
-                        borderRadius: BorderRadius.circular(999),
+                      decoration: const BoxDecoration(
+                        gradient: goldGradient,
+                        borderRadius: BorderRadius.all(Radius.circular(999)),
                       ),
                       child: const Text('PRO',
                           style: TextStyle(
@@ -248,7 +253,7 @@ class _BoostPopupDialog extends StatelessWidget {
                   ),
                   child: Text(
                     event.priceFrom != null
-                        ? 'À partir de ${_fmtPrice(event.priceFrom!)}'
+                        ? 'À partir de ${formatFcfa(event.priceFrom!)}'
                         : 'Gratuit',
                     style: TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w900, color: kPrimary),
@@ -271,39 +276,47 @@ class _BoostPopupDialog extends StatelessWidget {
                 const SizedBox(height: 18),
                 Row(children: [
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: context.tpCardAlt,
-                          borderRadius: BorderRadius.circular(Radii.md),
+                    child: Semantics(
+                      button: true,
+                      label: 'Plus tard',
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: context.tpCardAlt,
+                            borderRadius: BorderRadius.circular(Radii.md),
+                          ),
+                          child: Text('Plus tard',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
                         ),
-                        child: Text('Plus tard',
-                            style: TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w800, color: context.tpInk)),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     flex: 2,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        context.push('/event/${event.id}');
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          gradient: trackpartyGradient,
-                          borderRadius: BorderRadius.circular(Radii.md),
+                    child: Semantics(
+                      button: true,
+                      label: 'Voir les détails de l\'événement',
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/event/${event.id}');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            gradient: trackpartyGradient,
+                            borderRadius: BorderRadius.circular(Radii.md),
+                          ),
+                          child: const Text('Voir les détails',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
                         ),
-                        child: const Text('Voir les détails',
-                            style: TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
                       ),
                     ),
                   ),
@@ -316,19 +329,9 @@ class _BoostPopupDialog extends StatelessWidget {
     );
   }
 
-  String _fmtPrice(int v) {
-    final s = v.toString();
-    final b = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) b.write(' ');
-      b.write(s[i]);
-    }
-    return '${b.toString()} FCFA';
-  }
-
   Widget _badgeChip(String level) {
     final (String emoji, String label, Color color) = switch (level) {
-      'gold' => ('🏆', 'Or', const Color(0xFFF59E0B)),
+      'gold' => ('🏆', 'Or', kWarning),
       'silver' => ('🥈', 'Argent', const Color(0xFF94A3B8)),
       _ => ('🥉', 'Bronze', const Color(0xFFB45309)),
     };

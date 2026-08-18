@@ -27,21 +27,27 @@ class CloudinaryService {
     ImageSource source = ImageSource.gallery,
     String folder = 'trackparty',
   }) async {
-    if (!Env.cloudinaryConfigured) {
-      throw CloudinaryException('Cloudinary non configuré (CLOUDINARY_CLOUD_NAME / CLOUDINARY_UPLOAD_PRESET manquants).');
-    }
+    final picked = await pickImage(source: source);
+    if (picked == null) return null;
+    return uploadFile(picked, folder: folder);
+  }
 
+  /// Pick an image from [source] without uploading it — utilisé quand un
+  /// écran d'édition (recadrage) doit s'intercaler avant l'upload.
+  Future<File?> pickImage({ImageSource source = ImageSource.gallery}) async {
     final picked = await _picker.pickImage(
       source: source,
       imageQuality: 85,
       maxWidth: 1200,
     );
-    if (picked == null) return null;
-
-    return _upload(File(picked.path), folder: folder);
+    return picked == null ? null : File(picked.path);
   }
 
-  Future<String> _upload(File file, {required String folder}) async {
+  /// Upload [file] to Cloudinary and returns the secure URL.
+  Future<String> uploadFile(File file, {required String folder}) async {
+    if (!Env.cloudinaryConfigured) {
+      throw CloudinaryException('Cloudinary non configuré (CLOUDINARY_CLOUD_NAME / CLOUDINARY_UPLOAD_PRESET manquants).');
+    }
     final url =
         'https://api.cloudinary.com/v1_1/${Env.cloudinaryCloudName}/image/upload';
 
