@@ -186,7 +186,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
     if (_loading) return;
     setState(() => _loading = true);
     try {
-      await ref.read(invitationsProvider.notifier).respondToInvitation(
+      final result = await ref.read(invitationsProvider.notifier).respondToInvitation(
         widget.invitation.id,
         action,
         contributionItemId: contributionItemId,
@@ -202,16 +202,26 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
       }
       if (mounted) {
         final isPaid = widget.invitation.event?.contributionType == 'monetaire';
+        final String message;
+        if (action != 'accept') {
+          message = 'Invitation refusée';
+        } else if (result.alreadyParticipating) {
+          message = 'Tu participes déjà à cet événement';
+        } else if (isPaid) {
+          message = '🎟️ Accès débloqué — choisis ta place';
+        } else {
+          message = '🎉 Invitation acceptée !';
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(action == 'accept'
-              ? (isPaid ? '🎟️ Accès débloqué — choisis ta place' : '🎉 Invitation acceptée !')
-              : 'Invitation refusée'),
+          content: Text(message),
           backgroundColor: action == 'accept' ? kPrimary : null,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));
         // Vers la page de l'événement : pour un event payant, l'invité y choisit
-        // son tarif / sa contribution en nature et paie via « Je participe ».
+        // son tarif / sa contribution en nature et paie via « Je participe ». Même
+        // chose s'il détient déjà un billet : l'écran event affichera l'état correct
+        // (ex. « Mon billet ») au lieu qu'on lui propose d'en (re)prendre un.
         if (action == 'accept' && widget.invitation.event != null) {
           context.push('/event/${widget.invitation.event!.id}');
         }

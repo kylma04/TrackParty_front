@@ -13,6 +13,7 @@ import 'core/api/api_client.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/call_history_provider.dart';
 import 'core/providers/notification_provider.dart';
+import 'core/providers/event_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/ticket_provider.dart';
 import 'core/router/app_router.dart';
@@ -20,6 +21,7 @@ import 'core/services/call_readiness_service.dart';
 import 'core/services/call_service.dart';
 import 'core/services/user_channel_service.dart';
 import 'theme/app_theme.dart';
+import 'dart:async';
 
 /// Écrans (sans paramètre) qu'une annonce admin `broadcast` peut cibler.
 /// Toute autre valeur de `screen` est ignorée → on ouvre les notifications.
@@ -43,7 +45,7 @@ class TrackPartyApp extends ConsumerStatefulWidget {
 }
 
 class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
-  @override
+    @override
   void initState() {
     super.initState();
     _setupFcmListeners();
@@ -52,6 +54,7 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     _setupCallKitListener();
     _requestCallPermissions();
     _setupDeepLinks();
+    _setupRoleRevokedListener();
   }
 
   /// Autorisations nécessaires pour qu'un appel entrant s'affiche en plein écran
@@ -144,6 +147,51 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     CallService().stateNotifier.addListener(_onCallStateChanged);
   }
 
+    StreamSubscription? _roleRevokedSub;
+
+  /// Popup instantanée quand un co-organisateur/staff se fait retirer son rôle
+  /// pendant que l'app est ouverte (canal WS personnel, event `role_revoked`).
+  void _setupRoleRevokedListener() {
+    _roleRevokedSub = UserChannelService().roleRevoked.listen((data) {
+      if (!mounted) return;
+      _showRoleRevokedDialog(data);
+    });
+  }
+
+  void _showRoleRevokedDialog(Map<String, dynamic> data) {
+    final context = ref.read(routerProvider).routerDelegate.navigatorKey.currentContext;
+    if (context == null) return;
+
+    final eventId    = data['event_id'] as String?;
+    final eventTitle = (data['event_title'] as String?) ?? 'cet événement';
+    final role        = data['role'] as String?;
+    final actorName   = (data['actor_name'] as String?) ?? "L'organisateur";
+    final roleLabel   = role == 'co_organizer' ? 'co-organisateur' : 'staff';
+
+    // Les écrans qui dépendaient de ce rôle (dashboard event, listes staff…)
+    // doivent perdre l'accès dès maintenant, pas seulement au prochain refresh.
+    if (eventId != null) {
+      ref.invalidate(eventDetailProvider(eventId));
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Accès retiré'),
+        content: Text(
+          '$actorName t\'a retiré du rôle $roleLabel sur "$eventTitle".',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Après login : propose UNE fois l'écran « Appels en arrière-plan » si le
   /// téléphone n'est pas encore exempté d'optimisation batterie (Android, et
   /// tant que l'utilisateur n'a pas désactivé le rappel).
@@ -165,9 +213,10 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     }
   }
 
-  @override
+    @override
   void dispose() {
     CallService().stateNotifier.removeListener(_onCallStateChanged);
+    _roleRevokedSub?.cancel();
     super.dispose();
   }
 

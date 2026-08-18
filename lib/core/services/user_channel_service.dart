@@ -22,9 +22,10 @@ class UserChannelService with WidgetsBindingObserver {
   bool _connected = false;
   Timer? _reconnectTimer;
 
-  final _roomsUpdatedCtrl  = StreamController<String>.broadcast();
+    final _roomsUpdatedCtrl  = StreamController<String>.broadcast();
   final _newMessageCtrl    = StreamController<Map<String, dynamic>>.broadcast();
   final _eventStatsCtrl    = StreamController<String>.broadcast();
+  final _roleRevokedCtrl   = StreamController<Map<String, dynamic>>.broadcast();
 
   /// Émis quand la salle a été marquée comme lue (compteur → 0).
   Stream<String> get roomsUpdated => _roomsUpdatedCtrl.stream;
@@ -35,6 +36,11 @@ class UserChannelService with WidgetsBindingObserver {
   /// Émis avec l'ID de l'event quand ses stats (participants/stock) ont changé.
   Stream<String> get eventStatsUpdated => _eventStatsCtrl.stream;
 
+  /// Émis quand le rôle de l'utilisateur (co-organisateur/staff) est révoqué
+  /// sur un event, pour affichage d'une popup instantanée. Contient
+  /// event_id, event_title, role, actor_id, actor_name.
+  Stream<Map<String, dynamic>> get roleRevoked => _roleRevokedCtrl.stream;
+  
   Future<void> connect() async {
     if (_connected) return;
     try {
@@ -80,16 +86,18 @@ class UserChannelService with WidgetsBindingObserver {
         final roomId = data['room_id'] as String?;
         if (roomId != null && !_roomsUpdatedCtrl.isClosed) {
           _roomsUpdatedCtrl.add(roomId);
+        }//*************** */
+        } else if (type == 'event_stats') {
+          final eventId = data['event_id'] as String?;
+          if (eventId != null && !_eventStatsCtrl.isClosed) {
+            _eventStatsCtrl.add(eventId);
+          }
+        } else if (type == 'role_revoked') {
+          if (!_roleRevokedCtrl.isClosed) _roleRevokedCtrl.add(data);
+        } else if (type == 'new_message') {
+          if (!_newMessageCtrl.isClosed) _newMessageCtrl.add(data);
         }
-      } else if (type == 'event_stats') {
-        final eventId = data['event_id'] as String?;
-        if (eventId != null && !_eventStatsCtrl.isClosed) {
-          _eventStatsCtrl.add(eventId);
-        }
-      } else if (type == 'new_message') {
-        if (!_newMessageCtrl.isClosed) _newMessageCtrl.add(data);
-      }
-    } catch (_) {}
+    } catch (_) {}//**** */
   }
 
   void _onDisconnected() {

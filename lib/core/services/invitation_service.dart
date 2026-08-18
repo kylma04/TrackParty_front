@@ -56,7 +56,7 @@ class InvitationService {
         return InvitationModel.fromJson(res.data as Map<String, dynamic>);
       });
 
-  Future<InvitationModel> respondToInvitation(
+  Future<InvitationRespondResult> respondToInvitation(
     String invitationId,
     String action, { // 'accept' | 'refuse'
     String? contributionItemId,
@@ -72,7 +72,12 @@ class InvitationService {
           'chat/invitations/$invitationId/respond/',
           data: body,
         );
-        return InvitationModel.fromJson(res.data as Map<String, dynamic>);
+        final d = res.data as Map<String, dynamic>;
+        return InvitationRespondResult(
+          invitation: InvitationModel.fromJson(d),
+          requiresPurchase: d['requires_purchase'] as bool? ?? false,
+          alreadyParticipating: d['already_participating'] as bool? ?? false,
+        );
       });
 
   /// Invite PLUSIEURS personnes à un événement privé (organisateur/co-org).
@@ -243,5 +248,19 @@ class BulkInviteResult {
     this.cap,
     this.remaining,
     required this.upgradeRequired,
+  });
+}
+
+/// Résultat d'une réponse à une invitation : l'invitation mise à jour + les
+/// signaux du backend pour orienter l'écran (achat requis / déjà un billet).
+class InvitationRespondResult {
+  final InvitationModel invitation;
+  final bool requiresPurchase;
+  final bool alreadyParticipating;
+
+  const InvitationRespondResult({
+    required this.invitation,
+    required this.requiresPurchase,
+    required this.alreadyParticipating,
   });
 }
