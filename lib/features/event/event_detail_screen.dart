@@ -1591,7 +1591,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 // Organisateur / co-organisateur → invite directement (sheet de
                 // recherche ou écran bulk pour un event privé). Participant simple
                 // → partage le lien de l'event (pas de pouvoir d'invitation).
-                final canInviteDirectly = isOrganizer || event.isCoOrganizer;
+                final canInviteDirectly = _isOrganizer || event.isCoOrganizer;
                 return Semantics(
                   button: true,
                   label: canInviteDirectly ? 'Inviter un ami' : 'Partager l\'événement',
