@@ -29,6 +29,8 @@ void showEventShareSheet(
   required String eventId,
   required String eventTitle,
   String? eventDescription,
+  bool isPrivate = false,
+  bool canInvite = false,
 }) {
   showModalBottomSheet(
     context: context,
@@ -37,6 +39,8 @@ void showEventShareSheet(
     builder: (_) => _EventShareSheet(
       eventId: eventId,
       eventTitle: eventTitle,
+      isPrivate: isPrivate,
+      canInvite: canInvite,
     ),
   );
 }
@@ -46,8 +50,15 @@ void showEventShareSheet(
 class _EventShareSheet extends ConsumerStatefulWidget {
   final String eventId;
   final String eventTitle;
+  final bool isPrivate;
+  final bool canInvite;
 
-  const _EventShareSheet({required this.eventId, required this.eventTitle});
+  const _EventShareSheet({
+    required this.eventId,
+    required this.eventTitle,
+    this.isPrivate = false,
+    this.canInvite = false,
+  });
 
   @override
   ConsumerState<_EventShareSheet> createState() => _EventShareSheetState();
@@ -63,6 +74,35 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
   String? _sending;   // userId being sent to
   Timer? _debounce;
 
+  String? _inviteUrl;          // lien avec code (orga d'un event privé)
+  bool _loadingLink = false;
+
+  bool get _needsCode => widget.isPrivate && widget.canInvite;
+  String get _linkToShare => _inviteUrl ?? eventWebLink(widget.eventId);
+
+  @override
+  void initState() {
+    super.initState();
+    if (_needsCode) _loadInviteLink();
+  }
+
+    Future<void> _loadInviteLink() async {
+    setState(() => _loadingLink = true);
+    try {
+      final svc = ref.read(invitationServiceProvider);
+      final existing = await svc.getInviteLink(widget.eventId);
+      // Aucun lien : on le crée. Un lien désactivé n'est jamais réactivé ici.
+      final link = existing ?? await svc.createInviteLink(widget.eventId);
+      if (link.isActive && mounted) {
+        setState(() => _inviteUrl = link.webUrl);
+      }
+    } catch (_) {
+      // On retombe sur le lien simple.
+    } finally {
+      if (mounted) setState(() => _loadingLink = false);
+    }
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -75,11 +115,19 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
       '${eventWebLink(widget.eventId)}';
 
   void _copyLink() {
-    Clipboard.setData(ClipboardData(text: eventWebLink(widget.eventId)));
+    if (_loadingLink) {
+      TpToast.error(context, 'Préparation du lien…');
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: _linkToShare));
     TpToast.success(context, 'Lien copié !');
   }
 
   Future<void> _shareNative() async {
+    if (_loadingLink) {
+      TpToast.error(context, 'Préparation du lien…');
+      return;
+    }
     await Share.share(_shareText, subject: widget.eventTitle);
   }
 
@@ -169,12 +217,13 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
               color: kSuccess,
               onTap: _shareNative,
             ),
+            
             const SizedBox(width: 12),
-            _ActionBtn(
-              icon: PhosphorIcons.chatCircleDots(),
-              label: 'Envoyer\ndans l\'appli',
-              color: kViolet,
-              onTap: () => setState(() => _tab = 'contacts'),
+              _ActionBtn(
+                icon: PhosphorIcons.chatCircleDots(),
+                label: 'Envoyer\ndans l\'appli',
+                color: kViolet,
+                onTap: () => setState(() => _tab = 'contacts'),
             ),
           ]),
           const SizedBox(height: 16),
@@ -190,7 +239,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
               Icon(PhosphorIcons.link(), color: context.tpInkMute, size: 16),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(eventWebLink(widget.eventId),
+                child: Text(_linkToShare,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ),

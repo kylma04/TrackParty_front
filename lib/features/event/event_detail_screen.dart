@@ -59,6 +59,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
     with WidgetsBindingObserver {
       bool _expanded = false;
       Timer? _pollTimer;
+      bool _redeeming = false;
 
       @override
       void initState() {
@@ -66,6 +67,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
         WidgetsBinding.instance.addObserver(this);
         final code = widget.inviteCode;
         if (code != null && code.isNotEmpty) {
+          _redeeming = true;
           WidgetsBinding.instance.addPostFrameCallback((_) => _redeemInvite(code));
         }
         _startPollingIfPending();
@@ -98,7 +100,7 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
         });
       }
 
-  Future<void> _redeemInvite(String code) async {
+    Future<void> _redeemInvite(String code) async {
     try {
       final res =
           await ref.read(invitationServiceProvider).joinByLink(widget.id, code);
@@ -109,42 +111,50 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
             ? 'Accès débloqué — choisis ta place'
             : 'Tu as rejoint l\'événement !',
       );
-      ref.read(eventDetailProvider(widget.id).notifier).refresh();
     } catch (e) {
       if (!mounted) return;
       TpToast.error(
         context,
         e is ApiException ? e.message : 'Lien d\'invitation invalide.',
       );
+    } finally {
+      if (mounted) {
+        setState(() => _redeeming = false);
+        ref.invalidate(eventDetailProvider(widget.id));
+      }
     }
   }
 @override
 Widget build(BuildContext context) {
   final eventAsync = ref.watch(eventDetailProvider(widget.id));
+  if (_redeeming) {
+    return const Scaffold(body: SingleChildScrollView(child: SkEventDetail()));
+  }
 
   return eventAsync.when(
     loading: () =>
         const Scaffold(body: SingleChildScrollView(child: SkEventDetail())),
     error: (e, _) {
-      // Détecte si c'est un 404 (événement supprimé)
-      final isNotFound = e is ApiException && e.statusCode == 404;
-      
+      final code = e is ApiException ? e.statusCode : null;
+      if (code == 403) return _PrivateEventGate(eventId: widget.id);
+      final isNotFound = code == 404;
       return Scaffold(
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isNotFound 
-                    ? 'Cet événement a été supprimé'
+                isNotFound
+                    ? 'Cet événement n\'est plus disponible'
                     : 'Impossible de charger l\'événement',
                 style: TextStyle(color: context.tpInkSub),
               ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: isNotFound
-                    ? null  // Bouton désactivé si 404
-                    : () => ref.read(eventDetailProvider(widget.id).notifier).refresh(),
+                    ? () => context.canPop() ? context.pop() : context.go('/')
+                    : () => ref.invalidate(eventDetailProvider(widget.id)),
                 child: Text(isNotFound ? 'Retour' : 'Réessayer'),
               ),
             ],
@@ -518,6 +528,8 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                                 context,
                                 eventId: event.id,
                                 eventTitle: event.title,
+                                isPrivate: event.visibility == 'private',
+                                //canInvite: _isOrganizer || event.isCoOrganizer,
                               ),
                             ),
                           ],
@@ -2486,6 +2498,75 @@ class _MinimapPin extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text(emoji, style: const TextStyle(fontSize: 18)),
+    );
+  }
+}
+
+class _PrivateEventGate extends ConsumerStatefulWidget {
+  final String eventId;
+  const _PrivateEventGate({required this.eventId});
+
+  @override
+  ConsumerState<_PrivateEventGate> createState() => _PrivateEventGateState();
+}
+
+class _PrivateEventGateState extends ConsumerState<_PrivateEventGate> {
+  bool _sending = false;
+  bool _sent = false;
+
+  Future<void> _request() async {
+    setState(() => _sending = true);
+    try {
+      await ref.read(eventServiceProvider).requestPrivateJoin(widget.eventId);
+      if (!mounted) return;
+      setState(() => _sent = true);
+      TpToast.success(context, 'Demande envoyée à l\'organisateur.');
+    } catch (e) {
+      if (!mounted) return;
+      TpToast.error(context,
+          e is ApiException ? e.message : 'Impossible d\'envoyer la demande.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = _sent || _sending;
+    return Scaffold(
+      backgroundColor: context.tpBg,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: Padding(
+        padding: const EdgeInsets.all(Sp.md),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(PhosphorIcons.lock(), size: 48, color: context.tpInkSub),
+              const SizedBox(height: 12),
+              Text('Événement privé',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: context.tpInk)),
+              const SizedBox(height: 8),
+              Text(
+                'Envoie une demande à l\'organisateur pour accéder à cet événement.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.tpInkSub),
+              ),
+              const SizedBox(height: 20),
+              TpButton(
+                label: _sent ? 'Demande envoyée' : 'Envoyer une demande',
+                icon: PhosphorIcons.paperPlaneTilt(),
+                fullWidth: true,
+                state: disabled ? TpButtonState.disabled : TpButtonState.idle,
+                onPressed: disabled ? null : _request,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
