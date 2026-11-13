@@ -64,39 +64,40 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
     super.dispose();
   }
 
-  static const _reasons = [
+  static List<({IconData icon, String title, String sub, String api})>
+      get _reasons => [
     (
-      emoji: '⚠️',
+      icon: PhosphorIcons.warning(PhosphorIconsStyle.fill),
       title: 'Événement frauduleux',
       sub: 'Faux event, arnaque',
       api: 'fraud',
     ),
     (
-      emoji: '🚫',
+      icon: PhosphorIcons.prohibit(PhosphorIconsStyle.fill),
       title: 'Contenu inapproprié',
       sub: 'Violence, haine, illégal',
       api: 'inappropriate',
     ),
     (
-      emoji: '🔁',
+      icon: PhosphorIcons.repeat(PhosphorIconsStyle.bold),
       title: 'Spam ou duplicata',
       sub: 'Publié plusieurs fois',
       api: 'spam',
     ),
     (
-      emoji: '👤',
+      icon: PhosphorIcons.user(PhosphorIconsStyle.fill),
       title: "Usurpation d'identité",
       sub: 'Se fait passer pour qqn',
       api: 'other',
     ),
     (
-      emoji: '⛔',
+      icon: PhosphorIcons.shieldWarning(PhosphorIconsStyle.fill),
       title: 'Mineurs en danger',
       sub: 'Protection enfants',
       api: 'inappropriate',
     ),
     (
-      emoji: '❓',
+      icon: PhosphorIcons.question(PhosphorIconsStyle.fill),
       title: 'Autre',
       sub: 'Décris dans le commentaire',
       api: 'other',
@@ -224,17 +225,12 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                     children: [
                       Container(
                         height: 64,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [kPrimary, kSecondary, kTertiary],
-                          ),
-                        ),
+                        color: kPrimary,
                         child: Center(
-                          child: Text(
-                            '🎉',
-                            style: const TextStyle(fontSize: 32),
+                          child: Icon(
+                            PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                            size: 30,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -278,10 +274,8 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Text(
-                                        '⚠️',
-                                        style: TextStyle(fontSize: 9),
-                                      ),
+                                      Icon(PhosphorIcons.warning(PhosphorIconsStyle.fill),
+                                          size: 10, color: kError),
                                       const SizedBox(width: 3),
                                       Text(
                                         'suspect',
@@ -379,9 +373,10 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
                             borderRadius: BorderRadius.circular(Radii.tag),
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            r.emoji,
-                            style: const TextStyle(fontSize: 18),
+                          child: Icon(
+                            r.icon,
+                            size: 18,
+                            color: active ? kPrimary : context.tpInkSub,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -647,15 +642,25 @@ class _ReportSheetState extends ConsumerState<ReportSheet> {
             ),
             const SizedBox(height: 12),
             Center(
-              child: Text(
-                '🔒 Anonyme · Notre équipe modération examine sous 24h',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: context.tpInkMute,
-                  height: 1.4,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(PhosphorIcons.lockSimple(PhosphorIconsStyle.fill),
+                      size: 12, color: context.tpInkMute),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      'Anonyme · Notre équipe modération examine sous 24h',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: context.tpInkMute,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

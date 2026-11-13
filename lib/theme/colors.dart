@@ -1,55 +1,52 @@
 import 'package:flutter/material.dart';
 
-// Brand
-const kPrimary   = Color(0xFF4F46E5);
-const kSecondary = Color(0xFF7C3AED);
-const kViolet    = Color(0xFF8B5CF6); // violet clair — co-organisateurs, social
-const kTertiary  = Color(0xFFEC4899);
-const kAccent    = Color(0xFFF97316);
+// Brand — Orange Corail & Nuit Ardoise (identité ticket urbain)
+const kPrimary = Color(0xFFFF4B26);
+const kSecondary = Color(0xFF0EA5A4);
+const kViolet = Color(0xFF3B82F6); // Cobalt — co-organisateurs, actions secondaires
+const kTertiary = Color(0xFFE59A14); // Ambre doré — boosts & badges Pro
+const kAccent = Color(0xFFFF4B26);
 
 // Semantic
-const kSuccess = Color(0xFF22A865);
-const kWarning = Color(0xFFF59E0B);
-const kError = Color(0xFFF43F5E);
-const kInfo = Color(0xFF06B6D4);
+const kSuccess = Color(0xFF18A957);
+const kWarning = Color(0xFFE59A14);
+const kError = Color(0xFFE11D48);
+const kInfo = Color(0xFF0EA5A4);
 
-// Neutral — Light
-const kBgLight = Color(0xFFF7F7FB);
+// Neutral — Light (Lin chaud)
+const kBgLight = Color(0xFFF5F4EF);
 const kCardLight = Color(0xFFFFFFFF);
-const kInkLight = Color(0xFF1B1A2E);
-const kInkSubLight = Color(0xFF6B6A82);
-const kInkMuteLight = Color(0xFFA2A1B5);
-const kHairLight = Color(0xFFECECF3);
+const kInkLight = Color(0xFF141417);
+const kInkSubLight = Color(0xFF5F636E);
+const kInkMuteLight = Color(0xFF8E929E);
+const kHairLight = Color(0xFFE4E2DA);
 
-// Neutral — Dark
-const kBgDark = Color(0xFF0E0B1F);
-const kCardDark = Color(0xFF1A1633);
-const kCardAltDark = Color(0xFF241E40);
-const kInkDark = Color(0xFFFFFFFF);
-const kInkSubDark = Color(0xAAFFFFFF);
-// 0x78 (47%) au lieu de 0x66 (40%) — le blanc à 40% sur kBgDark ne donnait
-// que ~3.8:1 de contraste (sous le seuil WCAG AA 4.5:1 texte normal) ;
-// 47% remonte à ~4.8:1 sans changer la fonction "texte discret" du token.
-const kInkMuteDark = Color(0x78FFFFFF);
-const kHairDark = Color(0x14FFFFFF);
+// Neutral — Dark (Nuit Ardoise)
+const kBgDark = Color(0xFF0B1118);
+const kCardDark = Color(0xFF131C27);
+const kCardAltDark = Color(0xFF1D2939);
+const kInkDark = Color(0xFFF7F8FA);
+const kInkSubDark = Color(0xFFA6B2C2);
+const kInkMuteDark = Color(0xFF8896A8);
+const kHairDark = Color(0xFF1F2B3D);
 
-// Categories
-const kCategoryMusic = Color(0xFF7C3AED);
-const kCategoryParty = Color(0xFFEC4899);
-const kCategoryFood = Color(0xFFF97316);
-const kCategorySport = Color(0xFF06B6D4);
-const kCategoryArt = Color(0xFF84CC16);
-const kCategoryBeach = Color(0xFFF59E0B);
+// Categories (aplats francs, sans néon IA)
+const kCategoryMusic = Color(0xFF5B5CE6);
+const kCategoryParty = Color(0xFFFF4B26);
+const kCategoryFood = Color(0xFFE58A17);
+const kCategorySport = Color(0xFF0EA5A4);
+const kCategoryArt = Color(0xFF65A30D);
+const kCategoryBeach = Color(0xFF2563EB);
 
-// Call UI (cinematic dark bg distinct from app bg; phone-button reds/greens)
-const kCallBg      = Color(0xFF0B0F1A);
+// Call UI
+const kCallBg = Color(0xFF0B1118);
 const kCallDecline = Color(0xFFCC2222);
-const kCallAccept  = Color(0xFF166534);
+const kCallAccept = Color(0xFF166534);
 
 // Contribution badges
-const kContribFreeText = Color(0xFF16A34A);
+const kContribFreeText = Color(0xFF15803D);
 const kContribFreeBg = Color(0xFFDCFCE7);
-const kContribNatureText = Color(0xFFD97706);
+const kContribNatureText = Color(0xFFB45309);
 const kContribNatureBg = Color(0xFFFEF3C7);
-const kContribPaidText = Color(0xFFDB2777);
-const kContribPaidBg = Color(0xFFFCE7F3);
+const kContribPaidText = Color(0xFFD93818);
+const kContribPaidBg = Color(0xFFFFE8E2);

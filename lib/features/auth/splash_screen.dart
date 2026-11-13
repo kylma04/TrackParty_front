@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../widgets/tp_logo.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -63,112 +62,85 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     });
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: trackpartyGradient),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -80, right: -60,
-              child: Container(
-                width: 260, height: 260,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [Color(0x2EFFFFFF), Colors.transparent]),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 80, left: -100,
-              child: Container(
-                width: 280, height: 280,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [kAccent.withValues(alpha: 0.32), Colors.transparent],
-                  ),
-                ),
-              ),
-            ),
-            const Positioned(top: 200, left: 40, child: _Dot(size: 8, color: Colors.white, opacity: 0.7)),
-            const Positioned(top: 320, right: 60, child: _Dot(size: 6, color: Colors.white, opacity: 0.5)),
-            const Positioned(bottom: 280, right: 80, child: _Dot(size: 10, color: kAccent, opacity: 0.7)),
-            Positioned.fill(
-              child: FadeTransition(
-                opacity: _fade,
-                child: ScaleTransition(
-                  scale: _scale,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const TpLogo(size: 120),
-                      const SizedBox(height: 24),
-                      RichText(
-                        text: const TextSpan(children: [
+      backgroundColor: kBgDark,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const TpLogo(size: 112),
+                    const SizedBox(height: 24),
+                    RichText(
+                      text: const TextSpan(
+                        children: [
                           TextSpan(
                             text: 'Track',
                             style: TextStyle(
-                              color: Colors.white, fontSize: 52,
-                              fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1.0,
+                              color: kInkDark,
+                              fontSize: 48,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1.4,
+                              height: 1.0,
                             ),
                           ),
                           TextSpan(
                             text: 'Party',
                             style: TextStyle(
-                              color: kAccent, fontSize: 52,
-                              fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1.0,
+                              color: kPrimary,
+                              fontSize: 48,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -1.4,
+                              height: 1.0,
                             ),
                           ),
-                        ]),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'La carte des bons plans 🇨🇮',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.3,
-                        ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'La carte des bons plans',
+                      style: TextStyle(
+                        color: kInkSubDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 72,
+            left: 0,
+            right: 0,
+            child: FadeTransition(
+              opacity: _fade,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  3,
+                  (i) => Container(
+                    width: i == 0 ? 22 : 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      color: i == 0 ? kPrimary : kInkMuteDark.withValues(alpha: 0.45),
+                    ),
                   ),
                 ),
               ),
             ),
-            Positioned(
-              bottom: 80, left: 0, right: 0,
-              child: FadeTransition(
-                opacity: _fade,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(3, (i) => Container(
-                    width: 8, height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: i == 0 ? 1.0 : 0.4),
-                    ),
-                  )),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-}
-
-class _Dot extends StatelessWidget {
-  final double size;
-  final Color color;
-  final double opacity;
-  const _Dot({required this.size, required this.color, required this.opacity});
-
-  @override
-  Widget build(BuildContext context) => Opacity(
-        opacity: opacity,
-        child: Container(
-          width: size, height: size,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-      );
 }

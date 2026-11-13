@@ -199,9 +199,17 @@ class _TicketCard extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: Text('🎟️ ${ticket.categoryName}',
-                        style: const TextStyle(
-                            fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                            size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(ticket.categoryName!,
+                            style: const TextStyle(
+                                fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                      ],
+                    ),
                   ),
                 if (ticket.isInKind) ...[
                   const SizedBox(width: 6),
@@ -211,9 +219,17 @@ class _TicketCard extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text('🥗 En nature',
-                        style: TextStyle(
-                            fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(PhosphorIcons.gift(PhosphorIconsStyle.fill),
+                            size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        const Text('En nature',
+                            style: TextStyle(
+                                fontSize: 11.5, fontWeight: FontWeight.w900, color: Colors.white)),
+                      ],
+                    ),
                   ),
                 ],
               ]),

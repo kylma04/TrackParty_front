@@ -42,12 +42,12 @@ class TpPhoto extends StatelessWidget {
         placeholder: (context, _) {
           final isDark = Theme.of(context).brightness == Brightness.dark;
           return Shimmer.fromColors(
-            baseColor: isDark ? const Color(0xFF1A1633) : kHairLight,
-            highlightColor: isDark ? const Color(0xFF241E40) : kBgLight,
+            baseColor: isDark ? kCardDark : kHairLight,
+            highlightColor: isDark ? kCardAltDark : kBgLight,
             child: Container(
               width: width,
               height: height,
-              color: isDark ? const Color(0xFF1A1633) : Colors.white,
+              color: isDark ? kCardDark : Colors.white,
             ),
           );
         },

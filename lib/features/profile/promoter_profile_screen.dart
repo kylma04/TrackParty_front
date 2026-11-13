@@ -13,6 +13,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_icons.dart';
 import '../../widgets/tp_pro_badge.dart';
 import '../../widgets/tp_skeleton.dart';
 import 'trust_score_sheet.dart';
@@ -489,7 +490,6 @@ class _MiniEventRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = event.categoryColor;
-    final emoji = event.categoryEmoji;
     final dateStr = DateFormat("EEE d MMM · HH'h'", 'fr_FR').format(event.startAt.toLocal());
 
     return Semantics(
@@ -505,7 +505,14 @@ class _MiniEventRow extends StatelessWidget {
               width: 64, height: 64,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(Radii.button)),
-              child: Center(child: Text(emoji, style: const TextStyle(fontSize: 28))),
+              child: Center(
+                child: TpCategoryIcon(
+                  category: event.category,
+                  customEmoji: event.customCategoryEmoji,
+                  size: 28,
+                  color: color,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

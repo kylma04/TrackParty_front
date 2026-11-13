@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../theme/colors.dart';
 import '../../core/services/auth_service.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/otp_countdown.dart';
@@ -96,9 +96,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             const SizedBox(height: Sp.xl),
             Container(
               width: 110, height: 110,
-              decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(32)),
+              decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(32)),
               alignment: Alignment.center,
-              child: const Text('💌', style: TextStyle(fontSize: 52)),
+              child: Icon(PhosphorIcons.envelopeOpen(PhosphorIconsStyle.fill), color: Colors.white, size: 50),
             ),
             const SizedBox(height: Sp.lg),
             Text(

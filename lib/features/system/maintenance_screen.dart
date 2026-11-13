@@ -5,7 +5,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/api/api_client.dart';
 import '../../core/providers/maintenance_provider.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
@@ -80,13 +79,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                     width: 104,
                     height: 104,
                     decoration: const BoxDecoration(
-                      gradient: trackpartyGradient,
+                      color: kPrimary,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Color(0x554F46E5),
-                          blurRadius: 32,
-                          offset: Offset(0, 12),
+                          color: Color(0x38FF4B26),
+                          blurRadius: 24,
+                          offset: Offset(0, 10),
                         ),
                       ],
                     ),

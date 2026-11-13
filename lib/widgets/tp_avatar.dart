@@ -19,14 +19,14 @@ class TpAvatar extends StatelessWidget {
     this.showOnline = false,
   });
 
-  static const _gradients = [
-    [kPrimary, kTertiary],
-    [kAccent, kTertiary],
-    [kInfo, kSecondary],
-    [kCategoryArt, kInfo],
-    [kWarning, kAccent],
-    [kSecondary, kInfo],
-    [kTertiary, kWarning],
+  static const _avatarColors = [
+    kPrimary,
+    kSecondary,
+    kTertiary,
+    kCategoryMusic,
+    kCategoryArt,
+    kCategoryBeach,
+    kViolet,
   ];
 
   String get _initials {
@@ -36,7 +36,8 @@ class TpAvatar extends StatelessWidget {
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 
-  List<Color> get _colors => _gradients[name.hashCode.abs() % _gradients.length];
+  Color get _bgColor =>
+      _avatarColors[name.hashCode.abs() % _avatarColors.length];
 
   @override
   Widget build(BuildContext context) {
@@ -84,13 +85,7 @@ class TpAvatar extends StatelessWidget {
 
   Widget _gradientFallback() {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: _colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+      color: _bgColor,
       alignment: Alignment.center,
       child: Text(
         _initials,

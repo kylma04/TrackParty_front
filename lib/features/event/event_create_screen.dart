@@ -18,6 +18,7 @@ import '../../core/services/co_organizer_service.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/invitation_service.dart';
 import '../../widgets/event_preview_sheet.dart';
+import '../../widgets/tp_icons.dart';
 import 'location_picker_screen.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
@@ -91,13 +92,13 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   final List<_Item> _items = [];
   final List<_CatDraft> _ticketCategories = [];
 
-  static const _categories = [
-    ('musique', '🎵', 'Musique', kSecondary),
-    ('soiree', '🎉', 'Soirée', kTertiary),
-    ('cuisine', '🍽', 'Cuisine', kAccent),
-    ('sport', '⚽', 'Sport', kInfo),
-    ('art', '🎨', 'Art', kCategoryArt),
-    ('plage', '🏖', 'Plage', kWarning),
+  static const _categoryIds = [
+    'musique',
+    'soiree',
+    'cuisine',
+    'sport',
+    'art',
+    'plage',
   ];
 
   // ── Init ──────────────────────────────────────────────────────────────────
@@ -324,15 +325,16 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
 
   String get _categoryLabel {
     if (_category == 'autre') return _customCategoryLabel ?? 'Personnalisé';
-    final found = _categories.where((c) => c.$1 == _category);
-    if (found.isEmpty) return 'Non défini';
-    return '${found.first.$2} ${found.first.$3}';
+    if (_category == null || !_categoryIds.contains(_category)) {
+      return 'Non défini';
+    }
+    return tpCategoryMeta(_category!).label;
   }
 
   String get _contribLabel {
     switch (_contribMode) {
       case 'gratuit':
-        return '💸 Gratuit';
+        return 'Gratuit';
       case 'monetaire':
         final parts = <String>[];
         if (_priceMode == 'category') {
@@ -346,7 +348,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         if (_natureEnabled && _items.isNotEmpty) {
           parts.add('${_items.length} en nature');
         }
-        return '💰 Payant${parts.isNotEmpty ? ' · ${parts.join(' / ')}' : ''}';
+        return 'Payant${parts.isNotEmpty ? ' · ${parts.join(' / ')}' : ''}';
       default:
         return _contribMode;
     }
@@ -658,7 +660,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         if (_coverUrl != null) 'cover_cloud_url': _coverUrl,
         if (_category == 'autre' && _customCategoryLabel != null) ...{
           'custom_category_label': _customCategoryLabel,
-          'custom_category_emoji': _customCategoryEmoji ?? '✨',
+          if (hasCustomUserEmoji(_customCategoryEmoji))
+            'custom_category_emoji': _customCategoryEmoji!.trim(),
         },
         'contribution_amount':
             (_contribMode == 'monetaire' && _priceMode == 'single')
@@ -898,7 +901,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                         boxShadow: active
                             ? [
                                 const BoxShadow(
-                                  color: Color(0x337C3AED),
+                                  color: Color(0x33FF4B26),
                                   blurRadius: 8,
                                   offset: Offset(0, 2),
                                 ),
@@ -1139,12 +1142,12 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            ..._categories.map((cat) {
-              final (key, emoji, label, color) = cat;
+            ..._categoryIds.map((key) {
+              final meta = tpCategoryMeta(key);
               final active = _category == key;
               return Semantics(
                 button: true,
-                label: '$emoji $label',
+                label: meta.label,
                 selected: active,
                 child: GestureDetector(
                   onTap: () => setState(() {
@@ -1159,7 +1162,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: active ? color : context.tpCard,
+                      color: active ? meta.color : context.tpCard,
                       borderRadius: BorderRadius.circular(Radii.md),
                       border: active
                           ? null
@@ -1167,7 +1170,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                       boxShadow: active
                           ? [
                               BoxShadow(
-                                color: color.withValues(alpha: 0.33),
+                                color: meta.color.withValues(alpha: 0.33),
                                 blurRadius: 14,
                                 offset: const Offset(0, 6),
                               ),
@@ -1177,10 +1180,14 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(emoji, style: const TextStyle(fontSize: 15)),
+                        Icon(
+                          meta.icon,
+                          size: 16,
+                          color: active ? Colors.white : meta.color,
+                        ),
                         const SizedBox(width: 6),
                         Text(
-                          label,
+                          meta.label,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
@@ -1220,7 +1227,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     boxShadow: isCustomActive
                         ? [
                             const BoxShadow(
-                              color: Color(0x407C3AED),
+                              color: Color(0x38FF4B26),
                               blurRadius: 14,
                               offset: Offset(0, 6),
                             ),
@@ -1230,10 +1237,20 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        isCustomActive ? (_customCategoryEmoji ?? '✨') : '✏️',
-                        style: const TextStyle(fontSize: 15),
-                      ),
+                      if (isCustomActive &&
+                          hasCustomUserEmoji(_customCategoryEmoji))
+                        Text(
+                          _customCategoryEmoji!.trim(),
+                          style: const TextStyle(fontSize: 15),
+                        )
+                      else
+                        Icon(
+                          isCustomActive
+                              ? PhosphorIcons.ticket(PhosphorIconsStyle.fill)
+                              : PhosphorIcons.pencilSimple(PhosphorIconsStyle.bold),
+                          size: 16,
+                          color: isCustomActive ? Colors.white : kPrimary,
+                        ),
                       const SizedBox(width: 6),
                       Text(
                         isCustomActive
@@ -1361,7 +1378,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           children: [
             Expanded(
               child: _VisCard(
-                emoji: '🌍',
+                icon: PhosphorIcons.globeSimple(PhosphorIconsStyle.fill),
                 title: 'Public',
                 sub: 'Visible sur la carte',
                 active: _visibility == 'public',
@@ -1374,7 +1391,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _VisCard(
-                emoji: '🔒',
+                icon: PhosphorIcons.lockSimple(PhosphorIconsStyle.fill),
                 title: 'Privé',
                 sub: 'Sur invitation',
                 active: _visibility == 'private',
@@ -1416,7 +1433,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           children: [
             Expanded(
               child: _ModeCard(
-                emoji: '💸',
+                icon: PhosphorIcons.ticket(PhosphorIconsStyle.fill),
                 title: 'Gratuit',
                 sub: 'Entrée libre',
                 active: _contribMode == 'gratuit',
@@ -1426,7 +1443,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _ModeCard(
-                emoji: '💰',
+                icon: PhosphorIcons.coins(PhosphorIconsStyle.fill),
                 title: 'Payant',
                 sub: 'Prix unique ou catégories',
                 active: _contribMode == 'monetaire',
@@ -1452,7 +1469,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           children: [
             Expanded(
               child: _ModeCard(
-                emoji: '🎟️',
+                icon: PhosphorIcons.ticket(PhosphorIconsStyle.fill),
                 title: 'Prix unique',
                 sub: 'Un seul tarif',
                 active: _priceMode == 'single',
@@ -1462,7 +1479,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: _ModeCard(
-                emoji: '🏷️',
+                icon: PhosphorIcons.tag(PhosphorIconsStyle.fill),
                 title: 'Par catégorie',
                 sub: 'Standard, VIP…',
                 active: _priceMode == 'category',
@@ -2238,7 +2255,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                   label: 'Début',
                   value: _startAt != null
                       ? _fmtFull(_startAt!)
-                      : '⚠️ Non défini',
+                      : 'Non défini',
                   valueColor: _startAt == null ? kError : null,
                 ),
                 if (_endAt != null) ...[
@@ -3399,13 +3416,13 @@ class _SelectCard extends StatelessWidget {
 }
 
 class _VisCard extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String title;
   final String sub;
   final bool active;
   final VoidCallback onTap;
   const _VisCard({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.sub,
     required this.active,
@@ -3432,8 +3449,8 @@ class _VisCard extends StatelessWidget {
             boxShadow: active
                 ? [
                     const BoxShadow(
-                      color: Color(0x4D7C3AED),
-                      blurRadius: 16,
+                      color: Color(0x38FF4B26),
+                      blurRadius: 14,
                       offset: Offset(0, 6),
                     ),
                   ]
@@ -3442,8 +3459,8 @@ class _VisCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(height: 4),
+              Icon(icon, size: 22, color: active ? Colors.white : kPrimary),
+              const SizedBox(height: 6),
               Text(
                 title,
                 style: TextStyle(
@@ -3472,13 +3489,13 @@ class _VisCard extends StatelessWidget {
 }
 
 class _ModeCard extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String title;
   final String sub;
   final bool active;
   final VoidCallback onTap;
   const _ModeCard({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.sub,
     required this.active,
@@ -3505,8 +3522,8 @@ class _ModeCard extends StatelessWidget {
             boxShadow: active
                 ? [
                     const BoxShadow(
-                      color: Color(0x4D7C3AED),
-                      blurRadius: 16,
+                      color: Color(0x38FF4B26),
+                      blurRadius: 14,
                       offset: Offset(0, 6),
                     ),
                   ]
@@ -3514,8 +3531,8 @@ class _ModeCard extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 2),
+              Icon(icon, size: 22, color: active ? Colors.white : kPrimary),
+              const SizedBox(height: 4),
               Text(
                 title,
                 style: TextStyle(
@@ -3560,15 +3577,15 @@ class _Item {
 // ── Catégories de billets : brouillon, ligne, et éditeur ──────────────────────
 
 const _catPalette = [
-  '#4F46E5', '#7C3AED', '#EC4899', '#F97316',
-  '#22A865', '#06B6D4', '#F59E0B', '#8B5CF6',
-  '#EF4444', '#FACC15',
+  '#FF4B26', '#0EA5A4', '#E59A14', '#2563EB',
+  '#18A957', '#65A30D', '#E11D48', '#5B5CE6',
+  '#F97316', '#334155',
 ];
 
 const _catPaletteNames = {
-  '#4F46E5': 'Indigo', '#7C3AED': 'Violet', '#EC4899': 'Rose', '#F97316': 'Orange',
-  '#22A865': 'Vert', '#06B6D4': 'Cyan', '#F59E0B': 'Ambre', '#8B5CF6': 'Mauve',
-  '#EF4444': 'Rouge', '#FACC15': 'Jaune',
+  '#FF4B26': 'Corail', '#0EA5A4': 'Teal', '#E59A14': 'Ambre', '#2563EB': 'Cobalt',
+  '#18A957': 'Émeraude', '#65A30D': 'Olive', '#E11D48': 'Rubis', '#5B5CE6': 'Indigo',
+  '#F97316': 'Mandarine', '#334155': 'Ardoise',
 };
 
 Color _hexColor(String c, [Color fallback = kPrimary]) {

@@ -9,7 +9,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/api/api_exception.dart';
 import '../../theme/colors.dart';
 import '../../core/services/auth_service.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/otp_countdown.dart';
@@ -206,9 +205,9 @@ class _EmailStep extends StatelessWidget {
         const SizedBox(height: Sp.xl),
         Container(
           width: 96, height: 96,
-          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(Radii.sheet)),
+          decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(Radii.sheet)),
           alignment: Alignment.center,
-          child: Icon(PhosphorIcons.lockKey(), color: Colors.white, size: 48),
+          child: Icon(PhosphorIcons.lockKey(PhosphorIconsStyle.fill), color: Colors.white, size: 46),
         ),
         const SizedBox(height: Sp.lg),
         Text('Mot de passe oublié ?',
@@ -255,9 +254,9 @@ class _CodeStep extends StatelessWidget {
         const SizedBox(height: Sp.xl),
         Container(
           width: 96, height: 96,
-          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(Radii.sheet)),
+          decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(Radii.sheet)),
           alignment: Alignment.center,
-          child: const Text('🔑', style: TextStyle(fontSize: 48)),
+          child: Icon(PhosphorIcons.key(PhosphorIconsStyle.fill), color: Colors.white, size: 46),
         ),
         const SizedBox(height: Sp.lg),
         Text('Saisis ton code',
@@ -337,9 +336,9 @@ class _PasswordStep extends StatelessWidget {
         const SizedBox(height: Sp.xl),
         Container(
           width: 96, height: 96,
-          decoration: BoxDecoration(gradient: coralGradient, borderRadius: BorderRadius.circular(Radii.sheet)),
+          decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(Radii.sheet)),
           alignment: Alignment.center,
-          child: Icon(PhosphorIcons.lockKeyOpen(), color: Colors.white, size: 48),
+          child: Icon(PhosphorIcons.lockKeyOpen(PhosphorIconsStyle.fill), color: Colors.white, size: 46),
         ),
         const SizedBox(height: Sp.lg),
         Text('Nouveau mot de passe',

@@ -209,18 +209,36 @@ class _IdentityVerificationScreenState
                     fontWeight: FontWeight.w700,
                     color: context.tpInk,
                   ),
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: 'cni',
-                      child: Text('🪪  Carte d\'identité'),
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIcons.identificationCard(), size: 18, color: context.tpInkSub),
+                          const SizedBox(width: 8),
+                          const Text('Carte d\'identité'),
+                        ],
+                      ),
                     ),
                     DropdownMenuItem(
                       value: 'passport',
-                      child: Text('🛂  Passeport'),
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIcons.globeSimple(), size: 18, color: context.tpInkSub),
+                          const SizedBox(width: 8),
+                          const Text('Passeport'),
+                        ],
+                      ),
                     ),
                     DropdownMenuItem(
                       value: 'driver_license',
-                      child: Text('🚗  Permis de conduire'),
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIcons.car(), size: 18, color: context.tpInkSub),
+                          const SizedBox(width: 8),
+                          const Text('Permis de conduire'),
+                        ],
+                      ),
                     ),
                   ],
                   onChanged: (v) {

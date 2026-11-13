@@ -16,6 +16,7 @@ import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/feed_filter_sheet.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_icons.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Bonjour 👋',
+                                  'Bonjour',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -262,7 +263,11 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('🔍', style: TextStyle(fontSize: 48)),
+                              Icon(
+                                PhosphorIcons.magnifyingGlass(),
+                                size: 44,
+                                color: context.tpInkMute,
+                              ),
                               const SizedBox(height: 12),
                               Text(
                                 'Aucun résultat pour « $_searchQuery »',
@@ -356,7 +361,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                       if (page.items.isEmpty) {
                         return Center(
                           child: Text(
-                            'Aucun event pour le moment 😔',
+                            'Aucun événement pour le moment',
                             style: TextStyle(
                               color: context.tpInkSub,
                               fontSize: 14,
@@ -392,14 +397,25 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '🔥 Tendances',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          color: context.tpInk,
-                          letterSpacing: -0.4,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            PhosphorIcons.flame(PhosphorIconsStyle.fill),
+                            size: 20,
+                            color: kPrimary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Tendances',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              color: context.tpInk,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                        ],
                       ),
                       Semantics(
                         button: true,
@@ -436,7 +452,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         child: Padding(
                           padding: const EdgeInsets.all(Sp.lg),
                           child: Text(
-                            'Aucun événement tendance pour l\'instant 😔',
+                            'Aucun événement tendance pour l\'instant',
                             style: TextStyle(
                               color: context.tpInkSub,
                               fontSize: 14,
@@ -485,7 +501,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             child: Center(
                               child: Text(
-                                'Tu as tout vu 🎉',
+                                'Tu as tout vu',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -520,10 +536,15 @@ class _EventCard extends StatelessWidget {
       'EEE d MMM · HH\'h\'mm',
       'fr_FR',
     ).format(event.startAt.toLocal());
-    final contribLabel = switch (event.contributionType) {
-      'monetaire' => '💰 Payant',
-      _ => '✨ Gratuit',
-    };
+    final isPaid = event.contributionType == 'monetaire';
+    final catMeta = tpCategoryMeta(
+      event.category,
+      customLabel: event.customCategoryLabel,
+    );
+    final customEmoji = event.category == 'autre' &&
+            hasCustomUserEmoji(event.customCategoryEmoji)
+        ? event.customCategoryEmoji
+        : null;
     final locked = event.visibility == 'private' && event.isLocked;
 
     return Container(
@@ -570,12 +591,21 @@ class _EventCard extends StatelessWidget {
                   Positioned(
                     top: 10,
                     left: 10,
-                    child: _OverlayPill(_categoryEmoji(event.category)),
+                    child: _OverlayPill(
+                      label: catMeta.label,
+                      icon: customEmoji == null ? catMeta.icon : null,
+                      emoji: customEmoji,
+                    ),
                   ),
                   Positioned(
                     top: 10,
                     right: 10,
-                    child: _OverlayPill(contribLabel),
+                    child: _OverlayPill(
+                      label: isPaid ? 'Payant' : 'Gratuit',
+                      icon: isPaid
+                          ? PhosphorIcons.coins(PhosphorIconsStyle.fill)
+                          : PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                    ),
                   ),
                   if (event.isSponsored)
                     const Positioned(
@@ -884,15 +914,17 @@ class _TrendRow extends StatelessWidget {
 class _GradientPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const DecoratedBox(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [kPrimary, kTertiary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: context.isDark ? kCardAltDark : const Color(0xFFEAE8DF),
+      ),
+      child: Center(
+        child: Icon(
+          PhosphorIcons.ticket(PhosphorIconsStyle.duotone),
+          size: 30,
+          color: context.tpInkMute,
         ),
       ),
-      child: SizedBox.expand(),
     );
   }
 }
@@ -905,12 +937,10 @@ class _SponsoredPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
-        ),
+        color: kTertiary,
         borderRadius: BorderRadius.circular(Radii.pill),
         boxShadow: const [
-          BoxShadow(color: Color(0x33EC4899), blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(color: Color(0x2E0B1118), blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: const Row(
@@ -933,26 +963,39 @@ class _SponsoredPill extends StatelessWidget {
   }
 }
 
-
 class _OverlayPill extends StatelessWidget {
   final String label;
-  const _OverlayPill(this.label);
+  final IconData? icon;
+  final String? emoji;
+  const _OverlayPill({required this.label, this.icon, this.emoji});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        color: Colors.black.withValues(alpha: 0.56),
         borderRadius: BorderRadius.circular(Radii.pill),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: Colors.white),
+            const SizedBox(width: 4),
+          ] else if (emoji != null && emoji!.isNotEmpty) ...[
+            Text(emoji!, style: const TextStyle(fontSize: 11)),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -963,12 +1006,8 @@ class _OverlayPill extends StatelessWidget {
 class _HorizontalSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final base = context.isDark
-        ? const Color(0xFF2A2938)
-        : const Color(0xFFE8E8F0);
-    final highlight = context.isDark
-        ? const Color(0xFF3A3850)
-        : const Color(0xFFF5F5FF);
+    final base = context.isDark ? kCardDark : kHairLight;
+    final highlight = context.isDark ? kCardAltDark : kBgLight;
     return Shimmer.fromColors(
       baseColor: base,
       highlightColor: highlight,
@@ -994,12 +1033,8 @@ class _ListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = context.isDark
-        ? const Color(0xFF2A2938)
-        : const Color(0xFFE8E8F0);
-    final highlight = context.isDark
-        ? const Color(0xFF3A3850)
-        : const Color(0xFFF5F5FF);
+    final base = context.isDark ? kCardDark : kHairLight;
+    final highlight = context.isDark ? kCardAltDark : kBgLight;
     return Shimmer.fromColors(
       baseColor: base,
       highlightColor: highlight,
@@ -1156,13 +1191,3 @@ class _FilterButton extends StatelessWidget {
     );
   }
 }
-
-String _categoryEmoji(String category) => switch (category) {
-  'soiree' => '🎉 Soirée',
-  'musique' => '🎵 Musique',
-  'cuisine' => '🍽 Cuisine',
-  'sport' => '⚽ Sport',
-  'art' => '🎨 Art',
-  'plage' => '🏖 Plage',
-  _ => '✨ Event',
-};

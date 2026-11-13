@@ -110,7 +110,8 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
   Widget _buildEmpty(BuildContext context) {
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🎉', style: TextStyle(fontSize: 48)),
+        Icon(PhosphorIcons.ticket(PhosphorIconsStyle.duotone),
+            size: 48, color: context.tpInkMute),
         const SizedBox(height: 12),
         Text('Aucune invitation en attente',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
@@ -125,7 +126,8 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
   Widget _buildError(BuildContext context) {
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('⚠️', style: TextStyle(fontSize: 48)),
+        Icon(PhosphorIcons.warning(PhosphorIconsStyle.duotone),
+            size: 48, color: kWarning),
         const SizedBox(height: 12),
         Text('Impossible de charger les invitations',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
@@ -208,9 +210,9 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
         } else if (result.alreadyParticipating) {
           message = 'Tu participes déjà à cet événement';
         } else if (isPaid) {
-          message = '🎟️ Accès débloqué — choisis ta place';
+          message = 'Accès débloqué — choisis ta place';
         } else {
-          message = '🎉 Invitation acceptée !';
+          message = 'Invitation acceptée !';
         }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(message),
@@ -273,7 +275,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                         Text(inv.sender.displayName,
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900,
                               color: context.tpInk)),
-                        Text('t\'invite à un événement 🎉',
+                        Text('t\'invite à un événement',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                               color: context.tpInkSub)),
                       ],
@@ -315,7 +317,10 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                             errorWidget: (ctx, url, err) => Container(
                               height: 120,
                               color: kPrimary.withValues(alpha: 0.1),
-                              child: const Center(child: Text('🎉', style: TextStyle(fontSize: 40))),
+                              child: Center(
+                                child: Icon(PhosphorIcons.ticket(PhosphorIconsStyle.duotone),
+                                    size: 40, color: kPrimary),
+                              ),
                             ),
                             placeholder: (ctx, url) => Container(
                               height: 120,
@@ -326,11 +331,14 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                       else
                         Container(
                           height: 80,
-                          decoration: BoxDecoration(
-                            gradient: trackpartyGradient,
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.lg)),
+                          decoration: const BoxDecoration(
+                            color: kPrimary,
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.lg)),
                           ),
-                          child: const Center(child: Text('🎉', style: TextStyle(fontSize: 40))),
+                          child: Center(
+                            child: Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                                size: 36, color: Colors.white),
+                          ),
                         ),
                       Padding(
                         padding: const EdgeInsets.all(12),
@@ -409,7 +417,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                                       child: CircularProgressIndicator(
                                         color: Colors.white, strokeWidth: 2),
                                     )
-                                  : const Text('Accepter 🎉',
+                                  : const Text('Accepter',
                                       style: TextStyle(fontSize: 14,
                                           fontWeight: FontWeight.w800, color: Colors.white)),
                             ),
@@ -433,7 +441,7 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
                   ),
                   child: Center(
                     child: Text(
-                      inv.isAccepted ? '✅ Invitation acceptée' : '❌ Invitation refusée',
+                      inv.isAccepted ? 'Invitation acceptée' : 'Invitation refusée',
                       style: TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w800,
                         color: inv.isAccepted ? kPrimary : context.tpInkSub,

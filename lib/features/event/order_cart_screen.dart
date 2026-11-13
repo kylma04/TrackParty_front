@@ -536,7 +536,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                 color: ok ? kSuccess : kError, size: 44),
           ),
           const SizedBox(height: 20),
-          Text(ok ? 'C\'est validé 🎉' : 'Paiement non abouti',
+          Text(ok ? 'C\'est validé' : 'Paiement non abouti',
               style: TextStyle(
                   fontSize: 20, fontWeight: FontWeight.w900, color: context.tpInk)),
           const SizedBox(height: 8),
@@ -550,7 +550,7 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
           ),
           if (ok) ...[
             const SizedBox(height: 6),
-            Text('Un reçu t\'a été envoyé par email 📧',
+            Text('Un reçu t\'a été envoyé par email',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 12.5, fontWeight: FontWeight.w600, color: context.tpInkMute)),

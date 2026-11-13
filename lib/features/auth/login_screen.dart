@@ -215,10 +215,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 48),
-                const TpLogo(size: 96),
+                const TpLogo(size: 88),
                 const SizedBox(height: Sp.lg),
                 Text(
-                  'Bon retour 👋',
+                  'Bon retour',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w900,
@@ -316,7 +316,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     label: 'Continuer avec Google',
                     svgAsset: 'assets/icons/google_logo.svg',
                     onTap: isLoading ? null : _googleLogin,
-                    badge: Env.googleConfigured ? null : '⚙️',
+                    badge: Env.googleConfigured ? null : 'CFG',
                     badgeTooltip: Env.googleConfigured
                         ? null
                         : 'Non configuré — voir OBLIGATOIRE.md',
@@ -333,7 +333,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     label: 'Continuer avec Google',
                     svgAsset: 'assets/icons/google_logo.svg',
                     onTap: isLoading ? null : _googleLogin,
-                    badge: Env.googleConfigured ? null : '⚙️',
+                    badge: Env.googleConfigured ? null : 'CFG',
                     badgeTooltip: Env.googleConfigured
                         ? null
                         : 'Non configuré — voir OBLIGATOIRE.md',

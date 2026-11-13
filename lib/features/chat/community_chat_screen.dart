@@ -400,7 +400,7 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
         ),
         child: Row(
           children: [
-            const Text('🔔', style: TextStyle(fontSize: 14)),
+            Icon(PhosphorIcons.bell(), size: 15, color: kWarning),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -425,7 +425,8 @@ class _CommunityChatScreenState extends ConsumerState<CommunityChatScreen> {
     if (messages.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('📢', style: TextStyle(fontSize: 48)),
+          Icon(PhosphorIcons.megaphoneSimple(PhosphorIconsStyle.duotone),
+              size: 48, color: context.tpInkMute),
           const SizedBox(height: 12),
           Text('Aucune annonce pour l\'instant',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInkSub)),
@@ -668,7 +669,8 @@ class _CommunityPost extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Text('📍', style: TextStyle(fontSize: 16)),
+                    Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                        size: 16, color: kPrimary),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(

@@ -72,7 +72,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
       );
       if (!mounted) return;
       ref.invalidate(eventBoostProvider(widget.eventId));
-      if (paid) TpToast.success(context, 'Boost activé 🚀');
+      if (paid) TpToast.success(context, 'Boost activé');
     } on ApiException catch (e) {
       if (mounted) TpToast.error(context, e.message);
     } catch (_) {
@@ -108,7 +108,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              proFree ? 'Boost Pro demandé 🚀' : 'Demande enregistrée',
+              proFree ? 'Boost Pro demandé' : 'Demande enregistrée',
               style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w900,
@@ -229,10 +229,10 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: goldGradient,
+        color: kTertiary,
         borderRadius: BorderRadius.circular(Radii.lg),
         boxShadow: const [
-          BoxShadow(color: Color(0x33EC4899), blurRadius: 16, offset: Offset(0, 6)),
+          BoxShadow(color: Color(0x38E59A14), blurRadius: 16, offset: Offset(0, 6)),
         ],
       ),
       child: Column(
@@ -436,7 +436,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
               borderRadius: BorderRadius.circular(Radii.md),
               boxShadow: const [
                 BoxShadow(
-                    color: Color(0x33EC4899), blurRadius: 12, offset: Offset(0, 4)),
+                    color: Color(0x38E59A14), blurRadius: 12, offset: Offset(0, 4)),
               ],
             ),
             alignment: Alignment.center,
@@ -479,7 +479,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
                   color: Colors.white, size: 40),
               const SizedBox(height: 14),
               const Text(
-                'Boost actif 🚀',
+                'Boost actif',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,

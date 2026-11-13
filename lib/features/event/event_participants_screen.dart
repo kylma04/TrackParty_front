@@ -110,7 +110,7 @@ class _EventParticipantsScreenState extends ConsumerState<EventParticipantsScree
     }
     if (noItem.isNotEmpty) {
       groups.add(_Group(
-        label: '🎟 Participants',
+        label: 'Participants',
         current: noItem.length,
         total: event.maxParticipants ?? noItem.length,
         color: kPrimary,

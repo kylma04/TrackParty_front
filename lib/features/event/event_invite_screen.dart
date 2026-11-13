@@ -118,7 +118,7 @@ class _EventInviteScreenState extends ConsumerState<EventInviteScreen>
             userIds: _selected.toList(),
           );
       if (!mounted) return;
-      final buf = StringBuffer('🎉 ${res.invitedCount} invitation(s) envoyée(s)');
+      final buf = StringBuffer('${res.invitedCount} invitation(s) envoyée(s)');
       if (res.upgradeRequired) {
         buf.write(' · plafond atteint, passe au Pro pour inviter plus');
       }

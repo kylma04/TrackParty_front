@@ -358,9 +358,17 @@ class _ResultOverlay extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
                   ),
-                  child: Text('🎟️ ${result.categoryName}',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.confirmation_number_rounded,
+                          size: 16, color: Colors.white),
+                      const SizedBox(width: 6),
+                      Text(result.categoryName!,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                    ],
+                  ),
                 ),
               ],
 
