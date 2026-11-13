@@ -5,10 +5,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/models/custom_category.dart';
 import '../core/providers/event_provider.dart';
 import '../theme/colors.dart';
-import '../theme/gradients.dart';
 import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
+import 'tp_icons.dart';
 
 Future<void> showFeedFilterSheet(BuildContext context) {
   final media = MediaQuery.of(context);
@@ -26,7 +26,7 @@ Future<void> showFeedFilterSheet(BuildContext context) {
   );
 }
 
-const _dateChips  = ['Tous ✨', 'Ce soir 🌙', 'Weekend 🎉', 'Gratuit 💸'];
+const _dateChips  = ['Tous', 'Ce soir', 'Weekend', 'Gratuit'];
 const _dateValues = ['upcoming', 'tonight', 'weekend', 'upcoming'];
 
 class _FeedFilterSheet extends ConsumerStatefulWidget {
@@ -93,24 +93,31 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
 
     final chips = <Widget>[
       _CatGridChip(
-        label: 'Tout 🌟',
+        label: 'Tout',
+        icon: PhosphorIcons.squaresFour(PhosphorIconsStyle.fill),
         active: _category == null && _customLabel == null,
         onTap: () => _selectCategory(),
       ),
       for (final c in kStandardCategories)
         _CatGridChip(
-          label: '${c.label} ${c.emoji}',
+          label: c.label,
+          icon: tpCategoryMeta(c.slug).icon,
           active: _category == c.slug && _customLabel == null,
           onTap: () => _selectCategory(category: c.slug),
         ),
       _CatGridChip(
-        label: 'Autre ✨',
+        label: 'Autre',
+        icon: PhosphorIcons.ticket(PhosphorIconsStyle.fill),
         active: _category == 'autre' && _customLabel == null,
         onTap: () => _selectCategory(category: 'autre'),
       ),
       for (final cc in customCats.take(12))
         _CatGridChip(
-          label: '${cc.emoji} ${cc.label}',
+          label: cc.label,
+          emoji: hasCustomUserEmoji(cc.emoji) ? cc.emoji : null,
+          icon: hasCustomUserEmoji(cc.emoji)
+              ? null
+              : PhosphorIcons.ticket(PhosphorIconsStyle.fill),
           active: _customLabel?.toLowerCase() == cc.label.toLowerCase(),
           onTap: () => _selectCategory(category: 'autre', customLabel: cc.label),
         ),
@@ -318,11 +325,15 @@ class _FeedFilterSheetState extends ConsumerState<_FeedFilterSheet> {
 /// les libellés trop longs.
 class _CatGridChip extends StatelessWidget {
   final String label;
+  final IconData? icon;
+  final String? emoji;
   final bool active;
   final VoidCallback onTap;
 
   const _CatGridChip({
     required this.label,
+    this.icon,
+    this.emoji,
     required this.active,
     required this.onTap,
   });
@@ -338,14 +349,14 @@ class _CatGridChip extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
           decoration: active
               ? BoxDecoration(
-                  gradient: trackpartyGradient,
+                  color: kPrimary,
                   borderRadius: BorderRadius.circular(Radii.md),
                   boxShadow: const [
-                    BoxShadow(color: Color(0x407C3AED), blurRadius: 12, offset: Offset(0, 4)),
+                    BoxShadow(color: Color(0x38FF4B26), blurRadius: 10, offset: Offset(0, 4)),
                   ],
                 )
               : BoxDecoration(
@@ -353,16 +364,31 @@ class _CatGridChip extends StatelessWidget {
                   borderRadius: BorderRadius.circular(Radii.md),
                   border: Border.all(color: context.tpHair),
                 ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: active ? Colors.white : context.tpInkSub,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 15, color: active ? Colors.white : context.tpInkSub),
+                const SizedBox(width: 6),
+              ] else if (emoji != null && emoji!.isNotEmpty) ...[
+                Text(emoji!, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 5),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: active ? Colors.white : context.tpInkSub,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

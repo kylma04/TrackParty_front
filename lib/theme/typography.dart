@@ -5,75 +5,75 @@ TextTheme buildTextTheme([TextTheme? base]) {
   final b = base ?? const TextTheme();
   return b.copyWith(
     // Display — splash, hero
-    displayLarge: GoogleFonts.nunito(
-      fontSize: 52,
+    displayLarge: GoogleFonts.notoSansDisplay(
+      fontSize: 48,
       fontWeight: FontWeight.w900,
-      letterSpacing: -1.5,
+      letterSpacing: -1.4,
       height: 1.0,
     ),
     // H1 — page titles
-    displayMedium: GoogleFonts.nunito(
+    displayMedium: GoogleFonts.notoSansDisplay(
       fontSize: 30,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -1.0,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.9,
       height: 1.1,
     ),
     // H2 — section headers
-    displaySmall: GoogleFonts.nunito(
+    displaySmall: GoogleFonts.notoSansDisplay(
       fontSize: 22,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -0.6,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.5,
       height: 1.15,
     ),
     // H3 — card titles
-    headlineMedium: GoogleFonts.nunito(
+    headlineMedium: GoogleFonts.notoSansDisplay(
       fontSize: 19,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -0.4,
-    ),
-    headlineSmall: GoogleFonts.nunito(
-      fontSize: 17,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -0.4,
-    ),
-    // Buttons
-    titleMedium: GoogleFonts.nunito(
-      fontSize: 16,
       fontWeight: FontWeight.w800,
+      letterSpacing: -0.35,
     ),
-    // Card titles
-    titleSmall: GoogleFonts.nunito(
-      fontSize: 15,
-      fontWeight: FontWeight.w900,
+    headlineSmall: GoogleFonts.notoSansDisplay(
+      fontSize: 17,
+      fontWeight: FontWeight.w800,
       letterSpacing: -0.3,
     ),
-    bodyLarge: GoogleFonts.nunito(
+    // Buttons
+    titleMedium: GoogleFonts.notoSansDisplay(
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+    ),
+    // Card titles
+    titleSmall: GoogleFonts.notoSansDisplay(
+      fontSize: 15,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.25,
+    ),
+    bodyLarge: GoogleFonts.lato(
       fontSize: 14,
       fontWeight: FontWeight.w600,
       height: 1.45,
     ),
-    bodyMedium: GoogleFonts.nunito(
+    bodyMedium: GoogleFonts.lato(
       fontSize: 13,
       fontWeight: FontWeight.w600,
       height: 1.4,
     ),
-    bodySmall: GoogleFonts.nunito(
+    bodySmall: GoogleFonts.lato(
       fontSize: 12,
       fontWeight: FontWeight.w700,
     ),
-    labelLarge: GoogleFonts.nunito(
+    labelLarge: GoogleFonts.lato(
       fontSize: 13,
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w700,
     ),
-    labelMedium: GoogleFonts.nunito(
+    labelMedium: GoogleFonts.lato(
       fontSize: 11,
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w700,
     ),
     // Eyebrow — UPPERCASE
-    labelSmall: GoogleFonts.nunito(
+    labelSmall: GoogleFonts.notoSansDisplay(
       fontSize: 10,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 0.5,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.6,
     ),
   );
 }

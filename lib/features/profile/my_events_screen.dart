@@ -252,11 +252,11 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (emoji, msg) = switch (type) {
-      'participating' => ('🎟️', 'Tu ne participes à aucun événement à venir.'),
-      'participated' => ('📜', 'Tu n\'as encore participé à aucun événement.'),
-      'organizing' => ('🎤', 'Tu n\'organises aucun événement à venir.'),
-      _ => ('🗂️', 'Tu n\'as encore organisé aucun événement.'),
+    final (IconData icon, String msg) = switch (type) {
+      'participating' => (PhosphorIcons.ticket(PhosphorIconsStyle.duotone), 'Tu ne participes à aucun événement à venir.'),
+      'participated' => (PhosphorIcons.clockCounterClockwise(PhosphorIconsStyle.duotone), 'Tu n\'as encore participé à aucun événement.'),
+      'organizing' => (PhosphorIcons.microphoneStage(PhosphorIconsStyle.duotone), 'Tu n\'organises aucun événement à venir.'),
+      _ => (PhosphorIcons.folderSimple(PhosphorIconsStyle.duotone), 'Tu n\'as encore organisé aucun événement.'),
     };
     return Center(
       child: Padding(
@@ -264,7 +264,7 @@ class _EmptyView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 52)),
+            Icon(icon, size: 52, color: context.tpInkMute),
             const SizedBox(height: 14),
             Text(msg,
                 textAlign: TextAlign.center,

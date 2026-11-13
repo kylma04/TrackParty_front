@@ -138,12 +138,12 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      'published'  => ('✅ Publié', kSuccess),
-      'draft'      => ('📝 Brouillon', kAccent),
-      'cancelled'  => ('❌ Annulé', kError),
-      'past'       => ('🏁 Terminé', context.tpInkSub),
-      _            => (status, context.tpInkSub),
+    final (IconData? icon, String label, Color color) = switch (status) {
+      'published'  => (PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), 'Publié', kSuccess),
+      'draft'      => (PhosphorIcons.pencilSimple(PhosphorIconsStyle.fill), 'Brouillon', kAccent),
+      'cancelled'  => (PhosphorIcons.xCircle(PhosphorIconsStyle.fill), 'Annulé', kError),
+      'past'       => (PhosphorIcons.flagCheckered(PhosphorIconsStyle.fill), 'Terminé', context.tpInkSub),
+      _            => (null, status, context.tpInkSub),
     };
 
     return Container(
@@ -152,8 +152,17 @@ class _StatusBadge extends StatelessWidget {
           color: color.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(Radii.pill),
           border: Border.all(color: color.withValues(alpha: 0.25))),
-      child: Text(label,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+          ],
+          Text(label,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+        ],
+      ),
     );
   }
 }

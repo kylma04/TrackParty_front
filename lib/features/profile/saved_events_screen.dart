@@ -54,12 +54,13 @@ class SavedEventsScreen extends ConsumerWidget {
           if (events.isEmpty) {
             return Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('🤍', style: TextStyle(fontSize: 56)),
+                Icon(PhosphorIcons.heart(PhosphorIconsStyle.duotone),
+                    size: 54, color: context.tpInkMute),
                 const SizedBox(height: 16),
                 Text('Aucun favori pour l\'instant',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
                 const SizedBox(height: 6),
-                Text('Appuie sur ❤️ dans un événement pour le sauvegarder.',
+                Text('Appuie sur le cœur dans un événement pour le sauvegarder.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.tpInkSub)),
               ]),

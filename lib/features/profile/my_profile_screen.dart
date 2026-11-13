@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/co_organizer_provider.dart';
@@ -14,7 +15,6 @@ import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_confirm_sheet.dart';
 import '../../widgets/tp_pro_badge.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MyProfileScreen extends ConsumerStatefulWidget {
   const MyProfileScreen({super.key});
@@ -76,7 +76,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
               _buildLogout(context),
               const SizedBox(height: 12),
               Text(
-                'TrackParty · v1.0.0 · 🇨🇮',
+                'TrackParty · v1.0.0',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -268,13 +268,21 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                               color: Colors.white.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(Radii.pill),
                             ),
-                            child: Text(
-                              '🎉 Membre depuis $memberYear',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                                    size: 12, color: Colors.white),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Membre depuis $memberYear',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           if (isPro) const TpProBadge(),
@@ -315,11 +323,11 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _StatPill(icon: '🎟️', n: '0', l: 'Participations'),
+            _StatPill(icon: PhosphorIcons.ticket(PhosphorIconsStyle.fill), n: '0', l: 'Participations'),
             _Divider(),
-            _StatPill(icon: '🤝', n: events, l: 'Organisés'),
+            _StatPill(icon: PhosphorIcons.usersThree(PhosphorIconsStyle.fill), n: events, l: 'Organisés'),
             _Divider(),
-            _StatPill(icon: '⭐', n: rating, l: 'Note'),
+            _StatPill(icon: PhosphorIcons.star(PhosphorIconsStyle.fill), n: rating, l: 'Note'),
           ],
         ),
       ),
@@ -349,7 +357,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
               children: [
                 Expanded(
                   child: _ActionTile(
-                    icon: '📅',
+                    icon: PhosphorIcons.calendarBlank(PhosphorIconsStyle.fill),
                     label: 'À venir',
                     count: '…',
                     color: kPrimary,
@@ -359,7 +367,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ActionTile(
-                    icon: '✅',
+                    icon: PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
                     label: 'Confirmés',
                     count: '…',
                     color: kSecondary,
@@ -369,7 +377,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ActionTile(
-                    icon: '📜',
+                    icon: PhosphorIcons.clockCounterClockwise(PhosphorIconsStyle.fill),
                     label: 'Historique',
                     count: '…',
                     color: kAccent,
@@ -382,7 +390,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
               children: [
                 Expanded(
                   child: _ActionTile(
-                    icon: '📅',
+                    icon: PhosphorIcons.calendarBlank(PhosphorIconsStyle.fill),
                     label: 'À venir',
                     count: '—',
                     color: kPrimary,
@@ -392,7 +400,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ActionTile(
-                    icon: '✅',
+                    icon: PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
                     label: 'Confirmés',
                     count: '—',
                     color: kSecondary,
@@ -402,7 +410,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ActionTile(
-                    icon: '📜',
+                    icon: PhosphorIcons.clockCounterClockwise(PhosphorIconsStyle.fill),
                     label: 'Historique',
                     count: '—',
                     color: kAccent,
@@ -415,7 +423,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
               children: [
                 Expanded(
                   child: _ActionTile(
-                    icon: '📅',
+                    icon: PhosphorIcons.calendarBlank(PhosphorIconsStyle.fill),
                     label: 'À venir',
                     count: '${stats['organized_upcoming'] ?? 0}',
                     color: kPrimary,
@@ -426,7 +434,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ActionTile(
-                    icon: '✅',
+                    icon: PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
                     label: 'Confirmés',
                     count: '${stats['confirmed_participations'] ?? 0}',
                     color: kSecondary,
@@ -437,7 +445,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ActionTile(
-                    icon: '📜',
+                    icon: PhosphorIcons.clockCounterClockwise(PhosphorIconsStyle.fill),
                     label: 'Historique',
                     count: '${stats['past_events'] ?? 0}',
                     color: kAccent,
@@ -589,9 +597,7 @@ class _MyProfileScreenState extends ConsumerState<MyProfileScreen>
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
-                        ),
+                        color: kWarning,
                         borderRadius: BorderRadius.circular(Radii.md),
                       ),
                       child: Icon(
@@ -1218,27 +1224,28 @@ class _ProfileGlassBtn extends StatelessWidget {
 }
 
 class _StatPill extends StatelessWidget {
-  final String icon, n, l;
+  final IconData icon;
+  final String n, l;
   const _StatPill({required this.icon, required this.n, required this.l});
 
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(text: icon, style: const TextStyle(fontSize: 14)),
-            TextSpan(
-              text: '  $n',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: context.tpInk,
-                letterSpacing: -0.4,
-              ),
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: kPrimary),
+          const SizedBox(width: 5),
+          Text(
+            n,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: context.tpInk,
+              letterSpacing: -0.4,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       const SizedBox(height: 2),
       Text(
@@ -1260,7 +1267,8 @@ class _Divider extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  final String icon, label, count;
+  final IconData icon;
+  final String label, count;
   final Color color;
   final bool active;
   final VoidCallback? onTap;
@@ -1291,7 +1299,7 @@ class _ActionTile extends StatelessWidget {
             ]
           : const [
               BoxShadow(
-                color: Color(0x0D1B1A2E),
+                color: Color(0x0D0B1118),
                 blurRadius: 6,
                 offset: Offset(0, 2),
               ),
@@ -1300,7 +1308,7 @@ class _ActionTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(icon, style: const TextStyle(fontSize: 20)),
+        Icon(icon, size: 20, color: active ? Colors.white : color),
         const SizedBox(height: 4),
         Text(
           count,

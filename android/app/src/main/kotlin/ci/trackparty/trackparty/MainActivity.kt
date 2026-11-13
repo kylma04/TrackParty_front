@@ -131,7 +131,7 @@ class MainActivity : FlutterFragmentActivity() {
         )
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setColor(getColor(R.color.notification_color)) // orange TrackParty #FF6B35
+            .setColor(getColor(R.color.notification_color)) // orange corail TrackParty #FF4B26
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

@@ -266,7 +266,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: PhosphorIcons.info(),
                     iconColor: context.tpInkMute,
                     label: 'Version',
-                    sub: 'TrackParty v1.0.0 · 🇨🇮',
+                    sub: 'TrackParty v1.0.0',
                     isLast: true,
                   ),
                 ]),

@@ -15,6 +15,7 @@ import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_icons.dart';
 
 const _maxPerDay = 2;
 
@@ -330,11 +331,7 @@ class _BoostPopupDialog extends StatelessWidget {
   }
 
   Widget _badgeChip(String level) {
-    final (String emoji, String label, Color color) = switch (level) {
-      'gold' => ('🏆', 'Or', kWarning),
-      'silver' => ('🥈', 'Argent', const Color(0xFF94A3B8)),
-      _ => ('🥉', 'Bronze', const Color(0xFFB45309)),
-    };
+    final (icon, label, color) = tpTierMeta(level);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -342,8 +339,15 @@ class _BoostPopupDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.45), width: 1),
       ),
-      child: Text('$emoji $label',
-          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: color)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: color)),
+        ],
+      ),
     );
   }
 }

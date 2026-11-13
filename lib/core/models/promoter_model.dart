@@ -206,12 +206,12 @@ class ReviewItem {
 
   List<String> get tagLabels {
     const tagMap = {
-      'ambiance': '🎵 Ambiance',
-      'boissons': '🍾 Boissons',
-      'monde_sympa': '👥 Monde sympa',
-      'lieu': '📍 Lieu',
-      'ponctualite': '⏰ Ponctualité',
-      'bouffe': '🍽 Bouffe',
+      'ambiance': 'Ambiance',
+      'boissons': 'Boissons',
+      'monde_sympa': 'Monde sympa',
+      'lieu': 'Lieu',
+      'ponctualite': 'Ponctualité',
+      'bouffe': 'Bouffe',
     };
     return tags.map((t) => tagMap[t] ?? t).toList();
   }

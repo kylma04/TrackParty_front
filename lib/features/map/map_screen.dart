@@ -23,6 +23,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_badge.dart';
+import '../../widgets/tp_icons.dart';
 
 // ── Décodage de l'encoded polyline Google ─────────────────────────────────────
 
@@ -58,23 +59,15 @@ List<LatLng> _decodePolyline(String encoded) {
 
 class _Cat {
   final Color color;
-  final String emoji;
+  final IconData icon;
   final String label;
-  const _Cat(this.color, this.emoji, this.label);
+  const _Cat(this.color, this.icon, this.label);
 }
 
-// Keys match backend category slugs (no accents)
-const _cats = {
-  'soiree':  _Cat(kTertiary, '🎉', 'Soirée'),
-  'cuisine': _Cat(kAccent, '🍽', 'Cuisine'),
-  'sport':   _Cat(kInfo, '⚽', 'Sport'),
-  'musique': _Cat(kSecondary, '🎵', 'Musique'),
-  'art':     _Cat(kCategoryArt, '🎨', 'Art'),
-  'plage':   _Cat(kWarning, '🏖', 'Plage'),
-  'autre':   _Cat(Color(0xFF6B7280), '✨', 'Autre'),
-};
-
-_Cat _catFor(String? cat) => _cats[cat] ?? _cats['autre']!;
+_Cat _catFor(String? cat) {
+  final m = tpCategoryMeta(cat ?? 'autre');
+  return _Cat(m.color, m.icon, m.label);
+}
 
 // ── Specs de marqueurs (avant écartement) ───────────────────────────────────────
 
@@ -189,7 +182,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   String?      _routeDuration; // ex: "8 min"
 
   static const _abidjan = LatLng(5.3600, -4.0083);
-  static const _chips   = ['Tous ✨', '5 km 📍', 'Ce soir 🌙', 'Gratuit 💸'];
+  static const _chips   = ['Tous', '5 km', 'Ce soir', 'Gratuit'];
+
+  IconData _chipIcon(int index) => switch (index) {
+    1 => PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+    2 => PhosphorIcons.moon(PhosphorIconsStyle.fill),
+    3 => PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+    _ => PhosphorIcons.squaresFour(PhosphorIconsStyle.fill),
+  };
 
   bool get _itineraryMode =>
       widget.destinationLat != null && widget.destinationLng != null;
@@ -500,17 +500,35 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final icons = <String, BitmapDescriptor>{};
     for (final e in events) {
       final cat = _catFor(e.category);
-      // Priorité à l'emoji personnalisé (catégorie « autre »), sinon emoji de la catégorie
-      final emoji = e.isLocked
-        ? '🔒'
-        : e.displayEmoji;
-      icons['${e.id}_n'] = await _buildEventMarker(emoji, cat.color, selected: false);
-      icons['${e.id}_s'] = await _buildEventMarker(emoji, cat.color, selected: true);
+      final customEmoji = e.category == 'autre' &&
+              hasCustomUserEmoji(e.customCategoryEmoji)
+          ? e.customCategoryEmoji
+          : null;
+      icons['${e.id}_n'] = await _buildEventMarker(
+        e.category,
+        cat.color,
+        selected: false,
+        isLocked: e.isLocked,
+        customEmoji: customEmoji,
+      );
+      icons['${e.id}_s'] = await _buildEventMarker(
+        e.category,
+        cat.color,
+        selected: true,
+        isLocked: e.isLocked,
+        customEmoji: customEmoji,
+      );
     }
     if (mounted) setState(() => _markerIcons = icons);
   }
 
-  Future<BitmapDescriptor> _buildEventMarker(String emoji, Color color, {required bool selected}) async {
+  Future<BitmapDescriptor> _buildEventMarker(
+    String category,
+    Color color, {
+    required bool selected,
+    bool isLocked = false,
+    String? customEmoji,
+  }) async {
     const ratio   = 3.0;
     final circle  = selected ? 56.0 : 40.0;
     const border  = 3.0;
@@ -546,12 +564,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       Paint()..color = color,
     );
 
-    final fontSize = selected ? 24.0 : 18.0;
-    final pb = ui.ParagraphBuilder(ui.ParagraphStyle(
-      textAlign: TextAlign.center, fontSize: fontSize, maxLines: 1,
-    ))..addText(emoji);
-    final para = pb.build()..layout(ui.ParagraphConstraints(width: circle));
-    canvas.drawParagraph(para, Offset(pad, pad + (circle - para.height) / 2));
+    if (isLocked) {
+      final s = (selected ? 26.0 : 19.0) / 24.0;
+      canvas.save();
+      canvas.translate(cx - 12 * s, cy - 12 * s);
+      canvas.scale(s, s);
+      final lockStroke = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(5.5, 11, 13, 9.5),
+          const Radius.circular(2.5),
+        ),
+        Paint()..color = Colors.white,
+      );
+      canvas.drawArc(
+        const Rect.fromLTWH(7.8, 4.5, 8.4, 9.5),
+        3.14159,
+        3.14159,
+        false,
+        lockStroke,
+      );
+      canvas.restore();
+    } else if (customEmoji != null && customEmoji.isNotEmpty) {
+      final fontSize = selected ? 24.0 : 18.0;
+      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(
+        textAlign: TextAlign.center, fontSize: fontSize, maxLines: 1,
+      ))..addText(customEmoji);
+      final para = pb.build()..layout(ui.ParagraphConstraints(width: circle));
+      canvas.drawParagraph(para, Offset(pad, pad + (circle - para.height) / 2));
+    } else {
+      drawTpCategoryGlyph(
+        canvas,
+        category,
+        Offset(cx, cy),
+        selected ? 26.0 : 19.0,
+        Colors.white,
+      );
+    }
 
     final picture = recorder.endRecording();
     final img  = await picture.toImage((totalW * ratio).round(), (totalH * ratio).round());
@@ -871,13 +925,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
                           ])
                         else if (_routeDistance != null)
-                          Text(
-                            '🚗 $_routeDistance · $_routeDuration',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(PhosphorIcons.car(PhosphorIconsStyle.fill), size: 13, color: kPrimary),
+                              const SizedBox(width: 5),
+                              Text(
+                                '$_routeDistance · $_routeDuration',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary),
+                              ),
+                            ],
                           )
                         else if (distStr != null)
-                          Text('📍 $distStr (vol d\'oiseau)',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub))
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill), size: 13, color: context.tpInkSub),
+                              const SizedBox(width: 4),
+                              Text('$distStr (vol d\'oiseau)',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkSub)),
+                            ],
+                          )
                         else if (_userPos == null)
                           Text('Position GPS en cours…',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.tpInkMute)),
@@ -960,8 +1028,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         child: Center(
           child: Column(
             children: [
-              Text(_searchQuery.isNotEmpty ? '🔍' : '🎉',
-                style: const TextStyle(fontSize: 48)),
+              Icon(
+                _searchQuery.isNotEmpty
+                    ? PhosphorIcons.magnifyingGlass()
+                    : PhosphorIcons.ticket(PhosphorIconsStyle.duotone),
+                size: 48,
+                color: context.tpInkMute,
+              ),
               const SizedBox(height: 12),
               Text(
                 _searchQuery.isNotEmpty
@@ -1175,20 +1248,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           margin: const EdgeInsets.only(right: Sp.sm),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: active ? trackpartyGradient : null,
-                            color: active ? null : context.tpCard,
+                            color: active ? kPrimary : context.tpCard,
                             borderRadius: BorderRadius.circular(Radii.md),
                             border: active ? null : Border.all(color: context.tpHair),
                             boxShadow: active
-                                ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+                                ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 10, offset: Offset(0, 4))]
                                 : Shadows.sm,
                           ),
-                          child: Text(
-                            _chips[i],
-                            style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w800,
-                              color: active ? Colors.white : context.tpInkSub,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _chipIcon(i),
+                                size: 14,
+                                color: active ? Colors.white : context.tpInkSub,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                _chips[i],
+                                style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w800,
+                                  color: active ? Colors.white : context.tpInkSub,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -1210,19 +1293,45 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final customCats =
         ref.watch(customCategoriesProvider).valueOrNull ?? const <CustomCategory>[];
 
-    final chips = <({String label, bool active, VoidCallback onTap})>[
-      (label: 'Tout 🌟', active: _category == null && _customLabel == null,
-          onTap: () => _selectCategory()),
+    final chips = <({
+      String label,
+      IconData? icon,
+      String? emoji,
+      bool active,
+      VoidCallback onTap,
+    })>[
+      (
+        label: 'Tout',
+        icon: PhosphorIcons.squaresFour(PhosphorIconsStyle.fill),
+        emoji: null,
+        active: _category == null && _customLabel == null,
+        onTap: () => _selectCategory(),
+      ),
       for (final c in kStandardCategories)
-        (label: '${c.label} ${c.emoji}',
-            active: _category == c.slug && _customLabel == null,
-            onTap: () => _selectCategory(category: c.slug)),
-      (label: 'Autre ✨', active: _category == 'autre' && _customLabel == null,
-          onTap: () => _selectCategory(category: 'autre')),
+        (
+          label: c.label,
+          icon: tpCategoryMeta(c.slug).icon,
+          emoji: null,
+          active: _category == c.slug && _customLabel == null,
+          onTap: () => _selectCategory(category: c.slug),
+        ),
+      (
+        label: 'Autre',
+        icon: PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+        emoji: null,
+        active: _category == 'autre' && _customLabel == null,
+        onTap: () => _selectCategory(category: 'autre'),
+      ),
       for (final cc in customCats.take(12))
-        (label: '${cc.emoji} ${cc.label}',
-            active: _customLabel?.toLowerCase() == cc.label.toLowerCase(),
-            onTap: () => _selectCategory(category: 'autre', customLabel: cc.label)),
+        (
+          label: cc.label,
+          icon: hasCustomUserEmoji(cc.emoji)
+              ? null
+              : PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+          emoji: hasCustomUserEmoji(cc.emoji) ? cc.emoji : null,
+          active: _customLabel?.toLowerCase() == cc.label.toLowerCase(),
+          onTap: () => _selectCategory(category: 'autre', customLabel: cc.label),
+        ),
     ];
 
     return Padding(
@@ -1234,7 +1343,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           children: chips
               .map((c) => Padding(
                     padding: const EdgeInsets.only(right: Sp.sm),
-                    child: _categoryChip(c.label, c.active, c.onTap),
+                    child: _categoryChip(
+                      c.label,
+                      c.active,
+                      c.onTap,
+                      icon: c.icon,
+                      emoji: c.emoji,
+                    ),
                   ))
               .toList(),
         ),
@@ -1242,7 +1357,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _categoryChip(String label, bool active, VoidCallback onTap) {
+  Widget _categoryChip(
+    String label,
+    bool active,
+    VoidCallback onTap, {
+    IconData? icon,
+    String? emoji,
+  }) {
     return Semantics(
       button: true,
       label: label,
@@ -1253,20 +1374,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            gradient: active ? trackpartyGradient : null,
-            color: active ? null : context.tpCard,
+            color: active ? kPrimary : context.tpCard,
             borderRadius: BorderRadius.circular(Radii.md),
             border: active ? null : Border.all(color: context.tpHair),
             boxShadow: active
-                ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+                ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 10, offset: Offset(0, 4))]
                 : Shadows.sm,
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w800,
-              color: active ? Colors.white : context.tpInkSub,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: active ? Colors.white : context.tpInkSub),
+                const SizedBox(width: 5),
+              ] else if (emoji != null && emoji.isNotEmpty) ...[
+                Text(emoji, style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: active ? Colors.white : context.tpInkSub,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1289,12 +1422,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          gradient: active ? trackpartyGradient : null,
-          color: active ? null : context.tpCard,
+          color: active ? kPrimary : context.tpCard,
           borderRadius: BorderRadius.circular(Radii.md),
           border: active ? null : Border.all(color: context.tpHair),
           boxShadow: active
-              ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+              ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 10, offset: Offset(0, 4))]
               : Shadows.sm,
         ),
         child: Text(
@@ -1445,10 +1577,10 @@ class _ToggleTab extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            gradient: active ? trackpartyGradient : null,
+            color: active ? kPrimary : null,
             borderRadius: BorderRadius.circular(9),
             boxShadow: active
-                ? [const BoxShadow(color: Color(0x4D7C3AED), blurRadius: 6, offset: Offset(0, 2))]
+                ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 6, offset: Offset(0, 2))]
                 : null,
           ),
           child: Row(
@@ -1532,16 +1664,11 @@ class _PinCard extends StatelessWidget {
                           fit: BoxFit.cover,
                         )
                       : null,
-                  gradient: event.coverImageUrl == null
-                      ? LinearGradient(
-                          colors: [cat.color, cat.color.withValues(alpha: 0.6)],
-                          begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        )
-                      : null,
+                  color: event.coverImageUrl == null ? cat.color : null,
                 ),
                 alignment: event.coverImageUrl == null ? Alignment.center : null,
                 child: event.coverImageUrl == null
-                    ? Text(cat.emoji, style: const TextStyle(fontSize: 32))
+                    ? Icon(cat.icon, size: 30, color: Colors.white)
                     : null,
               ),
               Positioned(
@@ -1561,7 +1688,10 @@ class _PinCard extends StatelessWidget {
                       color: context.tpInk, letterSpacing: -0.3)),
                 const SizedBox(height: 4),
                 Row(children: [
-                  Text('📍 $distance',
+                  Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                    size: 12, color: context.tpInkSub),
+                  const SizedBox(width: 3),
+                  Text(distance,
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.tpInkSub)),
                   Text(' · ', style: TextStyle(color: context.tpInkMute)),
                   Expanded(child: Text(_fmtDateShort(event.startAt),
@@ -1655,17 +1785,11 @@ class _MapListRow extends StatelessWidget {
                               fit: BoxFit.cover,
                             )
                           : null,
-                      gradient: event.coverImageUrl == null
-                          ? LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [cat.color, cat.color.withValues(alpha: 0.55)],
-                            )
-                          : null,
+                      color: event.coverImageUrl == null ? cat.color : null,
                     ),
                     alignment: event.coverImageUrl == null ? Alignment.center : null,
                     child: event.coverImageUrl == null
-                        ? Text(cat.emoji, style: const TextStyle(fontSize: 30))
+                        ? Icon(cat.icon, size: 28, color: Colors.white)
                         : null,
                   ),
                 ),
@@ -1687,18 +1811,17 @@ class _MapListRow extends StatelessWidget {
                   top: 4,
                   left: 4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: locked ? kWarning : cat.color,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      locked ? '🔒' : cat.emoji,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
+                    child: Icon(
+                      locked
+                          ? PhosphorIcons.lockSimple(PhosphorIconsStyle.fill)
+                          : cat.icon,
+                      size: 11,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -1727,7 +1850,7 @@ class _MapListRow extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            gradient: trackpartyGradient,
+                            color: kPrimary,
                             borderRadius: BorderRadius.circular(Radii.xs),
                           ),
                           child: const Text('★',
@@ -1738,28 +1861,52 @@ class _MapListRow extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    locked
-                        ? '📍 Informations masquées'
-                        : '📍 $distance · ${_fmtDateShort(event.startAt)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: context.tpInkSub,
-                    ),
+                  Row(
+                    children: [
+                      Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                          size: 12, color: context.tpInkSub),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          locked
+                              ? 'Informations masquées'
+                              : '$distance · ${_fmtDateShort(event.startAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: context.tpInkSub,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 4),
 
-                  Text(
-                    event.visibility == 'private'
-                        ? (event.isLocked ? '🔒 Privé verrouillé' : '🔒 Privé')
-                        : '🌍 Public',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: event.visibility == 'private' ? kWarning : kSuccess,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        event.visibility == 'private'
+                            ? PhosphorIcons.lockSimple(PhosphorIconsStyle.fill)
+                            : PhosphorIcons.globeSimple(PhosphorIconsStyle.fill),
+                        size: 12,
+                        color: event.visibility == 'private' ? kWarning : kSuccess,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        event.visibility == 'private'
+                            ? (event.isLocked ? 'Privé verrouillé' : 'Privé')
+                            : 'Public',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: event.visibility == 'private' ? kWarning : kSuccess,
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 6),

@@ -71,7 +71,7 @@ class _EventShareSheetState extends ConsumerState<_EventShareSheet> {
   }
 
   String get _shareText =>
-      '🎉 Rejoins-moi à « ${widget.eventTitle} » sur TrackParty !\n'
+      'Rejoins-moi à « ${widget.eventTitle} » sur TrackParty !\n'
       '${eventWebLink(widget.eventId)}';
 
   void _copyLink() {

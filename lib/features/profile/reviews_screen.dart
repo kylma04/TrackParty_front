@@ -259,7 +259,7 @@ class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
                     borderRadius: BorderRadius.circular(Radii.md),
                     border: active ? null : Border.all(color: context.tpHair),
                     boxShadow: active
-                        ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10)] : null,
+                        ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 10)] : null,
                   ),
                   child: Text(label,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
@@ -315,8 +315,18 @@ class _ReviewCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(gradient: gradientSoft, borderRadius: BorderRadius.circular(Radii.sm)),
-              child: Text('📍 ${review.eventTitle}',
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kPrimary)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill), size: 11, color: kPrimary),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(review.eventTitle!,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kPrimary)),
+                  ),
+                ],
+              ),
             ),
           ],
           // Comment

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/models/promoter_model.dart';
 import '../../core/providers/promoter_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
+import '../../widgets/tp_icons.dart';
 
 class TrustScoreSheet extends ConsumerWidget {
   final String userId;
@@ -64,7 +66,11 @@ class TrustScoreSheet extends ConsumerWidget {
               blurRadius: 28, offset: const Offset(0, 12))],
           ),
           alignment: Alignment.center,
-          child: Text(_badgeEmoji(data.badgeLevel), style: const TextStyle(fontSize: 42)),
+          child: Icon(
+            tpTierMeta(data.badgeLevel).$1,
+            color: Colors.white,
+            size: 40,
+          ),
         ),
         const SizedBox(height: 12),
         Text(data.badgeLabel,
@@ -137,7 +143,8 @@ class TrustScoreSheet extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(gradient: gradientSoft, borderRadius: BorderRadius.circular(Radii.button)),
           child: Row(children: [
-            const Text('💡', style: TextStyle(fontSize: 20)),
+            Icon(PhosphorIcons.lightbulb(PhosphorIconsStyle.fill),
+                size: 18, color: kPrimary),
             const SizedBox(width: 10),
             Expanded(
               child: Text(data.tip,
@@ -153,32 +160,24 @@ class TrustScoreSheet extends ConsumerWidget {
     switch (level) {
       case 'gold':
         return const LinearGradient(
-          colors: [kAccent, kWarning],
+          colors: [kWarning, kWarning],
           begin: Alignment.topLeft, end: Alignment.bottomRight);
       case 'silver':
         return const LinearGradient(
-          colors: [Color(0xFF94A3B8), Color(0xFF64748B)],
+          colors: [Color(0xFF94A3B8), Color(0xFF94A3B8)],
           begin: Alignment.topLeft, end: Alignment.bottomRight);
       default:
         return const LinearGradient(
-          colors: [Color(0xFFCD7F32), Color(0xFFA0522D)],
+          colors: [Color(0xFFB45309), Color(0xFFB45309)],
           begin: Alignment.topLeft, end: Alignment.bottomRight);
     }
   }
 
   Color _badgeGlowColor(String level) {
     switch (level) {
-      case 'gold':   return kAccent;
-      case 'silver': return const Color(0xFF64748B);
-      default:       return const Color(0xFFCD7F32);
-    }
-  }
-
-  String _badgeEmoji(String level) {
-    switch (level) {
-      case 'gold':   return '🏆';
-      case 'silver': return '🥈';
-      default:       return '🥉';
+      case 'gold':   return kWarning;
+      case 'silver': return const Color(0xFF94A3B8);
+      default:       return const Color(0xFFB45309);
     }
   }
 }

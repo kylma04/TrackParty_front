@@ -93,23 +93,6 @@ class _EventPreviewSheet extends StatelessWidget {
     required this.organizerAvatarUrl,
   });
 
-  String get _displayEmoji {
-    if (category == 'autre' &&
-        customCategoryEmoji != null &&
-        customCategoryEmoji!.isNotEmpty) {
-      return customCategoryEmoji!;
-    }
-    const emojis = {
-      'musique': '🎵',
-      'soiree': '🎉',
-      'cuisine': '🍽',
-      'sport': '⚽',
-      'art': '🎨',
-      'plage': '🏖',
-    };
-    return emojis[category] ?? '✨';
-  }
-
   String get _displayCategory {
     if (category == 'autre' &&
         customCategoryLabel != null &&
@@ -125,7 +108,7 @@ class _EventPreviewSheet extends StatelessWidget {
       'plage': 'Plage',
       'autre': 'Autre',
     };
-    return labels[category] ?? (category ?? 'Autre');
+    return labels[category] ?? 'Autre';
   }
 
   String _fmtDate(DateTime dt) =>
@@ -254,8 +237,12 @@ class _EventPreviewSheet extends StatelessWidget {
                           right: Sp.md,
                           child: Row(
                             children: [
-                              TpBadge.category(
-                                '$_displayEmoji $_displayCategory',
+                              TpBadge.eventCategory(
+                                category: category ?? 'autre',
+                                label: _displayCategory,
+                                emoji: category == 'autre'
+                                    ? customCategoryEmoji
+                                    : null,
                               ),
                               const SizedBox(width: 6),
                               if (contribMode != 'gratuit')

@@ -94,7 +94,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Rejoins la fête ✨',
+                'Rejoins la fête',
                 style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -1.0, color: context.tpInk),
               ),
               const SizedBox(height: Sp.xl),

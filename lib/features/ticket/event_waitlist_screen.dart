@@ -101,7 +101,8 @@ class _EventWaitlistScreenState extends ConsumerState<EventWaitlistScreen> {
           if (participants.isEmpty) {
             return Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('✅', style: TextStyle(fontSize: 56)),
+                Icon(PhosphorIcons.checkCircle(PhosphorIconsStyle.duotone),
+                    size: 54, color: kSuccess),
                 const SizedBox(height: 16),
                 Text('Liste d\'attente vide',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),

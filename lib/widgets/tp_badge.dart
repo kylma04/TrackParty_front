@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../theme/colors.dart';
-import '../theme/gradients.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
+import 'tp_icons.dart';
 
 enum TpBadgeVariant { category, contrib, promoter, custom }
 
-// Fond pastel associé à kWarning — catégorie par défaut + badge "Privé".
 const _kWarningBg = Color(0xFFFFF3E0);
 
 class TpBadge extends StatelessWidget {
@@ -15,6 +15,7 @@ class TpBadge extends StatelessWidget {
   final Color backgroundColor;
   final Gradient? gradient;
   final String? emoji;
+  final IconData? icon;
 
   const TpBadge({
     super.key,
@@ -23,103 +24,87 @@ class TpBadge extends StatelessWidget {
     required this.backgroundColor,
     this.gradient,
     this.emoji,
+    this.icon,
   });
 
   factory TpBadge.category(String category) {
-    final styles =
-        _categoryStyles[category.toLowerCase()] ??
-        (bg: _kWarningBg, text: kWarning, emoji: '🎉');
+    final meta = tpCategoryMeta(category);
     return TpBadge(
       label: category,
-      textColor: styles.text,
-      backgroundColor: styles.bg,
-      emoji: styles.emoji,
+      textColor: meta.color,
+      backgroundColor: meta.lightBg,
+      icon: meta.icon,
     );
   }
 
-  /// Badge de catégorie d'événement : reprend le style de la catégorie de base
-  /// mais affiche le libellé et l'emoji fournis (utile pour les catégories
-  /// personnalisées « autre » où label/emoji sont saisis par le promoteur).
+  /// Badge de catégorie d'événement : affiche le libellé fourni et privilégie
+  /// l'icône vectorielle TrackParty (tout en conservant l'emoji saisi par le
+  /// promoteur sur la catégorie personnalisée « autre » s'il diffère de `✨`).
   factory TpBadge.eventCategory({
     required String category,
     required String label,
-    required String emoji,
+    String? emoji,
   }) {
-    final styles =
-        _categoryStyles[category.toLowerCase()] ??
-        (bg: _kWarningBg, text: kWarning, emoji: emoji);
+    final norm = normalizeTpCategory(category);
+    final meta = tpCategoryMeta(norm);
+    final useCustomEmoji = norm == 'autre' && hasCustomUserEmoji(emoji);
     return TpBadge(
       label: label,
-      textColor: styles.text,
-      backgroundColor: styles.bg,
-      emoji: emoji,
+      textColor: meta.color,
+      backgroundColor: meta.lightBg,
+      emoji: useCustomEmoji ? emoji!.trim() : null,
+      icon: useCustomEmoji ? null : meta.icon,
     );
   }
 
   factory TpBadge.contrib(String type) {
     return switch (type.toLowerCase()) {
-      'payant' || 'monetaire' => const TpBadge(
+      'payant' || 'monetaire' => TpBadge(
         label: 'Payant',
         textColor: kContribPaidText,
         backgroundColor: kContribPaidBg,
-        emoji: '💰',
+        icon: PhosphorIcons.coins(PhosphorIconsStyle.fill),
       ),
-      _ => const TpBadge(
+      _ => TpBadge(
         label: 'Gratuit',
         textColor: kContribFreeText,
         backgroundColor: kContribFreeBg,
-        emoji: '💸',
+        icon: PhosphorIcons.ticket(PhosphorIconsStyle.fill),
       ),
     };
   }
 
   factory TpBadge.visibility(bool isPrivate) {
     return isPrivate
-        ? const TpBadge(
+        ? TpBadge(
             label: 'Privé',
             textColor: kWarning,
             backgroundColor: _kWarningBg,
-            emoji: '🔒',
+            icon: PhosphorIcons.lockSimple(PhosphorIconsStyle.fill),
           )
-        : const TpBadge(
+        : TpBadge(
             label: 'Public',
             textColor: kContribFreeText,
             backgroundColor: kContribFreeBg,
-            emoji: '🌍',
+            icon: PhosphorIcons.globeSimple(PhosphorIconsStyle.fill),
           );
   }
 
   factory TpBadge.promoter() {
-    return const TpBadge(
+    return TpBadge(
       label: 'Promoteur',
       textColor: Colors.white,
-      backgroundColor: Colors.transparent,
-      gradient: trackpartyGradient,
+      backgroundColor: kPrimary,
+      icon: PhosphorIcons.megaphoneSimple(PhosphorIconsStyle.fill),
     );
   }
 
-  static const _categoryStyles =
-      <String, ({Color bg, Color text, String emoji})>{
-        'musique': (bg: Color(0xFFF3E8FF), text: kSecondary, emoji: '🎵'),
-        'soirée': (bg: kContribPaidBg, text: kContribPaidText, emoji: '🎉'),
-        'cuisine': (
-          bg: Color(0xFFFFF7ED),
-          text: Color(0xFFEA580C),
-          emoji: '🍽',
-        ),
-        'sport': (bg: Color(0xFFECFEFF), text: Color(0xFF0891B2), emoji: '⚽'),
-        'art': (bg: Color(0xFFF0FDF4), text: kContribFreeText, emoji: '🎨'),
-        'plage': (bg: Color(0xFFFFFBEB), text: kContribNatureText, emoji: '🏖'),
-      };
-
   @override
   Widget build(BuildContext context) {
-    // In dark mode, use a 15% tint of the text color as background so pastel
-    // light-mode badges don't look washed out on dark surfaces.
     final effectiveBg = gradient != null
         ? null
         : context.isDark
-        ? textColor.withValues(alpha: 0.15)
+        ? textColor.withValues(alpha: 0.16)
         : backgroundColor;
 
     return Container(
@@ -132,7 +117,10 @@ class TpBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (emoji != null) ...[
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: textColor),
+            const SizedBox(width: 4),
+          ] else if (emoji != null && emoji!.isNotEmpty) ...[
             Text(emoji!, style: const TextStyle(fontSize: 11)),
             const SizedBox(width: 4),
           ],

@@ -12,7 +12,7 @@ class CustomCategory {
 
   factory CustomCategory.fromJson(Map<String, dynamic> j) => CustomCategory(
         label: j['label'] as String,
-        emoji: (j['emoji'] as String?)?.isNotEmpty == true ? j['emoji'] as String : '✨',
+        emoji: (j['emoji'] as String?)?.trim() ?? '',
         count: (j['count'] as int?) ?? 0,
       );
 }

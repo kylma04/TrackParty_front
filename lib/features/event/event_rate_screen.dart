@@ -5,7 +5,6 @@ import '../../core/models/event_model.dart';
 import '../../core/services/event_service.dart';
 import '../../core/api/api_exception.dart';
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
@@ -30,8 +29,8 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
   bool _loadingEvent = true;
 
   static const _tagLabels = [
-    '🎵 Ambiance', '🍾 Boissons', '👥 Monde sympa',
-    '📍 Lieu', '⏰ Ponctualité', '🍽 Bouffe',
+    'Ambiance', 'Boissons', 'Monde sympa',
+    'Lieu', 'Ponctualité', 'Bouffe',
   ];
 
   static const _tagKeys = [
@@ -39,7 +38,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
   ];
 
   static const _ratingLabels = [
-    '', 'Bof 😕', 'Moyen 😐', 'Pas mal 👌', 'Super soirée ✨', 'Incroyable 🔥',
+    '', 'Bof', 'Moyen', 'Pas mal', 'Super soirée', 'Incroyable',
   ];
 
   @override
@@ -82,7 +81,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
       setState(() => _btnState = TpButtonState.idle);
       context.pop('submitted');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Merci pour ton avis ! 🙏')));
+        const SnackBar(content: Text('Merci pour ton avis !')));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _btnState = TpButtonState.idle);
@@ -158,12 +157,13 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                     Container(
                       width: 88, height: 88,
                       decoration: BoxDecoration(
-                        gradient: trackpartyGradient,
+                        color: kPrimary,
                         borderRadius: BorderRadius.circular(26),
                         boxShadow: Shadows.brand,
                       ),
                       alignment: Alignment.center,
-                      child: const Text('🎉', style: TextStyle(fontSize: 44)),
+                      child: Icon(PhosphorIcons.star(PhosphorIconsStyle.fill),
+                          color: Colors.white, size: 42),
                     ),
                     const SizedBox(height: 18),
                     Text('Comment c\'était ?',
@@ -251,7 +251,7 @@ class _EventRateScreenState extends ConsumerState<EventRateScreen> {
                               borderRadius: BorderRadius.circular(Radii.md),
                               border: active ? null : Border.all(color: context.tpHair),
                               boxShadow: active
-                                  ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+                                  ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 10, offset: Offset(0, 4))]
                                   : null,
                             ),
                             child: Text(_tagLabels[i],

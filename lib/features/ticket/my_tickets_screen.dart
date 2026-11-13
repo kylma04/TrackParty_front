@@ -474,7 +474,7 @@ class _CategoryChip extends StatelessWidget {
           decoration: BoxDecoration(color: c, shape: BoxShape.circle),
         ),
         const SizedBox(width: 5),
-        Text(inKind ? '$name · 🥗' : name,
+        Text(inKind ? '$name · En nature' : name,
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: c)),
       ]),
     );

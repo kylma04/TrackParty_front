@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import '../../core/api/api_client.dart';
 import '../../core/models/notification_model.dart';
 import '../../core/providers/notification_provider.dart';
 import '../../core/services/event_service.dart';
@@ -14,6 +13,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_icons.dart';
 import '../../widgets/tp_skeleton.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
@@ -143,7 +143,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             child: Center(
-                              child: Text('Tu as tout vu 🎉',
+                              child: Text('Tu as tout vu',
                                   style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -248,12 +248,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 margin: EdgeInsets.only(right: i < _filters.length - 1 ? 8 : 0),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  gradient: active ? trackpartyGradient : null,
-                  color: active ? null : context.tpCard,
+                  color: active ? kPrimary : context.tpCard,
                   borderRadius: BorderRadius.circular(Radii.tag),
                   border: active ? null : Border.all(color: context.tpHair),
                   boxShadow: active
-                      ? [const BoxShadow(color: Color(0x407C3AED), blurRadius: 10, offset: Offset(0, 4))]
+                      ? [const BoxShadow(color: Color(0x38FF4B26), blurRadius: 10, offset: Offset(0, 4))]
                       : null,
                 ),
                 child: Text(_filters[i],
@@ -321,7 +320,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('🔔', style: TextStyle(fontSize: 48)),
+          Icon(PhosphorIcons.bell(PhosphorIconsStyle.duotone),
+              size: 48, color: context.tpInkMute),
           const SizedBox(height: 12),
           Text('Aucune notification',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
@@ -339,7 +339,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('⚠️', style: TextStyle(fontSize: 48)),
+          Icon(PhosphorIcons.warning(PhosphorIconsStyle.duotone),
+              size: 48, color: kWarning),
           const SizedBox(height: 12),
           Text('Impossible de charger les notifications',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
@@ -484,16 +485,20 @@ class _NotifRowState extends State<_NotifRow> {
                     : TpAvatar(name: notif.title, size: 44),
                 Positioned(
                   bottom: -2, right: -2,
-                  child: Container(
-                    width: 22, height: 22,
-                    decoration: BoxDecoration(
-                      color: context.tpCard,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: context.tpBg, width: 2),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(notif.icon, style: const TextStyle(fontSize: 11)),
-                  ),
+                  child: Builder(builder: (context) {
+                    final (nIcon, nColor) =
+                        tpNotificationIconMeta(notif.notificationType);
+                    return Container(
+                      width: 22, height: 22,
+                      decoration: BoxDecoration(
+                        color: context.tpCard,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: context.tpBg, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(nIcon, size: 11, color: nColor),
+                    );
+                  }),
                 ),
               ],
             ),

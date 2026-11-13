@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../theme/colors.dart';
-import '../../theme/gradients.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_button.dart';
@@ -253,8 +252,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                         width: i == _page ? 28 : 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          gradient: i == _page ? trackpartyGradient : null,
-                          color: i == _page ? null : kHairLight,
+                          color: i == _page ? kPrimary : kHairLight,
                           borderRadius: BorderRadius.circular(Radii.xs),
                         ),
                       )),

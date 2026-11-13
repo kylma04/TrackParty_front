@@ -201,10 +201,10 @@ class PlansScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        gradient: trackpartyGradient,
+        color: kPrimary,
         borderRadius: BorderRadius.circular(Radii.lg + 2),
         boxShadow: const [
-          BoxShadow(color: Color(0x334F46E5), blurRadius: 18, offset: Offset(0, 8)),
+          BoxShadow(color: Color(0x33FF4B26), blurRadius: 18, offset: Offset(0, 8)),
         ],
       ),
       child: Container(
@@ -223,16 +223,16 @@ class PlansScreen extends ConsumerWidget {
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1,
-                        color: Color(0xFFEC4899))),
+                        color: kPrimary)),
                 const SizedBox(width: 8),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                   decoration: BoxDecoration(
-                    gradient: trackpartyGradient,
+                    color: kPrimary,
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text('★ POPULAIRE',
+                  child: const Text('POPULAIRE',
                       style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w900,
@@ -371,7 +371,7 @@ class PlansScreen extends ConsumerWidget {
     ref.invalidate(plansProvider);
     ref.invalidate(entitlementsProvider);
     if (context.mounted) {
-      TpToast.success(context, 'Bienvenue dans le plan Pro 🎉');
+      TpToast.success(context, 'Bienvenue dans le plan Pro');
     }
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/gradients.dart';
+import '../theme/colors.dart';
 import '../theme/haptics.dart';
 import '../theme/spacing.dart';
 import '../theme/theme_ext.dart';
@@ -7,6 +7,7 @@ import '../theme/theme_ext.dart';
 class TpFilterChip extends StatelessWidget {
   final String label;
   final String? emoji;
+  final IconData? icon;
   final bool active;
   final VoidCallback onTap;
 
@@ -14,6 +15,7 @@ class TpFilterChip extends StatelessWidget {
     super.key,
     required this.label,
     this.emoji,
+    this.icon,
     required this.active,
     required this.onTap,
   });
@@ -25,47 +27,57 @@ class TpFilterChip extends StatelessWidget {
       label: label,
       selected: active,
       child: GestureDetector(
-      onTap: () { Haptics.selection(); onTap(); },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: active
-            ? BoxDecoration(
-                gradient: trackpartyGradient,
-                borderRadius: BorderRadius.circular(Radii.md),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x407C3AED),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              )
-            : BoxDecoration(
-                color: context.tpCard,
-                borderRadius: BorderRadius.circular(Radii.md),
-                border: Border.all(color: context.tpHair),
+        onTap: () {
+          Haptics.selection();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: active
+              ? BoxDecoration(
+                  color: kPrimary,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x38FF4B26),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                )
+              : BoxDecoration(
+                  color: context.tpCard,
+                  borderRadius: BorderRadius.circular(Radii.md),
+                  border: Border.all(color: context.tpHair),
+                ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 15,
+                  color: active ? Colors.white : context.tpInkSub,
+                ),
+                const SizedBox(width: 6),
+              ] else if (emoji != null && emoji!.isNotEmpty) ...[
+                Text(emoji!, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: active ? Colors.white : context.tpInkSub,
+                ),
               ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (emoji != null) ...[
-              Text(emoji!, style: const TextStyle(fontSize: 13)),
-              const SizedBox(width: 4),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: active ? Colors.white : context.tpInkSub,
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -74,6 +86,7 @@ class TpFilterChip extends StatelessWidget {
 class TpFilterChipRow extends StatelessWidget {
   final List<String> labels;
   final List<String?> emojis;
+  final List<IconData?> icons;
   final int activeIndex;
   final void Function(int) onChanged;
 
@@ -83,7 +96,9 @@ class TpFilterChipRow extends StatelessWidget {
     required this.activeIndex,
     required this.onChanged,
     List<String?>? emojis,
-  }) : emojis = emojis ?? const [];
+    List<IconData?>? icons,
+  })  : emojis = emojis ?? const [],
+        icons = icons ?? const [];
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +111,7 @@ class TpFilterChipRow extends StatelessWidget {
             padding: EdgeInsets.only(right: i < labels.length - 1 ? Sp.sm : 0),
             child: TpFilterChip(
               label: labels[i],
+              icon: i < icons.length ? icons[i] : null,
               emoji: i < emojis.length ? emojis[i] : null,
               active: i == activeIndex,
               onTap: () => onChanged(i),

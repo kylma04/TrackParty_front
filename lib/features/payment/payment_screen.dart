@@ -321,7 +321,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 color: ok ? kSuccess : kError, size: 44),
           ),
           const SizedBox(height: 20),
-          Text(ok ? 'Paiement réussi 🎉' : 'Paiement non abouti',
+          Text(ok ? 'Paiement réussi' : 'Paiement non abouti',
               style: TextStyle(
                   fontSize: 20, fontWeight: FontWeight.w900, color: context.tpInk)),
           const SizedBox(height: 8),

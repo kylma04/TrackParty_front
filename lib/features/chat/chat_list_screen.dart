@@ -362,7 +362,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('💬', style: TextStyle(fontSize: 48)),
+          Icon(PhosphorIcons.chatCircle(PhosphorIconsStyle.duotone),
+              size: 48, color: context.tpInkMute),
           const SizedBox(height: 12),
           Text('Aucun ${labels[tab]}',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: context.tpInk)),
@@ -380,7 +381,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('⚠️', style: TextStyle(fontSize: 48)),
+          Icon(PhosphorIcons.warning(PhosphorIconsStyle.duotone),
+              size: 48, color: kWarning),
           const SizedBox(height: 12),
           Text('Impossible de charger les messages',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInk)),
@@ -533,7 +535,7 @@ class _NewConversationSheetState extends ConsumerState<_NewConversationSheet> {
           _acting = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Invitation envoyée à ${user.displayName} ✉️'),
+          content: Text('Invitation envoyée à ${user.displayName}'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
         ));

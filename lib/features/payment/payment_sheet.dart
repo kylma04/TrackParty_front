@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_exception.dart';
@@ -293,24 +294,29 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
     );
   }
 
-  Widget _disabledView(BuildContext context) =>
-      _infoView(context, '🔜', 'Paiement bientôt disponible',
-          'Le paiement mobile arrive très vite. On te préviendra dès son ouverture.');
+  Widget _disabledView(BuildContext context) => _infoView(
+      context,
+      PhosphorIcons.hourglass(PhosphorIconsStyle.duotone),
+      kPrimary,
+      'Paiement bientôt disponible',
+      'Le paiement mobile arrive très vite. On te préviendra dès son ouverture.');
 
   Widget _failureView(BuildContext context) => _infoView(
       context,
-      '⚠️',
+      PhosphorIcons.warning(PhosphorIconsStyle.duotone),
+      kWarning,
       'Paiement non abouti',
       _failureMsg.isNotEmpty ? _failureMsg : 'Réessaie dans un instant.',
       retry: true);
 
-  Widget _infoView(BuildContext context, String emoji, String title, String body,
+  Widget _infoView(
+      BuildContext context, IconData icon, Color iconColor, String title, String body,
       {bool retry = false}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _grip(context),
-        Text(emoji, style: const TextStyle(fontSize: 40)),
+        Icon(icon, size: 42, color: iconColor),
         const SizedBox(height: 12),
         Text(title,
             style: TextStyle(

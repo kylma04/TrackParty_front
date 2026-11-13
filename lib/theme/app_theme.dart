@@ -5,7 +5,7 @@ import 'typography.dart';
 
 class AppTheme {
   static ThemeData get light {
-    final colorScheme = const ColorScheme.light(
+    const colorScheme = ColorScheme.light(
       primary: kPrimary,
       secondary: kSecondary,
       tertiary: kTertiary,
@@ -19,6 +19,7 @@ class AppTheme {
       brightness: Brightness.light,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: kBgLight,
+      cardColor: kCardLight,
       textTheme: buildTextTheme(),
       appBarTheme: const AppBarTheme(
         backgroundColor: kCardLight,
@@ -33,7 +34,7 @@ class AppTheme {
   }
 
   static ThemeData get dark {
-    final colorScheme = const ColorScheme.dark(
+    const colorScheme = ColorScheme.dark(
       primary: kPrimary,
       secondary: kSecondary,
       tertiary: kTertiary,
@@ -47,6 +48,7 @@ class AppTheme {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: kBgDark,
+      cardColor: kCardDark,
       textTheme: buildTextTheme(ThemeData.dark().textTheme),
       appBarTheme: const AppBarTheme(
         backgroundColor: kCardDark,

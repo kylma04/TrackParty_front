@@ -1009,7 +1009,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     if (messages.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('💬', style: TextStyle(fontSize: 48)),
+          Icon(PhosphorIcons.chatCircle(PhosphorIconsStyle.duotone),
+              size: 48, color: context.tpInkMute),
           const SizedBox(height: 12),
           Text('Commence la conversation !',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: context.tpInkSub)),
@@ -2423,7 +2424,8 @@ class _EventInviteContent extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Text('🎉', style: TextStyle(fontSize: 20)),
+                Icon(PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+                    size: 18, color: kPrimary),
                 const SizedBox(width: 8),
                 Text('Invitation à un événement',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
@@ -2560,15 +2562,27 @@ class _InvitationDmBubble extends ConsumerWidget {
           if (location.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 2),
-              child: Text('📍 $location',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Row(
+                children: [
+                  Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                      size: 12, color: context.tpInkSub),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(location,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
             child: Row(
               children: [
-                Text('🗓 $dateStr',
+                Icon(PhosphorIcons.calendarBlank(),
+                    size: 12, color: context.tpInkSub),
+                const SizedBox(width: 4),
+                Text(dateStr,
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.tpInkSub)),
                 if (contrib != null) ...[
                   const SizedBox(width: 8),

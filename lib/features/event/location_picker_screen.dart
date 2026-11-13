@@ -104,7 +104,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     color: kPrimary,
                     size: 52,
                     shadows: const [
-                      Shadow(blurRadius: 16, color: Color(0x807C3AED)),
+                      Shadow(blurRadius: 16, color: Color(0x52FF4B26)),
                     ],
                   ),
                 ),

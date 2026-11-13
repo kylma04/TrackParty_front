@@ -106,8 +106,8 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
       TpToast.success(
         context,
         res.requiresPurchase
-            ? '🎟️ Accès débloqué — choisis ta place'
-            : '🎉 Tu as rejoint l\'événement !',
+            ? 'Accès débloqué — choisis ta place'
+            : 'Tu as rejoint l\'événement !',
       );
       ref.read(eventDetailProvider(widget.id).notifier).refresh();
     } catch (e) {
@@ -836,11 +836,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              gradient: trackpartyGradient,
+              color: kPrimary,
               borderRadius: BorderRadius.circular(Radii.lg),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x284F46E5),
+                  color: Color(0x28FF4B26),
                   blurRadius: 12,
                   offset: Offset(0, 4),
                 ),
@@ -940,7 +940,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        sponsored ? 'Boost actif 🚀' : 'Booster mon événement',
+                        sponsored ? 'Boost actif' : 'Booster mon événement',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
@@ -1186,7 +1186,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           ),
                           child: Row(
                             children: [
-                              const Text('📍 ', style: TextStyle(fontSize: 12)),
+                              Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                                  size: 13, color: Colors.white),
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   event.addressLabel,
