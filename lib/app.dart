@@ -320,63 +320,85 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     appLinks.uriLinkStream.listen(_handleDeepLink, onError: (_) {});
   }
 
+  Future<void> _pushRoute(String route, {Object? extra}) async {
+    if (!mounted) return;
+    var authValue = ref.read(authNotifierProvider);
+    if (authValue.isLoading) {
+      try {
+        final resolved = await ref.read(authNotifierProvider.future);
+        if (!mounted) return;
+        authValue = AsyncData(resolved);
+      } catch (_) {
+        return;
+      }
+    }
+    if (authValue.valueOrNull is! AuthAuthenticated) return;
+
+    final router = ref.read(routerProvider);
+    final loc = router.routerDelegate.currentConfiguration.uri.path;
+    if (loc == '/splash') {
+      router.go('/feed');
+    }
+    router.push(route, extra: extra);
+  }
+
   void _handleDeepLink(Uri uri) {
     if (!mounted) return;
-    final router = ref.read(routerProvider);
-    final segments = uri.pathSegments;
-
-    // trackparty://event/{id}  ou  https://trackparty.ci/event/{id}
-    if (segments.length >= 2 && segments[0] == 'event') {
-      router.push('/event/${segments[1]}');
-    }
-    // trackparty://event/{id}/scan
-    else if (segments.length >= 3 && segments[0] == 'event' && segments[2] == 'scan') {
-      router.push('/event/${segments[1]}/scan');
+    final route = parseDeepLinkRoute(uri);
+    if (route != null) {
+      _pushRoute(route);
     }
   }
 
   void _navigateFromMessage(RemoteMessage message) {
-    final router = ref.read(routerProvider);
-    final data   = message.data;
-    final type   = data['type'] as String?;
+    final data = message.data;
+    final type = data['type'] as String?;
 
     switch (type) {
       case 'new_message':
       case 'missed_call':
         final roomId = data['room_id'];
-        if (roomId != null) { router.push('/chat/$roomId'); return; }
+        if (roomId != null) { _pushRoute('/chat/$roomId'); return; }
 
       case 'co_org_invite':
-        router.push('/co-organizer-invitations'); return;
+        _pushRoute('/co-organizer-invitations'); return;
 
       case 'invitation':
       case 'invitation_accepted':
-        router.push('/invitations'); return;
+        _pushRoute('/invitations'); return;
 
       case 'broadcast':
         // Annonce admin : ouvre l'écran ciblé si fourni ET autorisé, sinon les notifs.
         // Whitelist : on ne route jamais vers une route arbitraire issue du payload.
         final screen = (data['screen'] ?? '').toString();
-        router.push(
+        _pushRoute(
           _allowedBroadcastScreens.contains(screen) ? '/$screen' : '/notifications',
         );
         return;
 
       case 'new_follower':
         final followerId = data['follower_id'];
-        if (followerId != null) { router.push('/promoter/$followerId'); return; }
-        router.push('/notifications'); return;
+        if (followerId != null) { _pushRoute('/promoter/$followerId'); return; }
+        _pushRoute('/notifications'); return;
 
       case 'co_org_accepted':
         final eventId = data['event_id'];
         if (eventId != null) {
-          router.push('/event/$eventId/dashboard', extra: {'title': ''});
+          _pushRoute('/event/$eventId/dashboard', extra: {'title': ''});
           return;
         }
 
       case 'ticket_transferred':
       case 'waitlist_promoted':
-        router.push('/my-tickets'); return;
+      case 'in_kind_accepted':
+        _pushRoute('/my-tickets'); return;
+
+      case 'in_kind_proposal':
+        final eventId = data['event_id'];
+        if (eventId != null) {
+          _pushRoute('/event/$eventId/in-kind-proposals', extra: {'title': ''});
+          return;
+        }
     }
 
     // Types avec event_id : event_reminder, event_updated, event_cancelled,
@@ -385,14 +407,14 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
     if (eventId != null) {
       final screen = data['screen'] as String?;
       if (screen == 'event_rate') {
-        router.push('/event/$eventId/rate');
+        _pushRoute('/event/$eventId/rate');
       } else {
-        router.push('/event/$eventId');
+        _pushRoute('/event/$eventId');
       }
       return;
     }
 
-    router.push('/notifications');
+    _pushRoute('/notifications');
   }
 
   @override
@@ -418,4 +440,27 @@ class _TrackPartyAppState extends ConsumerState<TrackPartyApp> {
       ],
     );
   }
+}
+
+/// Convertit un URI deep link (`trackparty://event/{id}[/scan]?invite=CODE` ou
+/// `https://trackparty.ci/event/{id}[/scan]?invite=CODE`) en route interne
+/// GoRouter, ou `null` si l'URI ne correspond à aucune route gérée.
+String? parseDeepLinkRoute(Uri uri) {
+  final segments = [
+    if (uri.scheme == 'trackparty' && uri.host.isNotEmpty) uri.host,
+    ...uri.pathSegments.where((s) => s.isNotEmpty),
+  ];
+  if (segments.length >= 3 && segments[0] == 'event' && segments[2] == 'scan') {
+    return '/event/${segments[1]}/scan';
+  }
+  if (segments.length >= 2 && segments[0] == 'event') {
+    final invite = uri.queryParameters['invite'];
+    return Uri(
+      path: '/event/${segments[1]}',
+      queryParameters: (invite != null && invite.isNotEmpty)
+          ? {'invite': invite}
+          : null,
+    ).toString();
+  }
+  return null;
 }

@@ -556,6 +556,7 @@ class _PersonRow extends StatelessWidget {
                     if (person.contributionItemName != null)
                       Text(
                         '${person.contributionItemEmoji ?? ''} ${person.contributionItemName}'
+                        '${person.inKindSource == 'proposal' ? ' · Proposition' : ''}'
                         '${person.quantity > 1 ? ' ×${person.quantity}' : ''}',
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.tpInkSub),

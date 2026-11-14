@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
 import '../../core/providers/chat_provider.dart';
 import '../../theme/colors.dart';
@@ -13,6 +14,7 @@ import '../../theme/shadows.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
 import '../../widgets/tp_avatar.dart';
+import '../../widgets/tp_screen_header.dart';
 import '../../core/providers/event_provider.dart'; 
 
 class InvitationsScreen extends ConsumerStatefulWidget {
@@ -66,22 +68,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
       padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, 12),
       child: Row(
         children: [
-          Semantics(
-            button: true,
-            label: 'Retour',
-            child: GestureDetector(
-              onTap: () => context.pop(),
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: context.tpCard,
-                  borderRadius: BorderRadius.circular(Radii.md),
-                  boxShadow: Shadows.sm,
-                ),
-                child: Icon(PhosphorIcons.caretLeft(), color: context.tpInk, size: 18),
-              ),
-            ),
-          ),
+          const TpBackButton(),
           const SizedBox(width: 12),
           Text('Invitations',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900,
@@ -227,6 +214,21 @@ class _InvitationCardState extends ConsumerState<_InvitationCard> {
         if (action == 'accept' && widget.invitation.event != null) {
           context.push('/event/${widget.invitation.event!.id}');
         }
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            e.statusCode == 404
+                ? 'Cet événement n\'est plus disponible'
+                : e.message,
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.md)),
+        ));
+      }
+      if (e.statusCode == 404) {
+        ref.invalidate(invitationsProvider);
       }
     } catch (e) {
       if (mounted) {

@@ -29,10 +29,32 @@ import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_badge.dart';
 import '../../widgets/tp_pro_badge.dart';
 import '../../widgets/tp_button.dart';
+import '../../widgets/tp_screen_header.dart';
 import '../../widgets/tp_confirm_sheet.dart';
 import '../../widgets/tp_photo.dart';
 import '../../widgets/tp_skeleton.dart';
 import '../../widgets/tp_toast.dart';
+
+void _exitEventDetail(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/feed');
+  }
+}
+
+PreferredSizeWidget _backOnlyAppBar(BuildContext context) => AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      leadingWidth: 68,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: Sp.md),
+        child: Center(
+          child: TpBackButton(onTap: () => _exitEventDetail(context)),
+        ),
+      ),
+    );
 
 /// Fond neutre des boutons superposés à une photo (hero) — volontairement
 /// indépendant du thème clair/sombre puisqu'il repose sur une image, pas
@@ -139,25 +161,45 @@ Widget build(BuildContext context) {
       if (code == 403) return _PrivateEventGate(eventId: widget.id);
       final isNotFound = code == 404;
       return Scaffold(
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+        backgroundColor: context.tpBg,
+        appBar: _backOnlyAppBar(context),
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isNotFound
-                    ? 'Cet événement n\'est plus disponible'
-                    : 'Impossible de charger l\'événement',
-                style: TextStyle(color: context.tpInkSub),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: isNotFound
-                    ? () => context.canPop() ? context.pop() : context.go('/')
-                    : () => ref.invalidate(eventDetailProvider(widget.id)),
-                child: Text(isNotFound ? 'Retour' : 'Réessayer'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Sp.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  PhosphorIcons.warningCircle(),
+                  size: 48,
+                  color: context.tpInkMute,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  isNotFound
+                      ? 'Cet événement n\'est plus disponible'
+                      : 'Impossible de charger l\'événement',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.tpInkSub,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TpButton(
+                  label: isNotFound ? 'Retour' : 'Réessayer',
+                  icon: isNotFound
+                      ? PhosphorIcons.arrowLeft()
+                      : PhosphorIcons.arrowCounterClockwise(),
+                  size: TpButtonSize.md,
+                  state: TpButtonState.idle,
+                  onPressed: isNotFound
+                      ? () => _exitEventDetail(context)
+                      : () => ref.invalidate(eventDetailProvider(widget.id)),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -369,7 +411,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 _buildDescription(context),
                 if (event.ticketCategories.isNotEmpty)
                   _buildTicketCategories(context),
-                if (event.contributionItems.isNotEmpty)
+                if (event.contributionItems.isNotEmpty ||
+                    event.allowInKindProposals ||
+                    event.myInKindProposal != null)
                   _buildContributions(context),
                 _buildMinimap(context),
                 _buildParticipantActions(context),
@@ -1035,13 +1079,14 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   }
 
   Widget _buildContributions(BuildContext context) {
+    final proposal = event.myInKindProposal;
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Contributions attendues équivalent à un ticket payé',
+            'Contributions en nature',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w900,
@@ -1050,7 +1095,54 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             ),
           ),
           const SizedBox(height: Sp.sm),
-          ...event.contributionItems.map((item) => _ContribRow(item: item)),
+          if (event.contributionItems.isNotEmpty) ...[
+            ...event.contributionItems.map((item) => _ContribRow(item: item)),
+          ],
+          if (proposal != null) ...[
+            if (event.contributionItems.isNotEmpty) const SizedBox(height: 8),
+            _MyProposalStatusBanner(proposal: proposal),
+          ] else if (event.allowInKindProposals) ...[
+            if (event.contributionItems.isNotEmpty) const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: context.tpCard,
+                borderRadius: BorderRadius.circular(Radii.md),
+                border: Border.all(color: kPrimary.withValues(alpha: 0.28)),
+              ),
+              child: Row(
+                children: [
+                  const Text('🎁', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Propositions libres acceptées',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: context.tpInk,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Propose un apport en nature au promoteur depuis « Je participe ».',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: context.tpInkSub,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1410,7 +1502,8 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final usesCategories = event.ticketCategories.isNotEmpty;
     final paidSoldOut = isPaid && usesCategories &&
         !event.ticketCategories.any((c) => c.price > 0 && c.onSale && !c.isSoldOut) &&
-        !event.contributionItems.any((i) => i.isAvailable);
+        !event.contributionItems.any((i) => i.isAvailable) &&
+        !event.allowInKindProposals;
 
     final IconData? iconData = isPaid
         ? ((atLimit || paidSoldOut) ? null : PhosphorIcons.ticket()) // pas d'icône → texte centré
@@ -2535,7 +2628,7 @@ class _PrivateEventGateState extends ConsumerState<_PrivateEventGate> {
     final disabled = _sent || _sending;
     return Scaffold(
       backgroundColor: context.tpBg,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      appBar: _backOnlyAppBar(context),
       body: Padding(
         padding: const EdgeInsets.all(Sp.md),
         child: Center(
@@ -2566,6 +2659,91 @@ class _PrivateEventGateState extends ConsumerState<_PrivateEventGate> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MyProposalStatusBanner extends StatelessWidget {
+  final InKindProposalModel proposal;
+
+  const _MyProposalStatusBanner({required this.proposal});
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color color, String title, String subtitle) = switch (proposal.status) {
+      'accepted' => (
+          kSuccess,
+          'Proposition acceptée · Billet généré',
+          proposal.ticketCategoryName != null
+              ? 'Catégorie : ${proposal.ticketCategoryName}'
+              : 'Consulte « Mes billets » pour ton QR code.',
+        ),
+      'rejected' => (
+          kError,
+          'Proposition refusée',
+          (proposal.rejectionReason != null && proposal.rejectionReason!.isNotEmpty)
+              ? 'Motif : ${proposal.rejectionReason}'
+              : 'Tu peux envoyer une nouvelle proposition ou prendre un billet.',
+        ),
+      'cancelled' => (
+          context.tpInkMute,
+          'Proposition annulée',
+          'Tu peux proposer un autre apport depuis « Je participe ».',
+        ),
+      _ => (
+          kWarning,
+          'Proposition en attente de validation',
+          'L\'organisateur examine ton offre.',
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(proposal.emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  proposal.title,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: context.tpInk,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: context.tpInkSub,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

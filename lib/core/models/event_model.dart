@@ -103,11 +103,13 @@ class UserParticipation {
   final String id;
   final String status;
   final String? contributionItemId;
+  final bool isInKind;
 
   const UserParticipation({
     required this.id,
     required this.status,
     this.contributionItemId,
+    this.isInKind = false,
   });
 
   factory UserParticipation.fromJson(Map<String, dynamic> j) =>
@@ -115,6 +117,7 @@ class UserParticipation {
         id: j['id'] as String,
         status: j['status'] as String,
         contributionItemId: j['contribution_item_id'] as String?,
+        isInKind: (j['is_in_kind'] as bool?) ?? false,
       );
 }
 
@@ -161,6 +164,8 @@ class EventModel {
   final List<CoOrganizerUser> coOrganizers;
   final UserModel? organizer;
   final List<ContributionItemModel> contributionItems;
+  final bool allowInKindProposals;
+  final InKindProposalModel? myInKindProposal;
   final List<TicketCategoryModel> ticketCategories;
   final UserParticipation? userParticipation;
   final bool showPrivateEventPublicly;
@@ -215,6 +220,8 @@ class EventModel {
     this.coOrganizers = const [],
     this.organizer,
     this.contributionItems = const [],
+    this.allowInKindProposals = false,
+    this.myInKindProposal,
     this.ticketCategories = const [],
     this.userParticipation,
     this.showPrivateEventPublicly = false,
@@ -289,6 +296,12 @@ class EventModel {
                 ?.map((e) => ContributionItemModel.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        allowInKindProposals: j['allow_in_kind_proposals'] as bool? ?? false,
+        myInKindProposal: j['my_in_kind_proposal'] != null
+            ? InKindProposalModel.fromJson(
+                j['my_in_kind_proposal'] as Map<String, dynamic>,
+              )
+            : null,
         ticketCategories: (j['ticket_categories'] as List<dynamic>?)
                 ?.map((e) => TicketCategoryModel.fromJson(e as Map<String, dynamic>))
                 .toList() ??
@@ -334,6 +347,9 @@ class EventModel {
     bool? isParticipating,
     int? participantsCount,
     UserParticipation? userParticipation,
+    bool? allowInKindProposals,
+    InKindProposalModel? myInKindProposal,
+    bool clearMyInKindProposal = false,
     bool? isFull,
     bool? isWaitlisted,
     int? waitlistPosition,
@@ -380,6 +396,10 @@ class EventModel {
         coOrganizers: coOrganizers,
         organizer: organizer,
         contributionItems: contributionItems,
+        allowInKindProposals: allowInKindProposals ?? this.allowInKindProposals,
+        myInKindProposal: clearMyInKindProposal
+            ? null
+            : (myInKindProposal ?? this.myInKindProposal),
         ticketCategories: ticketCategories,
         userParticipation: userParticipation ?? this.userParticipation,
         showPrivateEventPublicly: showPrivateEventPublicly,
@@ -403,6 +423,8 @@ class ParticipantModel {
   final String? contributionItemId;
   final String? contributionItemName;
   final String? contributionItemEmoji;
+  final bool isInKind;
+  final String? inKindSource;
   final int quantity;
 
   const ParticipantModel({
@@ -415,6 +437,8 @@ class ParticipantModel {
     this.contributionItemId,
     this.contributionItemName,
     this.contributionItemEmoji,
+    this.isInKind = false,
+    this.inKindSource,
     this.quantity = 1,
   });
 
@@ -431,6 +455,8 @@ class ParticipantModel {
         contributionItemId: j['contribution_item_id'] as String?,
         contributionItemName: j['contribution_item_name'] as String?,
         contributionItemEmoji: j['contribution_item_emoji'] as String?,
+        isInKind: j['is_in_kind'] as bool? ?? (j['contribution_item_id'] != null),
+        inKindSource: j['in_kind_source'] as String?,
         quantity: (j['quantity'] as int?) ?? 1,
       );
 }
@@ -474,6 +500,7 @@ class EventStats {
   final double? contributionAmount;
   final String status;
   final String title;
+  final int pendingInKindProposalsCount;
 
   const EventStats({
     required this.participantsCount,
@@ -488,6 +515,7 @@ class EventStats {
     this.contributionAmount,
     required this.status,
     required this.title,
+    this.pendingInKindProposalsCount = 0,
   });
 
   factory EventStats.fromJson(Map<String, dynamic> j) => EventStats(
@@ -503,6 +531,8 @@ class EventStats {
         contributionAmount: (j['contribution_amount'] as num?)?.toDouble(),
         status:             j['status'] as String,
         title:              j['title'] as String,
+        pendingInKindProposalsCount:
+            (j['pending_in_kind_proposals_count'] as int?) ?? 0,
       );
 
   double get fillRate => maxParticipants != null && maxParticipants! > 0
@@ -552,4 +582,78 @@ class PrivateJoinRequestModel {
           : null,
     );
   }
+}
+
+/// Proposition libre de contribution en nature soumise par un participant.
+class InKindProposalModel {
+  final String id;
+  final String eventId;
+  final String eventTitle;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String title;
+  final String description;
+  final String emoji;
+  final String status; // 'pending' | 'accepted' | 'rejected' | 'cancelled'
+  final String? ticketCategoryId;
+  final String? ticketCategoryName;
+  final String? ticketCategoryColor;
+  final String? rejectionReason;
+  final String? reviewedByName;
+  final DateTime? reviewedAt;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+
+  const InKindProposalModel({
+    required this.id,
+    required this.eventId,
+    required this.eventTitle,
+    required this.userId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.title,
+    this.description = '',
+    this.emoji = '🎁',
+    required this.status,
+    this.ticketCategoryId,
+    this.ticketCategoryName,
+    this.ticketCategoryColor,
+    this.rejectionReason,
+    this.reviewedByName,
+    this.reviewedAt,
+    required this.createdAt,
+    this.updatedAt,
+  });
+
+  bool get isPending => status == 'pending';
+  bool get isAccepted => status == 'accepted';
+  bool get isRejected => status == 'rejected';
+  bool get isCancelled => status == 'cancelled';
+
+  factory InKindProposalModel.fromJson(Map<String, dynamic> j) =>
+      InKindProposalModel(
+        id: j['id'] as String,
+        eventId: j['event_id'] as String,
+        eventTitle: (j['event_title'] as String?) ?? '',
+        userId: j['user_id'] as String,
+        userName: (j['user_name'] as String?) ?? '',
+        userAvatarUrl: j['user_avatar_url'] as String?,
+        title: (j['title'] as String?) ?? '',
+        description: (j['description'] as String?) ?? '',
+        emoji: (j['emoji'] as String?) ?? '🎁',
+        status: j['status'] as String,
+        ticketCategoryId: j['ticket_category_id'] as String?,
+        ticketCategoryName: j['ticket_category_name'] as String?,
+        ticketCategoryColor: j['ticket_category_color'] as String?,
+        rejectionReason: j['rejection_reason'] as String?,
+        reviewedByName: j['reviewed_by_name'] as String?,
+        reviewedAt: j['reviewed_at'] != null
+            ? DateTime.parse(j['reviewed_at'] as String)
+            : null,
+        createdAt: DateTime.parse(j['created_at'] as String),
+        updatedAt: j['updated_at'] != null
+            ? DateTime.parse(j['updated_at'] as String)
+            : null,
+      );
 }

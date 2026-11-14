@@ -44,6 +44,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   void _tryNavigate() {
     if (!mounted || !_animDone) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
     final authValue = ref.read(authNotifierProvider);
     if (authValue.isLoading) return; // wait for auth to resolve (listener will retry)
 

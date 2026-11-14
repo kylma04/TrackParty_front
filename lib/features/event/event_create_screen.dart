@@ -64,6 +64,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
   String _priceMode = 'single';
   // Contribution en nature acceptée en plus du prix (items à apporter).
   bool _natureEnabled = false;
+  // Accepter les propositions libres en nature des participants (validation requise).
+  bool _allowInKindProposals = false;
   // Toggle unique : afficher publiquement les compteurs de places.
   bool _showTicketCounts = false;
   bool _showPrivateEventPublicly = false;
@@ -145,6 +147,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
       _visibility = ev.visibility;
       _showPrivateEventPublicly = ev.showPrivateEventPublicly;
       _showTicketCounts = ev.showTicketCounts;
+      _allowInKindProposals = ev.allowInKindProposals;
       // 'nature' a fusionné dans 'monetaire' (sécurité si une donnée ancienne traîne).
       _contribMode = ev.contributionType == 'nature'
           ? 'monetaire'
@@ -274,9 +277,10 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           }
         } else {
           final amount = int.tryParse(_amountCtrl.text.trim()) ?? 0;
-          final natureOk = _natureEnabled && _items.isNotEmpty;
+          final natureOk =
+              (_natureEnabled && _items.isNotEmpty) || _allowInKindProposals;
           if (amount <= 0 && !natureOk) {
-            return 'Indique un prix unique ou ajoute une contribution en nature.';
+            return 'Indique un prix, des items en nature ou active les propositions libres.';
           }
         }
         if (_natureEnabled && _items.isEmpty) {
@@ -347,6 +351,9 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
         }
         if (_natureEnabled && _items.isNotEmpty) {
           parts.add('${_items.length} en nature');
+        }
+        if (_allowInKindProposals) {
+          parts.add('propositions libres');
         }
         return 'Payant${parts.isNotEmpty ? ' · ${parts.join(' / ')}' : ''}';
       default:
@@ -655,6 +662,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           _visibility == 'private' ? _showPrivateEventPublicly : false,
         'show_ticket_counts': _showTicketCounts,
         'contribution_type': _contribMode,
+        'allow_in_kind_proposals':
+            _contribMode == 'monetaire' && _allowInKindProposals,
         'max_participants': _effectiveCapacity,
         if (_minAge != null) 'min_age': _minAge,
         if (_coverUrl != null) 'cover_cloud_url': _coverUrl,
@@ -1535,6 +1544,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
           const SizedBox(height: 10),
           _buildItemsList(context),
         ],
+        const SizedBox(height: 12),
+        _buildAllowProposalsToggle(context),
       ],
     );
   }
@@ -1650,6 +1661,67 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
                     ? Icons.check_circle_rounded
                     : Icons.circle_outlined,
                 color: _natureEnabled ? kPrimary : context.tpInkMute,
+                size: 24,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAllowProposalsToggle(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: _allowInKindProposals,
+      label: 'Autoriser les propositions libres en nature',
+      child: GestureDetector(
+        onTap: () =>
+            setState(() => _allowInKindProposals = !_allowInKindProposals),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: context.tpCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _allowInKindProposals
+                  ? kPrimary
+                  : context.tpInkMute.withValues(alpha: 0.18),
+              width: _allowInKindProposals ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Text('🎁', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Propositions libres en nature',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: context.tpInk,
+                      ),
+                    ),
+                    Text(
+                      'Permettre aux participants de proposer un apport (à valider par toi)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.tpInkSub,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                _allowInKindProposals
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                color: _allowInKindProposals ? kPrimary : context.tpInkMute,
                 size: 24,
               ),
             ],

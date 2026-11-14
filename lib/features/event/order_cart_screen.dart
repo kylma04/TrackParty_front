@@ -10,6 +10,7 @@ import '../../core/api/api_exception.dart';
 import '../../core/models/event_model.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/ticket_provider.dart';
+import '../../core/services/event_service.dart';
 import '../../core/services/payment_service.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/ticket_rules.dart';
@@ -38,6 +39,8 @@ class OrderCartScreen extends ConsumerStatefulWidget {
 }
 
 class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
+  static const _proposalEmojis = ['🎁', '🍕', '🧃', '🍰', '🎵', '🪑', '📷', '🧊'];
+
   final Map<String, int> _paid = {};   // categoryId → qté
   // Contribution en nature : une seule par personne et par événement — pas de
   // quantité, un simple choix (ou aucun).
@@ -49,7 +52,35 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   String? _paymentId;
   Timer? _poll;
 
+  // Proposition libre en nature
+  InKindProposalModel? _myProposal;
+  final _proposalTitleCtrl = TextEditingController();
+  final _proposalDescCtrl = TextEditingController();
+  String _proposalEmoji = '🎁';
+  bool _proposalOpen = false;
+  bool _proposalBusy = false;
+
   EventModel get event => widget.event;
+
+  @override
+  void initState() {
+    super.initState();
+    _myProposal = widget.event.myInKindProposal;
+    // Ouvre directement le formulaire si l'événement n'a pas de billets payants/items fixes
+    // ou si une proposition précédente a été refusée/annulée.
+    if (event.allowInKindProposals &&
+        ((_cats.isEmpty && _flatPrice == null && _items.isEmpty) ||
+            (_myProposal != null &&
+                (_myProposal!.isRejected || _myProposal!.isCancelled)))) {
+      _proposalOpen = true;
+    }
+  }
+
+  bool get _hasActiveProposal =>
+      _myProposal != null && (_myProposal!.isPending || _myProposal!.isAccepted);
+
+  bool get _alreadyHasInKind =>
+      (event.userParticipation?.isInKind ?? false) || _hasActiveProposal;
 
   // On garde les catégories/options ÉPUISÉES dans la liste pour les afficher
   // grisées (« plus de billets »), au lieu de les masquer.
@@ -61,9 +92,16 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
 
   // Event payant SANS catégories (prix unique) : le backend n'accepte une
   // ligne « flat » que dans ce cas (voir OrderView.flat_not_allowed).
-  int? get _flatPrice => (_cats.isEmpty && event.contributionType == 'monetaire')
-      ? event.contributionAmount?.toInt()
-      : null;
+  int? get _flatPrice {
+    final amount = event.contributionAmount?.toInt();
+    if (_cats.isEmpty &&
+        event.contributionType == 'monetaire' &&
+        amount != null &&
+        amount > 0) {
+      return amount;
+    }
+    return null;
+  }
   int? get _flatRemaining => event.maxParticipants != null
       ? event.maxParticipants! - event.participantsCount
       : null;
@@ -86,7 +124,61 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   @override
   void dispose() {
     _poll?.cancel();
+    _proposalTitleCtrl.dispose();
+    _proposalDescCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitProposal() async {
+    final title = _proposalTitleCtrl.text.trim();
+    if (title.length < 2) {
+      TpToast.warning(
+        context,
+        'Décris ton apport en au moins 2 caractères.',
+      );
+      return;
+    }
+    setState(() => _proposalBusy = true);
+    try {
+      final created = await ref.read(eventServiceProvider).submitInKindProposal(
+            event.id,
+            title: title,
+            description: _proposalDescCtrl.text.trim(),
+            emoji: _proposalEmoji,
+          );
+      ref.invalidate(eventDetailProvider(event.id));
+      if (!mounted) return;
+      setState(() {
+        _myProposal = created;
+        _natureItemId = null;
+        _proposalOpen = false;
+        _proposalTitleCtrl.clear();
+        _proposalDescCtrl.clear();
+      });
+      TpToast.success(context, 'Proposition envoyée à l\'organisateur !');
+    } on ApiException catch (e) {
+      if (mounted) TpToast.error(context, e.message);
+    } finally {
+      if (mounted) setState(() => _proposalBusy = false);
+    }
+  }
+
+  Future<void> _withdrawProposal() async {
+    setState(() => _proposalBusy = true);
+    try {
+      await ref.read(eventServiceProvider).withdrawInKindProposal(event.id);
+      ref.invalidate(eventDetailProvider(event.id));
+      if (!mounted) return;
+      setState(() {
+        _myProposal = null;
+        _proposalOpen = true;
+      });
+      TpToast.info(context, 'Proposition retirée');
+    } on ApiException catch (e) {
+      if (mounted) TpToast.error(context, e.message);
+    } finally {
+      if (mounted) setState(() => _proposalBusy = false);
+    }
   }
 
   void _bump(Map<String, int> map, String id, int delta) {
@@ -271,19 +363,34 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
               _sectionLabel(context, 'Contribuer en nature'),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text('Une seule contribution possible par personne',
-                    style: TextStyle(
-                        fontSize: 11.5, fontWeight: FontWeight.w600, color: context.tpInkMute)),
+                child: Text(
+                  _alreadyHasInKind
+                      ? 'Tu as déjà une contribution en nature active sur cet événement.'
+                      : 'Une seule contribution possible par personne',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _alreadyHasInKind ? kWarning : context.tpInkMute,
+                  ),
+                ),
               ),
               ..._items.map((i) => _natureRow(context, i)),
             ],
-            const SizedBox(height: 8),
-            Text(
-              event.maxTicketsPerUserPerEvent == null
-                  ? '$_total billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}'
-                  : '$_total/${event.maxTicketsPerUserPerEvent} billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}',
+            if (event.allowInKindProposals || _myProposal != null) ...[
+              const SizedBox(height: 12),
+              _sectionLabel(context, 'Proposer un apport en nature'),
+              _proposalSection(context),
+            ],
+            if (_cats.isNotEmpty || _flatPrice != null || _items.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                event.maxTicketsPerUserPerEvent == null
+                    ? '$_total billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}'
+                    : '$_total/${event.maxTicketsPerUserPerEvent} billet${_total > 1 ? 's' : ''} sélectionné${_total > 1 ? 's' : ''}',
                 style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                    fontSize: 12, fontWeight: FontWeight.w700, color: context.tpInkMute),
+              ),
+            ],
             if (paidAmount > 0) ...[
               const SizedBox(height: 18),
               _sectionLabel(context, 'Moyen de paiement'),
@@ -292,7 +399,8 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
           ],
         ),
       ),
-      _bottomBar(context, paidAmount),
+      if (_cats.isNotEmpty || _flatPrice != null || _items.isNotEmpty)
+        _bottomBar(context, paidAmount),
     ]);
   }
 
@@ -392,10 +500,12 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
   Widget _natureRow(BuildContext context, ContributionItemModel i) {
     final selected = _natureItemId == i.id;
     final soldOut = !i.isAvailable;
+    final blocked = _alreadyHasInKind;
+    final disabled = soldOut || blocked;
     return Opacity(
-      opacity: soldOut ? 0.45 : 1,
+      opacity: disabled ? 0.45 : 1,
       child: GestureDetector(
-        onTap: soldOut
+        onTap: disabled
             ? null
             : () => setState(() => _natureItemId = selected ? null : i.id),
         child: Container(
@@ -418,9 +528,11 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                 Text(
                   soldOut
                       ? 'Plus disponible'
-                      : (i.categoryName != null
-                          ? 'Billet ${i.categoryName} · à apporter'
-                          : 'À apporter'),
+                      : blocked
+                          ? 'Contribution en nature déjà active'
+                          : (i.categoryName != null
+                              ? 'Billet ${i.categoryName} · à apporter'
+                              : 'À apporter'),
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -436,6 +548,328 @@ class _OrderCartScreenState extends ConsumerState<OrderCartScreen> {
                   color: selected ? kPrimary : context.tpInkMute),
           ]),
         ),
+      ),
+    );
+  }
+
+  Widget _proposalSection(BuildContext context) {
+    final p = _myProposal;
+
+    if (p != null && p.isPending) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: kWarning.withValues(alpha: 0.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(p.emoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    p.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: context.tpInk,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: kWarning.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(Radii.sm),
+                  ),
+                  child: const Text(
+                    'En attente',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: kWarning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (p.description.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                p.description,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: context.tpInkSub,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              'L\'organisateur doit valider ta proposition avant l\'émission du billet.',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: context.tpInkSub,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _proposalBusy ? null : _withdrawProposal,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kError,
+                  side: BorderSide(color: kError.withValues(alpha: 0.45)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Radii.button),
+                  ),
+                ),
+                child: _proposalBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Retirer ma proposition',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (p != null && p.isAccepted) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: kSuccess.withValues(alpha: 0.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(p.emoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    p.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: context.tpInk,
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Acceptée',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: kSuccess,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              p.ticketCategoryName != null
+                  ? 'Billet attribué (${p.ticketCategoryName}) · À confirmer par le staff à l\'entrée.'
+                  : 'Billet en nature attribué · Disponible dans « Mes billets ».',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: context.tpInkSub,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TpButton(
+              label: 'Voir mes billets',
+              fullWidth: true,
+              variant: TpButtonVariant.outline,
+              onPressed: () => context.push('/my-tickets'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (event.userParticipation?.isInKind == true) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.md),
+          border: Border.all(color: context.tpHair),
+        ),
+        child: Text(
+          'Tu as déjà choisi une contribution en nature pour cet événement.',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.tpInkSub,
+          ),
+        ),
+      );
+    }
+
+    if (!event.allowInKindProposals) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.tpCard,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(
+          color: _proposalOpen
+              ? kPrimary.withValues(alpha: 0.45)
+              : context.tpInkMute.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (p != null && (p.isRejected || p.isCancelled)) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: (p.isRejected ? kError : context.tpInkMute)
+                    .withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(Radii.sm),
+              ),
+              child: Text(
+                p.isRejected
+                    ? 'Proposition précédente refusée${(p.rejectionReason != null && p.rejectionReason!.isNotEmpty) ? ' : ${p.rejectionReason}' : '.'}'
+                    : 'Proposition précédente annulée. Tu peux en envoyer une nouvelle.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: p.isRejected ? kError : context.tpInkSub,
+                ),
+              ),
+            ),
+          ],
+          GestureDetector(
+            onTap: () => setState(() => _proposalOpen = !_proposalOpen),
+            child: Row(
+              children: [
+                const Text('🎁', style: TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Faire une proposition personnalisée',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: context.tpInk,
+                        ),
+                      ),
+                      Text(
+                        'Propose un objet, plat ou service à valider par l\'organisateur',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: context.tpInkSub,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _proposalOpen
+                      ? PhosphorIcons.caretUp()
+                      : PhosphorIcons.caretDown(),
+                  size: 16,
+                  color: context.tpInkMute,
+                ),
+              ],
+            ),
+          ),
+          if (_proposalOpen) ...[
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _proposalEmojis.map((em) {
+                  final sel = _proposalEmoji == em;
+                  return GestureDetector(
+                    onTap: () => setState(() => _proposalEmoji = em),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? kPrimary.withValues(alpha: 0.14)
+                            : context.tpBg,
+                        borderRadius: BorderRadius.circular(Radii.sm),
+                        border: Border.all(
+                          color: sel ? kPrimary : context.tpHair,
+                        ),
+                      ),
+                      child: Text(em, style: const TextStyle(fontSize: 16)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _proposalTitleCtrl,
+              maxLength: 100,
+              decoration: InputDecoration(
+                labelText: 'Ce que tu proposes d\'apporter',
+                hintText: 'Ex : 2 packs d\'eau minérale ou DJ set 1h',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Radii.md),
+                ),
+                isDense: true,
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _proposalDescCtrl,
+              maxLength: 400,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: 'Précisions (optionnel)',
+                hintText: 'Quantité, marque, heure d\'arrivée…',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Radii.md),
+                ),
+                isDense: true,
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TpButton(
+              label: 'Envoyer ma proposition',
+              fullWidth: true,
+              state:
+                  _proposalBusy ? TpButtonState.loading : TpButtonState.idle,
+              onPressed: _proposalBusy ? null : _submitProposal,
+            ),
+          ],
+        ],
       ),
     );
   }

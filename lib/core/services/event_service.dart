@@ -330,4 +330,91 @@ class EventService {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// Liste les propositions libres en nature d'un événement (organisateur / co-organisateur).
+  Future<List<InKindProposalModel>> getInKindProposals(
+    String eventId, {
+    String status = 'all',
+  }) async {
+    try {
+      final res = await _dio.get(
+        'events/$eventId/in-kind-proposals/',
+        queryParameters: {'status': status},
+      );
+      final list = res.data as List<dynamic>;
+      return list
+          .map((j) => InKindProposalModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Récupère la dernière proposition en nature de l'utilisateur courant pour un événement.
+  Future<InKindProposalModel?> getMyInKindProposal(String eventId) async {
+    try {
+      final res = await _dio.get('events/$eventId/in-kind-proposals/mine/');
+      return InKindProposalModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Soumet une proposition libre de contribution en nature à l'organisateur.
+  Future<InKindProposalModel> submitInKindProposal(
+    String eventId, {
+    required String title,
+    String? description,
+    String emoji = '🎁',
+  }) async {
+    try {
+      final res = await _dio.post(
+        'events/$eventId/in-kind-proposals/',
+        data: {
+          'title': title,
+          if (description != null && description.isNotEmpty)
+            'description': description,
+          'emoji': emoji,
+        },
+      );
+      return InKindProposalModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Retire la proposition en nature en attente de l'utilisateur courant.
+  Future<void> withdrawInKindProposal(String eventId) async {
+    try {
+      await _dio.delete('events/$eventId/in-kind-proposals/mine/');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  /// Accepte (avec catégorie éventuelle) ou refuse une proposition en nature.
+  Future<InKindProposalModel> respondInKindProposal(
+    String eventId,
+    String proposalId, {
+    required bool accept,
+    String? ticketCategoryId,
+    String? rejectionReason,
+  }) async {
+    try {
+      final res = await _dio.patch(
+        'events/$eventId/in-kind-proposals/$proposalId/respond/',
+        data: {
+          'accept': accept,
+          if (ticketCategoryId != null && ticketCategoryId.isNotEmpty)
+            'ticket_category_id': ticketCategoryId,
+          if (rejectionReason != null && rejectionReason.isNotEmpty)
+            'rejection_reason': rejectionReason,
+        },
+      );
+      return InKindProposalModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }

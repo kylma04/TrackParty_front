@@ -198,6 +198,9 @@ class TpCategoryIcon extends StatelessWidget {
     'new_follower' => (PhosphorIcons.userPlus(PhosphorIconsStyle.fill), kSecondary),
     'new_review' => (PhosphorIcons.star(PhosphorIconsStyle.fill), kWarning),
     'participation_confirmed' => (PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), kSuccess),
+    'in_kind_proposal' => (PhosphorIcons.gift(PhosphorIconsStyle.fill), kWarning),
+    'in_kind_accepted' => (PhosphorIcons.checkCircle(PhosphorIconsStyle.fill), kSuccess),
+    'in_kind_rejected' => (PhosphorIcons.prohibit(PhosphorIconsStyle.fill), kError),
     'broadcast' => (PhosphorIcons.megaphone(PhosphorIconsStyle.fill), kPrimary),
     _ => (PhosphorIcons.bell(PhosphorIconsStyle.fill), kPrimary),
   };

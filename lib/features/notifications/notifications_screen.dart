@@ -387,28 +387,42 @@ class _NotifRow extends StatefulWidget {
 }
 
 class _NotifRowState extends State<_NotifRow> {
-  String? _invitationOutcome; // null | 'accepted' | 'refused' (réponse locale immédiate)
+  String? _invitationOutcome; // null | 'accepted' | 'refused' | 'unavailable'
   String? _reviewOutcome; // null | 'rated' | 'declined'
 
   Widget _invitationStatusLabel(BuildContext context, String outcome) {
     final accepted = outcome == 'accepted';
+    final unavailable = outcome == 'unavailable';
+    final (IconData icon, Color color, String label) = accepted
+        ? (
+            PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
+            kSuccess,
+            'Invitation acceptée',
+          )
+        : unavailable
+            ? (
+                PhosphorIcons.warningCircle(),
+                context.tpInkMute,
+                'Invitation expirée ou événement supprimé',
+              )
+            : (
+                PhosphorIcons.xCircle(),
+                context.tpInkMute,
+                'Invitation refusée',
+              );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          accepted
-              ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill)
-              : PhosphorIcons.xCircle(),
-          size: 14,
-          color: accepted ? kSuccess : context.tpInkMute,
-        ),
+        Icon(icon, size: 14, color: color),
         const SizedBox(width: 5),
-        Text(
-          accepted ? 'Invitation acceptée' : 'Invitation refusée',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            color: accepted ? kSuccess : context.tpInkMute,
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
           ),
         ),
       ],
@@ -418,6 +432,47 @@ class _NotifRowState extends State<_NotifRow> {
   bool get _isGroup =>
       widget.notif.notificationType == 'new_message' &&
       widget.notif.payload.containsKey('room_id');
+
+  Widget _inKindProposalBadge(BuildContext context, String? status) {
+    // non-null status comes from action_status resolved by backend
+    final (IconData icon, Color color, String label) = switch (status) {
+      'accepted' => (
+          PhosphorIcons.checkCircle(PhosphorIconsStyle.fill),
+          kSuccess,
+          'Proposition acceptée',
+        ),
+      'rejected' => (
+          PhosphorIcons.prohibit(PhosphorIconsStyle.fill),
+          kError,
+          'Proposition refusée',
+        ),
+      'cancelled' => (
+          PhosphorIcons.prohibit(PhosphorIconsStyle.fill),
+          context.tpInkMute,
+          'Proposition annulée',
+        ),
+      _ => (
+          PhosphorIcons.gift(PhosphorIconsStyle.fill),
+          kWarning,
+          'Gérer la proposition →',
+        ),
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _reviewStatusLabel(BuildContext context, String outcome) {
     final rated = outcome == 'rated';
@@ -459,6 +514,17 @@ class _NotifRowState extends State<_NotifRow> {
         } else if (notif.notificationType == 'missed_call') {
           final rid = notif.roomId;
           if (rid != null) context.push('/chat/$rid');
+        } else if (notif.notificationType == 'in_kind_proposal' &&
+            notif.eventId != null) {
+          context.push(
+            '/event/${notif.eventId}/in-kind-proposals',
+            extra: {'title': ''},
+          );
+        } else if (notif.notificationType == 'in_kind_accepted') {
+          context.push('/my-tickets');
+        } else if (notif.notificationType == 'in_kind_rejected' &&
+            notif.eventId != null) {
+          context.push('/event/${notif.eventId}');
         }
       },
       child: Container(
@@ -524,19 +590,27 @@ class _NotifRowState extends State<_NotifRow> {
                   Text(_fmtTime(notif.createdAt),
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
                         color: context.tpInkMute)),
-                  if (notif.isInvitation && notif.invitationId != null) ...[
+                  if (notif.isInvitation &&
+                      (notif.invitationId != null ||
+                          notif.actionStatus == 'unavailable')) ...[
                     const SizedBox(height: 8),
                     Builder(builder: (ctx) {
                       // Statut effectif : réponse locale (vient d'agir) sinon le
                       // statut réel renvoyé par le serveur (persistant).
                       final srv = notif.actionStatus;
                       final outcome = _invitationOutcome ??
-                          ((srv == 'accepted' || srv == 'refused') ? srv : null);
+                          ((srv == 'accepted' ||
+                                  srv == 'refused' ||
+                                  srv == 'unavailable')
+                              ? srv
+                              : null);
                       if (outcome != null) {
                         return _invitationStatusLabel(ctx, outcome);
                       }
+                      final invId = notif.invitationId;
+                      if (invId == null) return const SizedBox.shrink();
                       return _InvitationActions(
-                        invitationId: notif.invitationId!,
+                        invitationId: invId,
                         eventId: notif.eventId,
                         onResponded: (action) {
                           setState(() => _invitationOutcome =
@@ -545,6 +619,19 @@ class _NotifRowState extends State<_NotifRow> {
                         },
                       );
                     }),
+                  ],
+                  if (notif.isInKindProposal && notif.eventId != null) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () {
+                        if (!notif.isRead) widget.onMarkRead();
+                        context.push(
+                          '/event/${notif.eventId}/in-kind-proposals',
+                          extra: {'title': ''},
+                        );
+                      },
+                      child: _inKindProposalBadge(context, notif.actionStatus),
+                    ),
                   ],
                   if (notif.isReviewRequest && notif.eventId != null) ...[
                     const SizedBox(height: 8),

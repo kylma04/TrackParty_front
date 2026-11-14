@@ -77,7 +77,7 @@ class TpWordmark extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         TpLogo(size: iconSize),
-        SizedBox(width: compact ? 8 : 10),
+        SizedBox(width: compact ? 4 : 6),
         RichText(
           text: TextSpan(
             style: GoogleFonts.notoSansDisplay(

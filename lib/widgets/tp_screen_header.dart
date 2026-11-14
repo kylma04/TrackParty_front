@@ -18,7 +18,7 @@ class TpBackButton extends StatelessWidget {
       button: true,
       label: 'Retour',
       child: GestureDetector(
-        onTap: onTap ?? () => context.pop(),
+        onTap: onTap ?? () => context.canPop() ? context.pop() : context.go('/feed'),
         child: Container(
           width: 44, height: 44,
           decoration: BoxDecoration(

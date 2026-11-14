@@ -7,7 +7,7 @@ class NotificationModel {
   final bool isRead;
   final DateTime createdAt;
   /// Statut réel de l'élément actionnable lié (invitation) renvoyé par le serveur :
-  /// 'pending' | 'accepted' | 'refused' | null. Sert à ne plus afficher
+  /// 'pending' | 'accepted' | 'refused' | 'unavailable' | null. Sert à ne plus afficher
   /// Accepter/Refuser une fois la demande traitée (persistant entre sessions).
   final String? actionStatus;
 
@@ -58,6 +58,9 @@ class NotificationModel {
       case 'new_follower':        return '✨';
       case 'new_review':          return '⭐';
       case 'participation_confirmed': return '✅';
+      case 'in_kind_proposal':        return '🎁';
+      case 'in_kind_accepted':        return '✅';
+      case 'in_kind_rejected':        return '❌';
       case 'broadcast':           return '📣';
       default:                    return '🔔';
     }
@@ -70,6 +73,9 @@ class NotificationModel {
       case 'event_updated':
       case 'event_cancelled':
       case 'participation_confirmed':
+      case 'in_kind_proposal':
+      case 'in_kind_accepted':
+      case 'in_kind_rejected':
         return 'events';
       case 'new_message':
       case 'missed_call':
@@ -80,6 +86,7 @@ class NotificationModel {
   }
 
   bool get isInvitation => notificationType == 'invitation';
+  bool get isInKindProposal => notificationType == 'in_kind_proposal';
   bool get isReviewRequest =>
       notificationType == 'review_request' || notificationType == 'checkin_review';
   String? get invitationId => payload['invitation_id'] as String?;

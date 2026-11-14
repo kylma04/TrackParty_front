@@ -16,6 +16,7 @@ import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:record/record.dart';
 
+import '../../core/api/api_exception.dart';
 import '../../core/models/chat_model.dart';
 import '../../core/providers/auth_provider.dart' show authNotifierProvider, AuthAuthenticated;
 import '../../core/providers/chat_provider.dart';
@@ -2434,32 +2435,51 @@ class _EventInviteContent extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Semantics(
-              button: true,
-              label: 'Voir l\'événement',
-              child: GestureDetector(
-              onTap: eventId != null ? () => context.push('/event/$eventId') : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: trackpartyGradient,
-                  borderRadius: BorderRadius.circular(Radii.md),
-                  boxShadow: Shadows.brand,
-                ),
-                child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(PhosphorIcons.arrowRight(), color: Colors.white, size: 16),
-                      const SizedBox(width: 6),
-                      const Text('Voir l\'événement',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
-                    ],
+            child: eventId != null
+                ? Semantics(
+                    button: true,
+                    label: 'Voir l\'événement',
+                    child: GestureDetector(
+                      onTap: () => context.push('/event/$eventId'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: trackpartyGradient,
+                          borderRadius: BorderRadius.circular(Radii.md),
+                          boxShadow: Shadows.brand,
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(PhosphorIcons.arrowRight(), color: Colors.white, size: 16),
+                              const SizedBox(width: 6),
+                              const Text('Voir l\'événement',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: context.tpBg,
+                      borderRadius: BorderRadius.circular(Radii.md),
+                      border: Border.all(color: context.tpHair),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(PhosphorIcons.warningCircle(), color: context.tpInkMute, size: 16),
+                        const SizedBox(width: 6),
+                        Text('Événement supprimé',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.tpInkMute)),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              ),
-            ),
           ),
         ],
       ),
@@ -2484,7 +2504,8 @@ class _InvitationDmBubble extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data   = message.eventInviteData;
     final status = message.invitationStatus;
-    final isPending = status == 'pending' || status == null;
+    final isUnavailable = message.invitationId == null && status == null;
+    final isPending = message.invitationId != null && (status == 'pending' || status == null);
 
     final catLabel = data != null ? EventInviteData.categoryLabel(data.category) : 'SOIRÉE';
     final dateStr  = data != null
@@ -2621,7 +2642,10 @@ class _InvitationDmBubble extends ConsumerWidget {
                       ),
                     ],
                   )
-                : _StatusChip(status: status ?? 'pending', isMe: isMe),
+                : _StatusChip(
+                    status: isUnavailable ? 'unavailable' : (status ?? 'pending'),
+                    isMe: isMe,
+                  ),
           ),
         ],
       ),
@@ -2633,9 +2657,16 @@ class _InvitationDmBubble extends ConsumerWidget {
     try {
       await ref.read(invitationServiceProvider).respondToInvitation(message.invitationId!, action);
       ref.read(chatThreadProvider(roomId).notifier).updateInvitationStatus(message.invitationId!, action == 'accept' ? 'accepted' : 'refused');
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        TpToast.error(
+          context,
+          e.statusCode == 404 ? 'Cet événement n\'est plus disponible' : e.message,
+        );
+      }
     } catch (e) {
       if (context.mounted) {
-        TpToast.error(context, 'Erreur : $e');
+        TpToast.error(context, 'Une erreur est survenue');
       }
     }
   }
@@ -2687,8 +2718,15 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAccepted = status == 'accepted';
-    final label = isAccepted ? '✓ Acceptée' : (status == 'refused' ? '✗ Refusée' : 'En attente…');
-    final color = isAccepted ? kSuccess : (status == 'refused' ? kError : context.tpInkMute);
+    final isUnavailable = status == 'unavailable';
+    final label = isAccepted
+        ? '✓ Acceptée'
+        : isUnavailable
+            ? 'Événement supprimé'
+            : (status == 'refused' ? '✗ Refusée' : 'En attente…');
+    final color = isAccepted
+        ? kSuccess
+        : (status == 'refused' ? kError : context.tpInkMute);
 
     return Center(
       child: Container(

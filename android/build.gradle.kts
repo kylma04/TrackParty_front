@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.compile.JavaCompile
+
 allprojects {
     repositories {
         google()
@@ -17,6 +19,12 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    tasks.withType<JavaCompile>().configureEach {
+        // Masque uniquement les warnings « source/target value 8 is obsolete » des plugins pub tiers.
+        if (!options.compilerArgs.contains("-Xlint:-options")) {
+            options.compilerArgs.add("-Xlint:-options")
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

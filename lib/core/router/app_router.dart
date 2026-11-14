@@ -45,6 +45,7 @@ import '../../features/event/event_create_screen.dart';
 import '../models/event_model.dart';
 import '../../features/event/event_participants_screen.dart';
 import '../../features/event/event_rate_screen.dart';
+import '../../features/event/in_kind_proposals_screen.dart';
 import '../../features/event/private_join_requests_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/help_screen.dart';
@@ -297,6 +298,17 @@ final _routes = [
     builder: (_, s) {
       final extra = s.extra as Map<String, dynamic>?;
       return PrivateJoinRequestsScreen(
+        eventId: s.pathParameters['id']!,
+        eventTitle: extra?['title'] as String? ?? '',
+      );
+    },
+  ),
+
+  GoRoute(
+    path: '/event/:id/in-kind-proposals',
+    builder: (_, s) {
+      final extra = s.extra as Map<String, dynamic>?;
+      return InKindProposalsScreen(
         eventId: s.pathParameters['id']!,
         eventTitle: extra?['title'] as String? ?? '',
       );

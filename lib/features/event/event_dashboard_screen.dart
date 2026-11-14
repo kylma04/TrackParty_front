@@ -410,6 +410,22 @@ class _QuickActions extends StatelessWidget {
           extra: {'title': eventTitle},
         ),
       ),
+      if (stats.contributionType == 'monetaire' ||
+          stats.pendingInKindProposalsCount > 0) ...[
+        const SizedBox(height: 10),
+        _ActionRow(
+          icon: PhosphorIcons.gift(),
+          iconColor: kPrimary,
+          label: 'Propositions en nature',
+          subtitle: stats.pendingInKindProposalsCount > 0
+              ? '${stats.pendingInKindProposalsCount} proposition${stats.pendingInKindProposalsCount > 1 ? 's' : ''} en attente'
+              : 'Voir et valider les propositions',
+          onTap: () => context.push(
+            '/event/$eventId/in-kind-proposals',
+            extra: {'title': eventTitle},
+          ),
+        ),
+      ],
     ]);
   }
 }

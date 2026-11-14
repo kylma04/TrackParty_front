@@ -53,7 +53,10 @@ class TicketScreen extends ConsumerWidget {
             Text('Billet introuvable',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.tpInk)),
             const SizedBox(height: 8),
-            TextButton(onPressed: () => context.pop(), child: const Text('Retour')),
+            TextButton(
+                onPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/feed'),
+                child: const Text('Retour')),
           ]),
         ),
         data: (ticket) => _TicketBody(ticket: ticket),
@@ -80,7 +83,8 @@ class _TicketBody extends StatelessWidget {
             Semantics(
               button: true, label: 'Retour',
               child: GestureDetector(
-              onTap: () => context.pop(),
+              onTap: () =>
+                  context.canPop() ? context.pop() : context.go('/feed'),
               child: Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
