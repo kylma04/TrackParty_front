@@ -77,14 +77,14 @@ class _Cover extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = event.coverImageUrl;
     if (url == null) return const _CoverPlaceholder();
-    return ExcludeSemantics(
-      child: CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorWidget: (_, _, _) => const _CoverPlaceholder(),
-        placeholder: (_, _) => const _CoverPlaceholder(),
+    return SizedBox.expand(
+      child: ExcludeSemantics(
+        child: CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          errorWidget: (_, _, _) => const _CoverPlaceholder(),
+          placeholder: (_, _) => const _CoverPlaceholder(),
+        ),
       ),
     );
   }
@@ -226,7 +226,8 @@ class EventListCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(Radii.card),
             border: Border.all(color: context.tpHair),
           ),
-          child: IntrinsicHeight(
+          child: SizedBox(
+            height: 132,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

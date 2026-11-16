@@ -315,20 +315,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                 child: _HorizontalEvents(
                   async: trendingAsync,
                   maxItems: 10,
+                  showExploreCard: true,
                   emptyLabel: 'Aucun événement tendance pour l\'instant',
                   onRetry: () =>
                       ref.read(trendingEventsFeedProvider.notifier).refresh(),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
-              // ── Univers TrackParty + Explorer tout ────────────────────────
-              SliverToBoxAdapter(
-                child: _SurpriseGrid(
-                  events: [
-                    ...?trendingAsync.valueOrNull?.items,
-                    ...?nearbyAsync.valueOrNull?.items,
-                  ],
-                  onExplore: () => context.push('/events'),
                 ),
               ),
             ],
@@ -664,12 +654,15 @@ class _HorizontalEvents extends StatelessWidget {
   final int maxItems;
   // true : les événements mis en avant (Hot) s'ajoutent en tête, avant les `maxItems` autres.
   final bool includeHot;
+  // true : ajoute en fin de liste la carte « Explorer tout ».
+  final bool showExploreCard;
   final String emptyLabel;
   final VoidCallback onRetry;
   const _HorizontalEvents({
     required this.async,
     required this.maxItems,
     this.includeHot = false,
+    this.showExploreCard = false,
     required this.emptyLabel,
     required this.onRetry,
   });
@@ -682,11 +675,15 @@ class _HorizontalEvents extends StatelessWidget {
         loading: () => _HorizontalSkeleton(),
         error: (_, _) => _ErrorHint(onRetry: onRetry),
         data: (page) {
-          // Les événements boostés ont leur propre mise en avant : on ne les compte pas ici.
-          final items = page.items
-              .where((e) => !e.isSponsored)
-              .take(maxItems)
-              .toList();
+          // Hot (mis en avant) en tête, puis `maxItems` événements classiques.
+          // Sans includeHot, les Hot sont exclus (déjà présents dans « Près de toi & Hot »).
+          final hot = includeHot
+              ? page.items.where((e) => e.isSponsored).toList()
+              : const <EventModel>[];
+          final items = [
+            ...hot,
+            ...page.items.where((e) => !e.isSponsored).take(maxItems),
+          ];
           if (items.isEmpty) {
             return Center(
               child: Text(
@@ -702,16 +699,21 @@ class _HorizontalEvents extends StatelessWidget {
           return ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-            itemCount: items.length,
+            itemCount: items.length + (showExploreCard ? 1 : 0),
             addAutomaticKeepAlives: false,
-            itemBuilder: (context, i) => Semantics(
-              button: true,
-              label: 'Voir ${items[i].title}',
-              child: GestureDetector(
-                onTap: () => context.push('/event/${items[i].id}'),
-                child: _EventCard(event: items[i]),
-              ),
-            ),
+            itemBuilder: (context, i) {
+              if (i == items.length) {
+                return _ExploreEndCard(onTap: () => context.push('/events'));
+              }
+              return Semantics(
+                button: true,
+                label: 'Voir ${items[i].title}',
+                child: GestureDetector(
+                  onTap: () => context.push('/event/${items[i].id}'),
+                  child: _EventCard(event: items[i]),
+                ),
+              );
+            },
           );
         },
       ),
@@ -719,127 +721,124 @@ class _HorizontalEvents extends StatelessWidget {
   }
 }
 
-// ── Grille « L'univers TrackParty » + bouton Explorer tout ────────────────────
+// ── Carte de fin de carrousel : « L'univers TrackParty… » + Explorer tout ────
 
-class _SurpriseGrid extends StatelessWidget {
-  final List<EventModel> events;
-  final VoidCallback onExplore;
-  const _SurpriseGrid({required this.events, required this.onExplore});
+class _ExploreEndCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ExploreEndCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final seen = <String>{};
-    final covers = events
-        .where((e) => e.coverImageUrl != null && seen.add(e.id))
-        .take(3)
-        .toList();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'L\'univers TrackParty vous réserve d\'autres surprises',
-            style: TextStyle(
-              fontSize: 19,
-              height: 1.2,
-              fontWeight: FontWeight.w900,
-              color: context.tpInk,
-              letterSpacing: -0.4,
-            ),
+    return Semantics(
+      button: true,
+      label: 'Explorer tous les événements',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 250,
+          margin: const EdgeInsets.only(right: Sp.sm),
+          decoration: BoxDecoration(
+            color: kPrimary.withValues(alpha: context.isDark ? 0.16 : 0.09),
+            borderRadius: BorderRadius.circular(Radii.card),
           ),
-          const SizedBox(height: Sp.sm + 4),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: Sp.sm,
-            crossAxisSpacing: Sp.sm,
-            childAspectRatio: 1.25,
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
             children: [
-              for (var i = 0; i < 3; i++)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(Radii.lg),
-                  child: i < covers.length
-                      ? GestureDetector(
-                          onTap: () => context.push('/event/${covers[i].id}'),
-                          child: ExcludeSemantics(
-                            child: CachedNetworkImage(
-                              imageUrl: covers[i].coverImageUrl!,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, _, _) => _GradientPlaceholder(),
-                              placeholder: (_, _) => _GradientPlaceholder(),
+              // Cercles concentriques décoratifs (haut droit)
+              Positioned(
+                top: -70,
+                right: -70,
+                child: CustomPaint(
+                  size: const Size(220, 220),
+                  painter: _RingsPainter(kPrimary.withValues(alpha: 0.14)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(PhosphorIcons.confetti(), size: 52, color: kPrimary),
+                    const Spacer(),
+                    Text(
+                      'L\'univers TrackParty vous réserve d\'autres surprises',
+                      style: TextStyle(
+                        fontSize: 17,
+                        height: 1.2,
+                        fontWeight: FontWeight.w900,
+                        color: context.tpInk,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Découvre tous les événements près de chez toi',
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        fontWeight: FontWeight.w500,
+                        color: context.tpInkSub,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kPrimary,
+                        borderRadius: BorderRadius.circular(Radii.pill),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Explorer tout',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
                             ),
                           ),
-                        )
-                      : _GradientPlaceholder(),
-                ),
-              GestureDetector(
-                onTap: onExplore,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: kPrimary,
-                    borderRadius: BorderRadius.circular(Radii.lg),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
-                        color: Colors.white,
-                        size: 26,
+                          const SizedBox(width: 8),
+                          Icon(
+                            PhosphorIcons.arrowRight(),
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Et bien plus encore…',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: Sp.md),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: onExplore,
-              style: FilledButton.styleFrom(
-                backgroundColor: kPrimary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Radii.button),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Explorer tout',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    PhosphorIcons.arrowRight(PhosphorIconsStyle.bold),
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _RingsPainter extends CustomPainter {
+  final Color color;
+  const _RingsPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    final c = size.center(Offset.zero);
+    for (final r in [50.0, 80.0, 110.0]) {
+      canvas.drawCircle(c, r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingsPainter old) => old.color != color;
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
