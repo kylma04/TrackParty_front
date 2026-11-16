@@ -117,29 +117,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
           ),
-          Positioned(
-            bottom: 72,
-            left: 0,
-            right: 0,
-            child: FadeTransition(
-              opacity: _fade,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  3,
-                  (i) => Container(
-                    width: i == 0 ? 22 : 8,
-                    height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: i == 0 ? kPrimary : kInkMuteDark.withValues(alpha: 0.45),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

@@ -137,7 +137,7 @@ class _BoostPopupDialog extends StatelessWidget {
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(PhosphorIconsBold.star, size: 13, color: Colors.white),
                     SizedBox(width: 3),
-                    Text('Sponsorisé',
+                    Text('Hot',
                         style: TextStyle(
                             fontSize: 10.5, fontWeight: FontWeight.w900, color: Colors.white)),
                   ]),

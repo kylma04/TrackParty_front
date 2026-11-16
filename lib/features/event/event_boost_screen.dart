@@ -253,7 +253,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
           const SizedBox(height: 6),
           Text(
             'Un boost place ton événement tout en haut du fil et le distingue '
-            'sur la carte avec le label « Sponsorisé ».',
+            'sur la carte avec le label « Hot ».',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -269,7 +269,7 @@ class _EventBoostScreenState extends ConsumerState<EventBoostScreen> {
   Widget _benefits(BuildContext context) {
     const items = [
       ('Placement prioritaire', 'En tête du fil et de la recherche'),
-      ('Label « Sponsorisé »', 'Une vignette dorée qui attire l\'œil'),
+      ('Label « Hot »', 'Une vignette dorée qui attire l\'œil'),
       ('Plus de participants', 'Plus de visibilité = plus d\'inscrits'),
     ];
     return Column(

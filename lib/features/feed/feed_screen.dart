@@ -6,7 +6,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 
-
 import '../../core/models/event_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/event_provider.dart';
@@ -14,7 +13,7 @@ import '../../core/providers/notification_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/theme_ext.dart';
-import '../../widgets/feed_filter_sheet.dart';
+import '../../widgets/event_cards.dart';
 import '../../widgets/tp_avatar.dart';
 import '../../widgets/tp_icons.dart';
 
@@ -30,31 +29,18 @@ class FeedScreen extends ConsumerStatefulWidget {
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
-  final _scrollCtrl = ScrollController();
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _scrollCtrl.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     _searchFocus.dispose();
-    _scrollCtrl
-      ..removeListener(_onScroll)
-      ..dispose();
     super.dispose();
-  }
-
-  // Déclenche loadMore quand on approche le bas de la liste trending
-  void _onScroll() {
-    final pos = _scrollCtrl.position;
-    if (pos.pixels >= pos.maxScrollExtent - 300) {
-      ref.read(trendingEventsFeedProvider.notifier).loadMore();
-    }
   }
 
   bool get _isSearching => _searchQuery.isNotEmpty;
@@ -88,7 +74,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         ? authState.user.avatarUrl
         : null;
 
-    final filters = ref.watch(feedFiltersProvider);
     final nearbyAsync = ref.watch(nearbyEventsFeedProvider);
     final trendingAsync = ref.watch(trendingEventsFeedProvider);
 
@@ -103,7 +88,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           ]);
         },
         child: CustomScrollView(
-          controller: _scrollCtrl,
           slivers: [
             // ── Header ──────────────────────────────────────────────────────
             SliverToBoxAdapter(
@@ -225,12 +209,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Bouton filtre/tri
-                          _FilterButton(
-                            hasActiveFilters: filters.hasActiveFilters,
-                            onTap: () => showFeedFilterSheet(context),
-                          ),
                         ],
                       ),
                       const SizedBox(height: Sp.md),
@@ -293,15 +271,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     }
                     return SliverList(
                       delegate: SliverChildBuilderDelegate(
-                        (_, i) => Semantics(
-                          button: true,
-                          label: 'Voir ${results[i].title}',
-                          child: GestureDetector(
-                            onTap: () =>
-                                context.push('/event/${results[i].id}'),
-                            child: _TrendRow(event: results[i], rank: i + 1),
-                          ),
-                        ),
+                        (_, i) => EventListCard(event: results[i]),
                         childCount: results.length,
                       ),
                     );
@@ -312,208 +282,54 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             // ── MODE NORMAL ──────────────────────────────────────────────────
             if (!_isSearching) ...[
               const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
-              // Section "Près de toi"
+              // ── Près de toi : 3 événements (hors boostés) ─────────────────
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Près de toi',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          color: context.tpInk,
-                          letterSpacing: -0.4,
-                        ),
-                      ),
-                      Semantics(
-                        button: true,
-                        label: 'Voir tous les événements sur la carte',
-                        child: GestureDetector(
-                          onTap: () => context.push('/map'),
-                          child: const Text(
-                            'Voir tout',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: kPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: _SectionHeader(
+                  title: 'Près de toi & Hot',
+                  icon: PhosphorIcons.lightning(PhosphorIconsStyle.fill),
+                  onSeeAll: () => context.push('/events'),
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
               SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 280,
-                  child: nearbyAsync.when(
-                    loading: () => _HorizontalSkeleton(),
-                    error: (_, _) => _ErrorHint(
-                      onRetry: () =>
-                          ref.read(nearbyEventsFeedProvider.notifier).refresh(),
-                    ),
-                    data: (page) {
-                      if (page.items.isEmpty) {
-                        return Center(
-                          child: Text(
-                            'Aucun événement pour le moment',
-                            style: TextStyle(
-                              color: context.tpInkSub,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      }
-                      return ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                        itemCount: page.items.length,
-                        addAutomaticKeepAlives: false,
-                        itemBuilder: (context, i) => Semantics(
-                          button: true,
-                          label: 'Voir ${page.items[i].title}',
-                          child: GestureDetector(
-                            onTap: () =>
-                                context.push('/event/${page.items[i].id}'),
-                            child: _EventCard(event: page.items[i]),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                child: _HorizontalEvents(
+                  async: nearbyAsync,
+                  maxItems: 3,
+                  includeHot: true,
+                  emptyLabel: 'Aucun événement pour le moment',
+                  onRetry: () =>
+                      ref.read(nearbyEventsFeedProvider.notifier).refresh(),
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
-              // Section "Tendances"
+              // ── Tendances : 10 événements max, défilement horizontal ──────
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Sp.md),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            PhosphorIcons.flame(PhosphorIconsStyle.fill),
-                            size: 20,
-                            color: kPrimary,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Tendances',
-                            style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                              color: context.tpInk,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Semantics(
-                        button: true,
-                        label: 'Voir toutes les tendances sur la carte',
-                        child: GestureDetector(
-                          onTap: () => context.push('/map'),
-                          child: const Text(
-                            'Voir tout',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: kPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: _SectionHeader(
+                  title: 'Tendances',
+                  icon: PhosphorIcons.flame(PhosphorIconsStyle.fill),
+                  onSeeAll: () => context.push('/events'),
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: Sp.sm)),
-              trendingAsync.when(
-                loading: () => const SliverToBoxAdapter(child: _ListSkeleton()),
-                error: (_, _) => SliverToBoxAdapter(
-                  child: _ErrorHint(
-                    onRetry: () =>
-                        ref.read(trendingEventsFeedProvider.notifier).refresh(),
-                  ),
+              SliverToBoxAdapter(
+                child: _HorizontalEvents(
+                  async: trendingAsync,
+                  maxItems: 10,
+                  emptyLabel: 'Aucun événement tendance pour l\'instant',
+                  onRetry: () =>
+                      ref.read(trendingEventsFeedProvider.notifier).refresh(),
                 ),
-                data: (page) {
-                  if (page.items.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(Sp.lg),
-                          child: Text(
-                            'Aucun événement tendance pour l\'instant',
-                            style: TextStyle(
-                              color: context.tpInkSub,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                  return SliverMainAxisGroup(
-                    slivers: [
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => Semantics(
-                            button: true,
-                            label:
-                                'Voir l\'événement tendance ${page.items[i].title}',
-                            child: GestureDetector(
-                              onTap: () =>
-                                  context.push('/event/${page.items[i].id}'),
-                              child: _TrendRow(
-                                event: page.items[i],
-                                rank: i + 1,
-                              ),
-                            ),
-                          ),
-                          childCount: page.items.length,
-                        ),
-                      ),
-                      if (page.isLoadingMore)
-                        const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: kPrimary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (!page.hasMore && page.items.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Center(
-                              child: Text(
-                                'Tu as tout vu',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: context.tpInkMute,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: Sp.lg)),
+              // ── Univers TrackParty + Explorer tout ────────────────────────
+              SliverToBoxAdapter(
+                child: _SurpriseGrid(
+                  events: [
+                    ...?trendingAsync.valueOrNull?.items,
+                    ...?nearbyAsync.valueOrNull?.items,
+                  ],
+                  onExplore: () => context.push('/events'),
+                ),
               ),
             ],
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -541,7 +357,8 @@ class _EventCard extends StatelessWidget {
       event.category,
       customLabel: event.customCategoryLabel,
     );
-    final customEmoji = event.category == 'autre' &&
+    final customEmoji =
+        event.category == 'autre' &&
             hasCustomUserEmoji(event.customCategoryEmoji)
         ? event.customCategoryEmoji
         : null;
@@ -573,7 +390,6 @@ class _EventCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                
                   Hero(
                     tag: 'event_cover_${event.id}',
                     child: event.coverImageUrl != null
@@ -582,7 +398,8 @@ class _EventCard extends StatelessWidget {
                               imageUrl: event.coverImageUrl!,
                               fit: BoxFit.cover,
                               width: double.infinity,
-                              errorWidget: (ctx, url, err) => _GradientPlaceholder(),
+                              errorWidget: (ctx, url, err) =>
+                                  _GradientPlaceholder(),
                               placeholder: (ctx, url) => _GradientPlaceholder(),
                             ),
                           )
@@ -657,7 +474,7 @@ class _EventCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  event.title,  //locked ? 'Événement privé' : event.title,
+                  event.title, //locked ? 'Événement privé' : event.title,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
@@ -700,7 +517,8 @@ class _EventCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        event.quartier, //event.city.isNotEmpty ? event.city : event.addressLabel,
+                        event
+                            .quartier, //event.city.isNotEmpty ? event.city : event.addressLabel,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -741,7 +559,8 @@ class _EventCard extends StatelessWidget {
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
-                            event.organizerName, //locked ? 'Organisateur masqué' : event.organizerName,
+                            event
+                                .organizerName, //locked ? 'Organisateur masqué' : event.organizerName,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -763,146 +582,260 @@ class _EventCard extends StatelessWidget {
   }
 }
 
-// ── Trend row (vertical list) ─────────────────────────────────────────────────
+// ── En-tête de section + petit bouton « Voir tout » ──────────────────────────
 
-class _TrendRow extends StatelessWidget {
-  final EventModel event;
-  final int rank;
-  const _TrendRow({required this.event, required this.rank});
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final IconData? icon;
+  final VoidCallback onSeeAll;
+  const _SectionHeader({
+    required this.title,
+    this.icon,
+    required this.onSeeAll,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.sm),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: BorderRadius.circular(Radii.lg),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1B1A2E),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20, color: kPrimary),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  color: context.tpInk,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ],
+          ),
+          Semantics(
+            button: true,
+            label: 'Voir tous les événements',
+            child: GestureDetector(
+              onTap: onSeeAll,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(Radii.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Voir tout',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: kPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(PhosphorIcons.arrowRight(), size: 12, color: kPrimary),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      child: Row(
+    );
+  }
+}
+
+// ── Liste horizontale de cartes (hors événements boostés) ─────────────────────
+
+class _HorizontalEvents extends StatelessWidget {
+  final AsyncValue<FeedPage> async;
+  final int maxItems;
+  // true : les événements mis en avant (Hot) s'ajoutent en tête, avant les `maxItems` autres.
+  final bool includeHot;
+  final String emptyLabel;
+  final VoidCallback onRetry;
+  const _HorizontalEvents({
+    required this.async,
+    required this.maxItems,
+    this.includeHot = false,
+    required this.emptyLabel,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 280,
+      child: async.when(
+        loading: () => _HorizontalSkeleton(),
+        error: (_, _) => _ErrorHint(onRetry: onRetry),
+        data: (page) {
+          // Les événements boostés ont leur propre mise en avant : on ne les compte pas ici.
+          final items = page.items
+              .where((e) => !e.isSponsored)
+              .take(maxItems)
+              .toList();
+          if (items.isEmpty) {
+            return Center(
+              child: Text(
+                emptyLabel,
+                style: TextStyle(
+                  color: context.tpInkSub,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            );
+          }
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+            itemCount: items.length,
+            addAutomaticKeepAlives: false,
+            itemBuilder: (context, i) => Semantics(
+              button: true,
+              label: 'Voir ${items[i].title}',
+              child: GestureDetector(
+                onTap: () => context.push('/event/${items[i].id}'),
+                child: _EventCard(event: items[i]),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Grille « L'univers TrackParty » + bouton Explorer tout ────────────────────
+
+class _SurpriseGrid extends StatelessWidget {
+  final List<EventModel> events;
+  final VoidCallback onExplore;
+  const _SurpriseGrid({required this.events, required this.onExplore});
+
+  @override
+  Widget build(BuildContext context) {
+    final seen = <String>{};
+    final covers = events
+        .where((e) => e.coverImageUrl != null && seen.add(e.id))
+        .take(3)
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Sp.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
+          Text(
+            'L\'univers TrackParty vous réserve d\'autres surprises',
+            style: TextStyle(
+              fontSize: 19,
+              height: 1.2,
+              fontWeight: FontWeight.w900,
+              color: context.tpInk,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: Sp.sm + 4),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: Sp.sm,
+            crossAxisSpacing: Sp.sm,
+            childAspectRatio: 1.25,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(Radii.button),
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: event.coverImageUrl != null
-                      ? ExcludeSemantics(
-                          child: CachedNetworkImage(
-                            imageUrl: event.coverImageUrl!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
-                            errorWidget: (ctx, url, err) =>
-                                _GradientPlaceholder(),
-                            placeholder: (ctx, url) => _GradientPlaceholder(),
+              for (var i = 0; i < 3; i++)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(Radii.lg),
+                  child: i < covers.length
+                      ? GestureDetector(
+                          onTap: () => context.push('/event/${covers[i].id}'),
+                          child: ExcludeSemantics(
+                            child: CachedNetworkImage(
+                              imageUrl: covers[i].coverImageUrl!,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, _, _) => _GradientPlaceholder(),
+                              placeholder: (_, _) => _GradientPlaceholder(),
+                            ),
                           ),
                         )
                       : _GradientPlaceholder(),
                 ),
-              ),
-              Positioned(
-                top: 0,
-                left: 0,
+              GestureDetector(
+                onTap: onExplore,
                 child: Container(
-                  width: 22,
-                  height: 22,
                   decoration: BoxDecoration(
-                    color: kAccent,
-                    borderRadius: BorderRadius.circular(7),
+                    color: kPrimary,
+                    borderRadius: BorderRadius.circular(Radii.lg),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '#$rank',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Et bien plus encore…',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: Sp.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (event.isSponsored) ...[
-                      const Icon(Icons.star_rounded,
-                          size: 15, color: Color(0xFFF59E0B)),
-                      const SizedBox(width: 3),
-                    ],
-                    Expanded(
-                      child: Text(
-                        event.title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: context.tpInk,
-                          letterSpacing: -0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+          const SizedBox(height: Sp.md),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton(
+              onPressed: onExplore,
+              style: FilledButton.styleFrom(
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(Radii.button),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Semantics(
-                      button: true,
-                      label: 'Voir le profil de ${event.organizerName}',
-                      child: GestureDetector(
-                        onTap: () =>
-                            context.push('/promoter/${event.organizerId}'),
-                        child: Row(
-                          children: [
-                            TpAvatar(
-                              name: event.organizerName,
-                              imageUrl: event.organizerAvatarUrl,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              event.organizerName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: kPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Text(
-                      ' · ${event.participantsCount} viennent',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: context.tpInkSub,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Explorer tout',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    PhosphorIcons.arrowRight(PhosphorIconsStyle.bold),
+                    size: 18,
+                  ),
+                ],
+              ),
             ),
           ),
-          Icon(PhosphorIcons.caretRight(), color: kPrimary, size: 22),
         ],
       ),
     );
@@ -940,16 +873,24 @@ class _SponsoredPill extends StatelessWidget {
         color: kTertiary,
         borderRadius: BorderRadius.circular(Radii.pill),
         boxShadow: const [
-          BoxShadow(color: Color(0x2E0B1118), blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Color(0x2E0B1118),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.star_rounded, size: 13, color: Colors.white),
+          Icon(
+            Icons.local_fire_department_rounded,
+            size: 13,
+            color: Colors.white,
+          ),
           SizedBox(width: 3),
           Text(
-            'Sponsorisé',
+            'Hot',
             style: TextStyle(
               fontSize: 10.5,
               fontWeight: FontWeight.w900,
@@ -1028,33 +969,6 @@ class _HorizontalSkeleton extends StatelessWidget {
   }
 }
 
-class _ListSkeleton extends StatelessWidget {
-  const _ListSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    final base = context.isDark ? kCardDark : kHairLight;
-    final highlight = context.isDark ? kCardAltDark : kBgLight;
-    return Shimmer.fromColors(
-      baseColor: base,
-      highlightColor: highlight,
-      child: Column(
-        children: List.generate(
-          4,
-          (_) => Container(
-            height: 80,
-            margin: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.sm),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(Radii.lg),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ErrorHint extends StatelessWidget {
   final VoidCallback onRetry;
   const _ErrorHint({required this.onRetry});
@@ -1126,62 +1040,6 @@ class _BellButton extends ConsumerWidget {
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                     ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Filter button ─────────────────────────────────────────────────────────────
-
-class _FilterButton extends StatelessWidget {
-  final bool hasActiveFilters;
-  final VoidCallback onTap;
-  const _FilterButton({required this.hasActiveFilters, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: hasActiveFilters
-          ? 'Filtres actifs — modifier les filtres'
-          : 'Filtres',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: hasActiveFilters ? kPrimary : context.tpCard,
-                borderRadius: BorderRadius.circular(Radii.button),
-                border: Border.all(
-                  color: hasActiveFilters ? kPrimary : context.tpHair,
-                ),
-              ),
-              child: Icon(
-                PhosphorIcons.slidersHorizontal(),
-                color: hasActiveFilters ? Colors.white : context.tpInkSub,
-                size: 20,
-              ),
-            ),
-            if (hasActiveFilters)
-              Positioned(
-                top: -4,
-                right: -4,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: kAccent,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: context.tpBg, width: 1.5),
                   ),
                 ),
               ),

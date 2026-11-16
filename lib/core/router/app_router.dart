@@ -9,6 +9,7 @@ import '../../features/auth/signup_screen.dart';
 import '../../features/auth/verify_email_screen.dart';
 import '../../features/auth/forgot_password_screen.dart';
 import '../../features/auth/blocked_screen.dart';
+import '../../features/feed/all_events_screen.dart';
 import '../../features/feed/feed_screen.dart';
 import '../../features/map/map_screen.dart';
 import '../../features/chat/chat_list_screen.dart';
@@ -390,6 +391,10 @@ final _routes = [
     path: '/support/:id',
     pageBuilder: (_, s) =>
         _slide(s, SupportThreadScreen(id: s.pathParameters['id']!)),
+  ),
+  GoRoute(
+    path: '/events',
+    pageBuilder: (_, s) => _slide(s, const AllEventsScreen()),
   ),
   GoRoute(
     path: '/saved-events',

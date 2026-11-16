@@ -10,10 +10,11 @@ import '../services/user_channel_service.dart';
 
 class FeedFilters {
   final String? category;
-  final String? customLabel; // catégorie personnalisée précise (si sélectionnée)
+  final String?
+  customLabel; // catégorie personnalisée précise (si sélectionnée)
   final String dateFilter;
   final bool freeOnly;
-  final String sortBy;     // 'start_at' | '-participants_count' | 'distance'
+  final String sortBy; // 'start_at' | '-participants_count' | 'distance'
   final double radiusKm;
 
   const FeedFilters({
@@ -33,22 +34,30 @@ class FeedFilters {
     String? sortBy,
     double? radiusKm,
   }) => FeedFilters(
-        category: category == _sentinel ? this.category : category as String?,
-        customLabel: customLabel == _sentinel ? this.customLabel : customLabel as String?,
-        dateFilter: dateFilter ?? this.dateFilter,
-        freeOnly: freeOnly ?? this.freeOnly,
-        sortBy: sortBy ?? this.sortBy,
-        radiusKm: radiusKm ?? this.radiusKm,
-      );
+    category: category == _sentinel ? this.category : category as String?,
+    customLabel: customLabel == _sentinel
+        ? this.customLabel
+        : customLabel as String?,
+    dateFilter: dateFilter ?? this.dateFilter,
+    freeOnly: freeOnly ?? this.freeOnly,
+    sortBy: sortBy ?? this.sortBy,
+    radiusKm: radiusKm ?? this.radiusKm,
+  );
 
   bool get hasActiveFilters =>
-      category != null || customLabel != null || freeOnly ||
-      dateFilter != 'upcoming' || sortBy != 'start_at' || radiusKm != 25;
+      category != null ||
+      customLabel != null ||
+      freeOnly ||
+      dateFilter != 'upcoming' ||
+      sortBy != 'start_at' ||
+      radiusKm != 25;
 
   static const _sentinel = Object();
 }
 
-final feedFiltersProvider = StateProvider<FeedFilters>((ref) => const FeedFilters());
+final feedFiltersProvider = StateProvider<FeedFilters>(
+  (ref) => const FeedFilters(),
+);
 
 /// Catégories personnalisées existantes (pour générer des puces de filtre).
 final customCategoriesProvider = FutureProvider<List<CustomCategory>>((ref) {
@@ -76,11 +85,11 @@ class FeedPage {
     bool? isLoadingMore,
     int? page,
   }) => FeedPage(
-        items: items ?? this.items,
-        hasMore: hasMore ?? this.hasMore,
-        isLoadingMore: isLoadingMore ?? this.isLoadingMore,
-        page: page ?? this.page,
-      );
+    items: items ?? this.items,
+    hasMore: hasMore ?? this.hasMore,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    page: page ?? this.page,
+  );
 }
 
 // ── Localisation utilisateur ──────────────────────────────────────────────────
@@ -91,7 +100,8 @@ final userLocationProvider = FutureProvider<Position?>((ref) async {
     if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
     }
-    if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
       return null;
     }
     return await Geolocator.getCurrentPosition(
@@ -105,15 +115,14 @@ final userLocationProvider = FutureProvider<Position?>((ref) async {
 // ── Feed "Près de toi" ────────────────────────────────────────────────────────
 
 final nearbyEventsFeedProvider =
-    AsyncNotifierProvider<NearbyFeedNotifier, FeedPage>(
-  NearbyFeedNotifier.new,
-);
+    AsyncNotifierProvider<NearbyFeedNotifier, FeedPage>(NearbyFeedNotifier.new);
 
 class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
   @override
   Future<FeedPage> build() async {
-    final loc     = await ref.watch(userLocationProvider.future);
-    final filters = ref.watch(feedFiltersProvider);
+    final loc = await ref.watch(userLocationProvider.future);
+    // L'accueil n'est plus filtrable : les filtres vivent sur la page « Explorer ».
+    const filters = FeedFilters();
     final sub = UserChannelService().eventStatsUpdated.listen(patchEvent);
     ref.onDispose(sub.cancel);
     return _fetchPage(loc, filters, page: 1);
@@ -134,9 +143,13 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
     }
   }
 
-  Future<FeedPage> _fetchPage(Position? loc, FeedFilters filters, {required int page}) async {
+  Future<FeedPage> _fetchPage(
+    Position? loc,
+    FeedFilters filters, {
+    required int page,
+  }) async {
     final service = ref.read(eventServiceProvider);
-    final result  = await service.getFeed(
+    final result = await service.getFeed(
       filter: filters.dateFilter,
       category: filters.category,
       customCategory: filters.customLabel,
@@ -144,7 +157,9 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
       lat: loc?.latitude,
       lng: loc?.longitude,
       radius: filters.radiusKm,
-      ordering: filters.sortBy == 'distance' && loc != null ? 'distance' : filters.sortBy,
+      ordering: filters.sortBy == 'distance' && loc != null
+          ? 'distance'
+          : filters.sortBy,
       page: page,
     );
     return FeedPage(
@@ -156,8 +171,8 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
-    final loc     = await ref.read(userLocationProvider.future);
-    final filters = ref.read(feedFiltersProvider);
+    final loc = await ref.read(userLocationProvider.future);
+    const filters = FeedFilters();
     state = await AsyncValue.guard(() => _fetchPage(loc, filters, page: 1));
   }
 
@@ -167,25 +182,31 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
 
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
     try {
-      final loc      = await ref.read(userLocationProvider.future);
-      final filters  = ref.read(feedFiltersProvider);
+      final loc = await ref.read(userLocationProvider.future);
+      const filters = FeedFilters();
       final nextPage = current.page + 1;
-      final result   = await ref.read(eventServiceProvider).getFeed(
-        filter: filters.dateFilter,
-        category: filters.category,
-      customCategory: filters.customLabel,
-        contribution: filters.freeOnly ? 'free' : null,
-        lat: loc?.latitude,
-        lng: loc?.longitude,
-        radius: filters.radiusKm,
-        ordering: filters.sortBy == 'distance' && loc != null ? 'distance' : filters.sortBy,
-        page: nextPage,
+      final result = await ref
+          .read(eventServiceProvider)
+          .getFeed(
+            filter: filters.dateFilter,
+            category: filters.category,
+            customCategory: filters.customLabel,
+            contribution: filters.freeOnly ? 'free' : null,
+            lat: loc?.latitude,
+            lng: loc?.longitude,
+            radius: filters.radiusKm,
+            ordering: filters.sortBy == 'distance' && loc != null
+                ? 'distance'
+                : filters.sortBy,
+            page: nextPage,
+          );
+      state = AsyncValue.data(
+        FeedPage(
+          items: [...current.items, ...result.results],
+          hasMore: result.next != null,
+          page: nextPage,
+        ),
       );
-      state = AsyncValue.data(FeedPage(
-        items: [...current.items, ...result.results],
-        hasMore: result.next != null,
-        page: nextPage,
-      ));
     } catch (_) {
       state = AsyncValue.data(current.copyWith(isLoadingMore: false));
     }
@@ -195,14 +216,12 @@ class NearbyFeedNotifier extends AsyncNotifier<FeedPage> {
 // ── Feed "Tendances" ──────────────────────────────────────────────────────────
 
 final trendingEventsFeedProvider =
-    AsyncNotifierProvider<FeedNotifier, FeedPage>(
-  FeedNotifier.new,
-);
+    AsyncNotifierProvider<FeedNotifier, FeedPage>(FeedNotifier.new);
 
 class FeedNotifier extends AsyncNotifier<FeedPage> {
   @override
   Future<FeedPage> build() async {
-    final filters = ref.watch(feedFiltersProvider);
+    const filters = FeedFilters(sortBy: '-participants_count');
     final sub = UserChannelService().eventStatsUpdated.listen(patchEvent);
     ref.onDispose(sub.cancel);
     return _fetchPage(filters, page: 1);
@@ -223,7 +242,7 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
 
   Future<FeedPage> _fetchPage(FeedFilters filters, {required int page}) async {
     final service = ref.read(eventServiceProvider);
-    final result  = await service.getFeed(
+    final result = await service.getFeed(
       filter: filters.dateFilter,
       category: filters.category,
       customCategory: filters.customLabel,
@@ -240,7 +259,7 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
 
   Future<void> refresh() async {
     state = const AsyncValue.loading();
-    final filters = ref.read(feedFiltersProvider);
+    const filters = FeedFilters(sortBy: '-participants_count');
     state = await AsyncValue.guard(() => _fetchPage(filters, page: 1));
   }
 
@@ -250,21 +269,102 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
 
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
     try {
-      final filters  = ref.read(feedFiltersProvider);
+      const filters = FeedFilters(sortBy: '-participants_count');
       final nextPage = current.page + 1;
-      final result   = await ref.read(eventServiceProvider).getFeed(
-        filter: filters.dateFilter,
-        category: filters.category,
-      customCategory: filters.customLabel,
-        contribution: filters.freeOnly ? 'free' : null,
-        ordering: filters.sortBy,
-        page: nextPage,
+      final result = await ref
+          .read(eventServiceProvider)
+          .getFeed(
+            filter: filters.dateFilter,
+            category: filters.category,
+            customCategory: filters.customLabel,
+            contribution: filters.freeOnly ? 'free' : null,
+            ordering: filters.sortBy,
+            page: nextPage,
+          );
+      state = AsyncValue.data(
+        FeedPage(
+          items: [...current.items, ...result.results],
+          hasMore: result.next != null,
+          page: nextPage,
+        ),
       );
-      state = AsyncValue.data(FeedPage(
-        items: [...current.items, ...result.results],
-        hasMore: result.next != null,
-        page: nextPage,
-      ));
+    } catch (_) {
+      state = AsyncValue.data(current.copyWith(isLoadingMore: false));
+    }
+  }
+}
+
+// ── Feed « Explorer tout » (page complète, filtres, pagination 20 par 20) ─────
+
+final allEventsFeedProvider =
+    AsyncNotifierProvider<AllEventsNotifier, FeedPage>(AllEventsNotifier.new);
+
+class AllEventsNotifier extends AsyncNotifier<FeedPage> {
+  @override
+  Future<FeedPage> build() async {
+    final filters = ref.watch(feedFiltersProvider);
+    // La position n'est utile (et ne restreint le rayon) que pour le tri « distance ».
+    final Position? loc = filters.sortBy == 'distance'
+        ? await ref.watch(userLocationProvider.future)
+        : null;
+    return _fetch(filters, loc, page: 1);
+  }
+
+  Future<FeedPage> _fetch(
+    FeedFilters f,
+    Position? loc, {
+    required int page,
+  }) async {
+    final result = await ref
+        .read(eventServiceProvider)
+        .getFeed(
+          filter: f.dateFilter,
+          category: f.category,
+          customCategory: f.customLabel,
+          contribution: f.freeOnly ? 'free' : null,
+          lat: loc?.latitude,
+          lng: loc?.longitude,
+          radius: f.radiusKm,
+          ordering: f.sortBy == 'distance' && loc != null
+              ? 'distance'
+              : f.sortBy,
+          page: page,
+        );
+    return FeedPage(
+      items: result.results,
+      hasMore: result.next != null,
+      page: page,
+    );
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    final f = ref.read(feedFiltersProvider);
+    final loc = f.sortBy == 'distance'
+        ? await ref.read(userLocationProvider.future)
+        : null;
+    state = await AsyncValue.guard(() => _fetch(f, loc, page: 1));
+  }
+
+  /// Charge les 20 événements suivants (appelé à l'approche du dernier).
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (current == null || !current.hasMore || current.isLoadingMore) return;
+    state = AsyncValue.data(current.copyWith(isLoadingMore: true));
+    try {
+      final f = ref.read(feedFiltersProvider);
+      final loc = f.sortBy == 'distance'
+          ? await ref.read(userLocationProvider.future)
+          : null;
+      final next = await _fetch(f, loc, page: current.page + 1);
+      final seen = current.items.map((e) => e.id).toSet();
+      state = AsyncValue.data(
+        FeedPage(
+          items: [...current.items, ...next.items.where((e) => seen.add(e.id))],
+          hasMore: next.hasMore,
+          page: next.page,
+        ),
+      );
     } catch (_) {
       state = AsyncValue.data(current.copyWith(isLoadingMore: false));
     }
@@ -275,8 +375,8 @@ class FeedNotifier extends AsyncNotifier<FeedPage> {
 
 final eventDetailProvider =
     AsyncNotifierProviderFamily<EventDetailNotifier, EventModel, String>(
-  EventDetailNotifier.new,
-);
+      EventDetailNotifier.new,
+    );
 
 class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
   @override
@@ -299,25 +399,35 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
     }
   }
 
-  Future<void> participate({String? contributionItemId, int quantity = 1}) async {
-    
+  Future<void> participate({
+    String? contributionItemId,
+    int quantity = 1,
+  }) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
     final willWaitlist = current.isFull;
-    state = AsyncValue.data(current.copyWith(
-      isParticipating: !willWaitlist,
-      isWaitlisted: willWaitlist,
-      participantsCount: willWaitlist ? current.participantsCount : current.participantsCount + 1,
-    ));
+    state = AsyncValue.data(
+      current.copyWith(
+        isParticipating: !willWaitlist,
+        isWaitlisted: willWaitlist,
+        participantsCount: willWaitlist
+            ? current.participantsCount
+            : current.participantsCount + 1,
+      ),
+    );
 
     try {
-      await ref.read(eventServiceProvider).participate(
-        arg,
-        contributionItemId: contributionItemId,
-        quantity: quantity,
+      await ref
+          .read(eventServiceProvider)
+          .participate(
+            arg,
+            contributionItemId: contributionItemId,
+            quantity: quantity,
+          );
+      state = await AsyncValue.guard(
+        () => ref.read(eventServiceProvider).getEvent(arg),
       );
-      state = await AsyncValue.guard(() => ref.read(eventServiceProvider).getEvent(arg));
       ref.invalidate(myTicketsProvider);
       ref.invalidate(myTicketProvider(arg));
     } catch (e) {
@@ -334,16 +444,22 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
     if (current == null) return;
 
     final wasConfirmed = current.isParticipating;
-    state = AsyncValue.data(current.copyWith(
-      isParticipating: false,
-      isWaitlisted: false,
-      participantsCount: wasConfirmed ? current.participantsCount - 1 : current.participantsCount,
-      userParticipation: null,
-    ));
+    state = AsyncValue.data(
+      current.copyWith(
+        isParticipating: false,
+        isWaitlisted: false,
+        participantsCount: wasConfirmed
+            ? current.participantsCount - 1
+            : current.participantsCount,
+        userParticipation: null,
+      ),
+    );
 
     try {
       await ref.read(eventServiceProvider).cancelParticipation(arg);
-      state = await AsyncValue.guard(() => ref.read(eventServiceProvider).getEvent(arg));
+      state = await AsyncValue.guard(
+        () => ref.read(eventServiceProvider).getEvent(arg),
+      );
       ref.invalidate(myTicketsProvider);
       ref.invalidate(myTicketProvider(arg));
     } catch (e) {
@@ -351,6 +467,7 @@ class EventDetailNotifier extends FamilyAsyncNotifier<EventModel, String> {
       rethrow;
     }
   }
+
   Future<void> refresh() async {
     state = await AsyncValue.guard(
       () => ref.read(eventServiceProvider).getEvent(arg),
@@ -367,42 +484,48 @@ final myEventStatsProvider = FutureProvider<Map<String, int>>((ref) async {
 
 /// Listes « Mes événements » par type :
 /// organizing | organized | participating | participated
-final myEventsProvider =
-    FutureProvider.autoDispose.family<List<EventModel>, String>((ref, type) {
-  return ref.read(eventServiceProvider).getMyEvents(type);
-});
+final myEventsProvider = FutureProvider.autoDispose
+    .family<List<EventModel>, String>((ref, type) {
+      return ref.read(eventServiceProvider).getMyEvents(type);
+    });
 
 // ── Dashboard statistiques d'un événement (organisateur) ─────────────────────
 
-final eventStatsProvider =
-    FutureProvider.autoDispose.family<EventStats, String>((ref, eventId) {
-  return ref.read(eventServiceProvider).getEventStats(eventId);
-});
+final eventStatsProvider = FutureProvider.autoDispose
+    .family<EventStats, String>((ref, eventId) {
+      return ref.read(eventServiceProvider).getEventStats(eventId);
+    });
 
 // ── Boost ─────────────────────────────────────────────────────────────────────
 
-final eventBoostProvider =
-    FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, eventId) {
-  return ref.read(eventServiceProvider).getBoost(eventId);
-});
+final eventBoostProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, String>((ref, eventId) {
+      return ref.read(eventServiceProvider).getBoost(eventId);
+    });
 
 /// Events boostés candidats au popup d'ouverture (autoDispose : rechargé à chaque ouverture).
-final boostedPopupProvider = FutureProvider.autoDispose<List<EventModel>>((ref) {
+final boostedPopupProvider = FutureProvider.autoDispose<List<EventModel>>((
+  ref,
+) {
   return ref.read(eventServiceProvider).getBoostedPopup();
 });
 
 // ── Favoris ───────────────────────────────────────────────────────────────────
 
-final savedEventsProvider = AsyncNotifierProvider<SavedEventsNotifier, List<EventModel>>(
-  SavedEventsNotifier.new,
-);
+final savedEventsProvider =
+    AsyncNotifierProvider<SavedEventsNotifier, List<EventModel>>(
+      SavedEventsNotifier.new,
+    );
 
 class SavedEventsNotifier extends AsyncNotifier<List<EventModel>> {
   @override
   Future<List<EventModel>> build() =>
       ref.read(eventServiceProvider).getSavedEvents();
 
-  Future<void> toggleSave(String eventId, {required bool currentlySaved}) async {
+  Future<void> toggleSave(
+    String eventId, {
+    required bool currentlySaved,
+  }) async {
     final svc = ref.read(eventServiceProvider);
     if (currentlySaved) {
       await svc.unsaveEvent(eventId);
@@ -417,5 +540,5 @@ class SavedEventsNotifier extends AsyncNotifier<List<EventModel>> {
 
 final eventWaitlistProvider = FutureProvider.autoDispose
     .family<List<ParticipantModel>, String>((ref, eventId) {
-  return ref.read(eventServiceProvider).getWaitlist(eventId);
-});
+      return ref.read(eventServiceProvider).getWaitlist(eventId);
+    });
