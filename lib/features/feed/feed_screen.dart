@@ -296,6 +296,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   async: nearbyAsync,
                   maxItems: 3,
                   includeHot: true,
+                  showExploreCard: true,
                   emptyLabel: 'Aucun événement pour le moment',
                   onRetry: () =>
                       ref.read(nearbyEventsFeedProvider.notifier).refresh(),

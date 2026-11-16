@@ -44,17 +44,15 @@ void _exitEventDetail(BuildContext context) {
 }
 
 PreferredSizeWidget _backOnlyAppBar(BuildContext context) => AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      automaticallyImplyLeading: false,
-      leadingWidth: 68,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: Sp.md),
-        child: Center(
-          child: TpBackButton(onTap: () => _exitEventDetail(context)),
-        ),
-      ),
-    );
+  backgroundColor: Colors.transparent,
+  elevation: 0,
+  automaticallyImplyLeading: false,
+  leadingWidth: 68,
+  leading: Padding(
+    padding: const EdgeInsets.only(left: Sp.md),
+    child: Center(child: TpBackButton(onTap: () => _exitEventDetail(context))),
+  ),
+);
 
 /// Fond neutre des boutons superposés à une photo (hero) — volontairement
 /// indépendant du thème clair/sombre puisqu'il repose sur une image, pas
@@ -79,53 +77,54 @@ class EventDetailScreen extends ConsumerStatefulWidget {
 
 class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
     with WidgetsBindingObserver {
-      bool _expanded = false;
-      Timer? _pollTimer;
-      bool _redeeming = false;
+  bool _expanded = false;
+  Timer? _pollTimer;
+  bool _redeeming = false;
 
-      @override
-      void initState() {
-        super.initState();
-        WidgetsBinding.instance.addObserver(this);
-        final code = widget.inviteCode;
-        if (code != null && code.isNotEmpty) {
-          _redeeming = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _redeemInvite(code));
-        }
-        _startPollingIfPending();
-      }
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final code = widget.inviteCode;
+    if (code != null && code.isNotEmpty) {
+      _redeeming = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _redeemInvite(code));
+    }
+    _startPollingIfPending();
+  }
 
-      @override
-      void dispose() {
-        WidgetsBinding.instance.removeObserver(this);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(eventDetailProvider(widget.id).notifier).refresh();
+    }
+  }
+
+  void _startPollingIfPending() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      final event = ref.read(eventDetailProvider(widget.id)).valueOrNull;
+      if (event == null) return;
+      if (event.myJoinRequestStatus == 'pending') {
+        ref.read(eventDetailProvider(widget.id).notifier).refresh();
+      } else {
         _pollTimer?.cancel();
-        super.dispose();
       }
+    });
+  }
 
-      @override
-      void didChangeAppLifecycleState(AppLifecycleState state) {
-        if (state == AppLifecycleState.resumed) {
-          ref.read(eventDetailProvider(widget.id).notifier).refresh();
-        }
-      }
-
-      void _startPollingIfPending() {
-        _pollTimer?.cancel();
-        _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-          final event = ref.read(eventDetailProvider(widget.id)).valueOrNull;
-          if (event == null) return;
-          if (event.myJoinRequestStatus == 'pending') {
-            ref.read(eventDetailProvider(widget.id).notifier).refresh();
-          } else {
-            _pollTimer?.cancel();
-          }
-        });
-      }
-
-    Future<void> _redeemInvite(String code) async {
+  Future<void> _redeemInvite(String code) async {
     try {
-      final res =
-          await ref.read(invitationServiceProvider).joinByLink(widget.id, code);
+      final res = await ref
+          .read(invitationServiceProvider)
+          .joinByLink(widget.id, code);
       if (!mounted) return;
       TpToast.success(
         context,
@@ -146,79 +145,82 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen>
       }
     }
   }
-@override
-Widget build(BuildContext context) {
-  final eventAsync = ref.watch(eventDetailProvider(widget.id));
-  if (_redeeming) {
-    return const Scaffold(body: SingleChildScrollView(child: SkEventDetail()));
-  }
 
-  return eventAsync.when(
-    loading: () =>
-        const Scaffold(body: SingleChildScrollView(child: SkEventDetail())),
-    error: (e, _) {
-      final code = e is ApiException ? e.statusCode : null;
-      if (code == 403) return _PrivateEventGate(eventId: widget.id);
-      final isNotFound = code == 404;
-      return Scaffold(
-        backgroundColor: context.tpBg,
-        appBar: _backOnlyAppBar(context),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Sp.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  PhosphorIcons.warningCircle(),
-                  size: 48,
-                  color: context.tpInkMute,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  isNotFound
-                      ? 'Cet événement n\'est plus disponible'
-                      : 'Impossible de charger l\'événement',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: context.tpInkSub,
+  @override
+  Widget build(BuildContext context) {
+    final eventAsync = ref.watch(eventDetailProvider(widget.id));
+    if (_redeeming) {
+      return const Scaffold(
+        body: SingleChildScrollView(child: SkEventDetail()),
+      );
+    }
+
+    return eventAsync.when(
+      loading: () =>
+          const Scaffold(body: SingleChildScrollView(child: SkEventDetail())),
+      error: (e, _) {
+        final code = e is ApiException ? e.statusCode : null;
+        if (code == 403) return _PrivateEventGate(eventId: widget.id);
+        final isNotFound = code == 404;
+        return Scaffold(
+          backgroundColor: context.tpBg,
+          appBar: _backOnlyAppBar(context),
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Sp.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    PhosphorIcons.warningCircle(),
+                    size: 48,
+                    color: context.tpInkMute,
                   ),
-                ),
-                const SizedBox(height: 20),
-                TpButton(
-                  label: isNotFound ? 'Retour' : 'Réessayer',
-                  icon: isNotFound
-                      ? PhosphorIcons.arrowLeft()
-                      : PhosphorIcons.arrowCounterClockwise(),
-                  size: TpButtonSize.md,
-                  state: TpButtonState.idle,
-                  onPressed: isNotFound
-                      ? () => _exitEventDetail(context)
-                      : () => ref.invalidate(eventDetailProvider(widget.id)),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    isNotFound
+                        ? 'Cet événement n\'est plus disponible'
+                        : 'Impossible de charger l\'événement',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: context.tpInkSub,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TpButton(
+                    label: isNotFound ? 'Retour' : 'Réessayer',
+                    icon: isNotFound
+                        ? PhosphorIcons.arrowLeft()
+                        : PhosphorIcons.arrowCounterClockwise(),
+                    size: TpButtonSize.md,
+                    state: TpButtonState.idle,
+                    onPressed: isNotFound
+                        ? () => _exitEventDetail(context)
+                        : () => ref.invalidate(eventDetailProvider(widget.id)),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-    data: (event) => _EventDetailContent(
-      event: event,
-      expanded: _expanded,
-      onToggleExpand: () => setState(() => _expanded = !_expanded),
-      onParticipate: (itemId, qty) => ref
-          .read(eventDetailProvider(widget.id).notifier)
-          .participate(contributionItemId: itemId, quantity: qty),
-      onCancelParticipation: () => ref
-          .read(eventDetailProvider(widget.id).notifier)
-          .cancelParticipation(),
-      onJoinWaitlist: () =>
-          ref.read(eventDetailProvider(widget.id).notifier).participate(),
-    ),
-  );
-}
+        );
+      },
+      data: (event) => _EventDetailContent(
+        event: event,
+        expanded: _expanded,
+        onToggleExpand: () => setState(() => _expanded = !_expanded),
+        onParticipate: (itemId, qty) => ref
+            .read(eventDetailProvider(widget.id).notifier)
+            .participate(contributionItemId: itemId, quantity: qty),
+        onCancelParticipation: () => ref
+            .read(eventDetailProvider(widget.id).notifier)
+            .cancelParticipation(),
+        onJoinWaitlist: () =>
+            ref.read(eventDetailProvider(widget.id).notifier).participate(),
+      ),
+    );
+  }
 }
 
 class _EventDetailContent extends ConsumerStatefulWidget {
@@ -245,6 +247,7 @@ class _EventDetailContent extends ConsumerStatefulWidget {
 
 class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
   late bool _following;
+  int _tab = 0; // 0 Tickets · 1 Détails · 2 Gestion
   double? _distanceKm; // distance user → event (km), si la position est connue
 
   @override
@@ -267,9 +270,14 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
         return;
       }
       final pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      final meters =
-          Geolocator.distanceBetween(pos.latitude, pos.longitude, lat, lng);
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final meters = Geolocator.distanceBetween(
+        pos.latitude,
+        pos.longitude,
+        lat,
+        lng,
+      );
       if (mounted) setState(() => _distanceKm = meters / 1000);
     } catch (e) {
       debugPrint('EventDetail: échec calcul distance — $e');
@@ -308,7 +316,8 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final confirmed = await TpConfirmSheet.show(
       context,
       title: 'Supprimer cet événement ?',
-      body: 'Cette action est irréversible. L\'événement « ${event.title} » et '
+      body:
+          'Cette action est irréversible. L\'événement « ${event.title} » et '
           'ses billets seront définitivement supprimés. Les participants '
           'confirmés seront prévenus.',
       confirmLabel: 'Supprimer',
@@ -331,24 +340,26 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     }
   }
 
+  bool get _canManage => _isOrganizer || event.isCoOrganizer || event.canScan;
+
   @override
   Widget build(BuildContext context) {
     final heroH = (MediaQuery.of(context).size.height * 0.42).clamp(
       260.0,
       420.0,
     );
-    
+    final canManage = _canManage;
+    // Si les droits changent (ex. retiré du staff), on évite un onglet fantôme.
+    final tab = (_tab == 2 && !canManage) ? 0 : _tab;
 
-      
     return Scaffold(
       backgroundColor: context.tpBg,
       body: Stack(
         children: [
-          SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Column(
+          CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(height: heroH, child: _buildHero(context)),
@@ -402,33 +413,194 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       padding: const EdgeInsets.symmetric(horizontal: Sp.md),
                       child: _buildOrganizerCard(context),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                   ],
                 ),
-                _buildInfoGrid(context),
-                _buildOrganizerTools(context),
-                if (_locked) _buildPrivateLockedNotice(context),
-                _buildDescription(context),
-                if (event.ticketCategories.isNotEmpty)
-                  _buildTicketCategories(context),
-                if (event.contributionItems.isNotEmpty ||
-                    event.allowInKindProposals ||
-                    event.myInKindProposal != null)
-                  _buildContributions(context),
-                _buildMinimap(context),
-                _buildParticipantActions(context),
-                const SizedBox(height: 100),
-              ],
+              ),
+              // Onglets collés en haut au scroll : Tickets · Détails · Gestion
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _DetailTabsDelegate(
+                  selected: tab,
+                  showManage: canManage,
+                  bg: context.tpBg,
+                  onSelect: (i) => setState(() => _tab = i),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: Sp.md),
+                  child: KeyedSubtree(
+                    key: ValueKey('detail_tab_$tab'),
+                    child: switch (tab) {
+                      0 => _buildTicketsTab(context),
+                      1 => _buildDetailsTab(context),
+                      _ => _buildManageTab(context),
+                    },
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 110)),
+            ],
+          ),
+          // CTA de réservation : sur Tickets et Détails, pas sur Gestion.
+          if (tab != 2)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _buildBottomCta(context),
             ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomCta(context),
-          ),
         ],
       ),
+    );
+  }
+
+  // ── Onglet 1 : Tickets (prix + tout ce qui concerne la réservation) ────────
+  Widget _buildTicketsTab(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_locked) _buildPrivateLockedNotice(context),
+        _buildPriceSummary(context),
+        if (event.ticketCategories.isNotEmpty) _buildTicketCategories(context),
+        if (event.contributionItems.isNotEmpty ||
+            event.allowInKindProposals ||
+            event.myInKindProposal != null)
+          _buildContributions(context),
+        _buildParticipantActions(context, tickets: true),
+      ],
+    );
+  }
+
+  // ── Onglet 2 : Détails (tout sur l'événement) ──────────────────────────────
+  Widget _buildDetailsTab(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildInfoGrid(context),
+        _buildDescription(context),
+        _buildMinimap(context),
+      ],
+    );
+  }
+
+  // ── Onglet 3 : Gestion (organisateur, co-organisateurs, staff) ─────────────
+  Widget _buildManageTab(BuildContext context) {
+    final isOrganizer = _isOrganizer;
+    final canManage = isOrganizer || event.isCoOrganizer; // hors simple staff
+    final canBoost =
+        isOrganizer &&
+        event.status == 'published' &&
+        (event.visibility == 'public' || event.showPrivateEventPublicly);
+    final title = {'title': event.title};
+
+    Widget section(String label, List<Widget> tiles) => Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: Sp.sm),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: context.tpInkSub,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+          ...tiles,
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Accès rapide à l'entrée (staff inclus)
+        if (event.canScan)
+          section('ENTRÉES', [
+            _ManageTile(
+              icon: PhosphorIcons.qrCode(),
+              title: 'Scanner les entrées',
+              subtitle: 'Scanner le QR code d\'un billet',
+              highlight: true,
+              onTap: () => context.push('/event/${event.id}/scan'),
+            ),
+            _ManageTile(
+              icon: PhosphorIcons.listChecks(),
+              title: 'Entrées validées',
+              subtitle: 'Liste des billets scannés',
+              onTap: () =>
+                  context.push('/event/${event.id}/checkins', extra: title),
+            ),
+          ]),
+        if (canManage)
+          section('PILOTAGE', [
+            _buildDashboardEntry(context),
+            _ManageTile(
+              icon: PhosphorIcons.users(),
+              title: 'Participants',
+              subtitle: event.showTicketCounts && event.maxParticipants != null
+                  ? '${event.participantsCount} / ${event.maxParticipants}'
+                  : '${event.participantsCount} inscrits',
+              onTap: () =>
+                  context.push('/event/${event.id}/participants', extra: title),
+            ),
+            _ManageTile(
+              icon: PhosphorIcons.userPlus(),
+              title: 'Inviter des personnes',
+              subtitle: 'Invitations et lien de partage',
+              onTap: () =>
+                  context.push('/event/${event.id}/invite', extra: title),
+            ),
+            _ManageTile(
+              icon: PhosphorIcons.identificationBadge(),
+              title: 'Staff',
+              subtitle: 'Membres autorisés à scanner',
+              onTap: () =>
+                  context.push('/event/${event.id}/staff', extra: title),
+            ),
+            if (isOrganizer)
+              _ManageTile(
+                icon: PhosphorIcons.usersThree(),
+                title: 'Co-organisateurs',
+                subtitle: 'Gérer qui co-organise',
+                onTap: () => context.push(
+                  '/event/${event.id}/co-organizers',
+                  extra: title,
+                ),
+              ),
+          ]),
+        if (canBoost) section('PROMOTION', [_buildBoostEntry(context)]),
+        if (isOrganizer)
+          section('ÉVÉNEMENT', [
+            _ManageTile(
+              icon: PhosphorIcons.pencilSimple(),
+              title: 'Modifier l\'événement',
+              subtitle: 'Infos, billets, date, lieu…',
+              onTap: () =>
+                  context.push('/event/${event.id}/edit', extra: event),
+            ),
+            _ManageTile(
+              icon: PhosphorIcons.copySimple(),
+              title: 'Dupliquer l\'événement',
+              subtitle: 'Créer une copie à modifier',
+              onTap: () =>
+                  context.push('/event/${event.id}/clone', extra: event),
+            ),
+            _ManageTile(
+              icon: PhosphorIcons.trash(),
+              title: 'Supprimer l\'événement',
+              subtitle: 'Action irréversible',
+              danger: true,
+              onTap: _confirmDeleteEvent,
+            ),
+          ]),
+      ],
     );
   }
 
@@ -445,10 +617,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
         ),
         child: const Text(
           'Cet événement est privé. Pour participer, envoyez une demande à l’organisateur.',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -496,7 +665,6 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               ),
               child: Builder(
                 builder: (context) {
-                  final isOrganizer = _isOrganizer;
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -508,36 +676,6 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                         padding: const EdgeInsets.only(top: 40),
                         child: Column(
                           children: [
-                            if (isOrganizer) ...[
-                              _HeroBtn(
-                                icon: PhosphorIcons.pencilSimple(),
-                                semanticLabel: 'Modifier l\'événement',
-                                backgroundColor: _kHeroOverlay.withValues(alpha: 0.9),
-                                onTap: () => context.push(
-                                  '/event/${event.id}/edit',
-                                  extra: event,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _HeroBtn(
-                                icon: PhosphorIcons.copySimple(),
-                                semanticLabel: 'Dupliquer l\'événement',
-                                backgroundColor: _kHeroOverlay.withValues(alpha: 0.9),
-                                onTap: () => context.push(
-                                  '/event/${event.id}/clone',
-                                  extra: event,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _HeroBtn(
-                                icon: PhosphorIcons.trash(),
-                                semanticLabel: 'Supprimer l\'événement',
-                                backgroundColor:
-                                    kError.withValues(alpha: 0.9),
-                                onTap: _confirmDeleteEvent,
-                              ),
-                              const SizedBox(height: 8),
-                            ],
                             _HeroBtn(
                               icon: event.isSaved
                                   ? PhosphorIcons.heart(PhosphorIconsStyle.fill)
@@ -746,6 +884,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     );
   }
 
+  /// Onglet « Détails » : date, lieu et (si public) nombre d'inscrits.
   Widget _buildInfoGrid(BuildContext context) {
     final startFormatted = DateFormat(
       'EEE d MMM · HH\'h\'mm',
@@ -758,33 +897,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     final participantLabel = !event.showTicketCounts
         ? 'Participants'
         : event.maxParticipants != null
-            ? '${event.participantsCount} / ${event.maxParticipants}'
-            : '${event.participantsCount} participants';
-
-    // Seuls l'organisateur et les co-organisateurs peuvent ouvrir la liste des
-    // participants. Pour les autres, on retire le bouton de navigation : on garde
-    // une carte d'info (non cliquable) si les compteurs sont publics, sinon on
-    // laisse la carte « contribution » occuper toute la largeur.
+        ? '${event.participantsCount} / ${event.maxParticipants}'
+        : '${event.participantsCount} participants';
     final canSeeParticipants = _isOrganizer || event.isCoOrganizer;
-    final showParticipantsInfo = !canSeeParticipants && event.showTicketCounts;
-
-    final contribCard = _InfoCard(
-      icon: PhosphorIcons.gift(),
-      iconColor: kWarning,
-      title: _contribLabel(event.contributionType),
-      subtitle: event.contributionType != 'monetaire'
-          ? 'Entrée libre'
-          : [
-              // Prix de départ basé sur les catégories (à jour),
-              // sinon prix unique legacy.
-              if (event.priceFrom != null)
-                'Dès ${event.priceFrom} FCFA'
-              else if (event.contributionAmount != null)
-                '${event.contributionAmount!.toStringAsFixed(0)} FCFA',
-              if (event.contributionItems.isNotEmpty)
-                '${event.contributionItems.length} en nature',
-            ].join(' · '),
-    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
@@ -811,69 +926,39 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               ),
             ],
           ),
-          const SizedBox(height: Sp.sm),
-          if (canSeeParticipants)
-            Row(
-              children: [
-                Expanded(
-                  child: Semantics(
-                    button: true,
-                    label: 'Voir les participants',
-                    child: GestureDetector(
-                      onTap: () =>
-                          context.push('/event/${event.id}/participants'),
-                      child: _InfoCard(
-                        icon: PhosphorIcons.users(),
-                        iconColor: kSuccess,
-                        title: participantLabel,
-                        subtitle: 'Voir participants →',
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: Sp.sm),
-                Expanded(child: contribCard),
-              ],
-            )
-          else if (showParticipantsInfo)
-            Row(
-              children: [
-                Expanded(
-                  child: _InfoCard(
-                    icon: PhosphorIcons.users(),
-                    iconColor: kSuccess,
-                    title: participantLabel,
-                    subtitle: 'Inscrits',
-                  ),
-                ),
-                const SizedBox(width: Sp.sm),
-                Expanded(child: contribCard),
-              ],
-            )
-          else
-            contribCard,
+          if (canSeeParticipants || event.showTicketCounts) ...[
+            const SizedBox(height: Sp.sm),
+            _InfoCard(
+              icon: PhosphorIcons.users(),
+              iconColor: kSuccess,
+              title: participantLabel,
+              subtitle: 'Inscrits',
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildOrganizerTools(BuildContext context) {
-    final isOrganizer = _isOrganizer;
-    // Les co-organisateurs accèdent aussi au tableau de bord (participants,
-    // entrées, staff…). Le backend les autorise déjà sur ces endpoints.
-    final canManage = isOrganizer || event.isCoOrganizer;
-    if (!canManage) return const SizedBox.shrink();
-
-    // Le boost (promo payante) reste réservé à l'organisateur principal.
-    final canBoost = isOrganizer &&
-        event.status == 'published' &&
-        (event.visibility == 'public' || event.showPrivateEventPublicly);
-
-    return Column(
-      children: [
-        _buildDashboardEntry(context),
-        if (canBoost) _buildBoostEntry(context),
-      ],
+  /// Onglet « Tickets » : résumé du tarif (gratuit / dès X FCFA / en nature).
+  Widget _buildPriceSummary(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Sp.md, 0, Sp.md, Sp.md),
+      child: _InfoCard(
+        icon: PhosphorIcons.gift(),
+        iconColor: kWarning,
+        title: _contribLabel(event.contributionType),
+        subtitle: event.contributionType != 'monetaire'
+            ? 'Entrée libre'
+            : [
+                if (event.priceFrom != null)
+                  'Dès ${event.priceFrom} FCFA'
+                else if (event.contributionAmount != null)
+                  '${event.contributionAmount!.toStringAsFixed(0)} FCFA',
+                if (event.contributionItems.isNotEmpty)
+                  '${event.contributionItems.length} en nature',
+              ].join(' · '),
+      ),
     );
   }
 
@@ -972,9 +1057,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
             decoration: BoxDecoration(
               color: context.tpCard,
               borderRadius: BorderRadius.circular(Radii.lg),
-              border: Border.all(
-                color: kWarning.withValues(alpha: 0.35),
-              ),
+              border: Border.all(color: kWarning.withValues(alpha: 0.35)),
             ),
             child: Row(
               children: [
@@ -987,8 +1070,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     ),
                     borderRadius: BorderRadius.circular(Radii.md),
                   ),
-                  child: const Icon(Icons.rocket_launch_rounded,
-                      color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.rocket_launch_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1016,7 +1102,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                     ],
                   ),
                 ),
-                Icon(PhosphorIcons.caretRight(), color: context.tpInkSub, size: 18),
+                Icon(
+                  PhosphorIcons.caretRight(),
+                  color: context.tpInkSub,
+                  size: 18,
+                ),
               ],
             ),
           ),
@@ -1167,10 +1257,10 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
           ),
           const SizedBox(height: Sp.sm),
           // Les cartes de billets sont purement informatives (aucune action au tap).
-          ...cats.map((c) => _CategoryCard(
-                category: c,
-                showCounts: event.showTicketCounts,
-              )),
+          ...cats.map(
+            (c) =>
+                _CategoryCard(category: c, showCounts: event.showTicketCounts),
+          ),
         ],
       ),
     );
@@ -1249,7 +1339,9 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           right: 8,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 9, vertical: 5),
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xE61B1A2E),
                               borderRadius: BorderRadius.circular(Radii.pill),
@@ -1257,8 +1349,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(PhosphorIcons.personSimpleWalk(),
-                                    size: 12, color: Colors.white),
+                                Icon(
+                                  PhosphorIcons.personSimpleWalk(),
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   'à ${_fmtKm(_distanceKm!)}',
@@ -1290,8 +1385,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           ),
                           child: Row(
                             children: [
-                              Icon(PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
-                                  size: 13, color: Colors.white),
+                              Icon(
+                                PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                                size: 13,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -1328,9 +1426,13 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     );
   }
 
-  Widget _buildParticipantActions(BuildContext context) {
-    final participating = event.isParticipating;
-    final canScan = event.canScan;
+  Widget _buildParticipantActions(
+    BuildContext context, {
+    bool tickets = false,
+    bool scan = false,
+  }) {
+    final participating = tickets && event.isParticipating;
+    final canScan = scan && event.canScan;
     if (!participating && !canScan) return const SizedBox.shrink();
 
     return Padding(
@@ -1343,7 +1445,10 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
               label: event.myTicketsCount > 1 ? 'Mes billets' : 'Mon billet',
               child: GestureDetector(
                 onTap: () => context.push(
-                    event.myTicketsCount > 1 ? '/my-tickets' : '/ticket/${event.id}'),
+                  event.myTicketsCount > 1
+                      ? '/my-tickets'
+                      : '/ticket/${event.id}',
+                ),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -1500,20 +1605,26 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     // NI option en nature disponible. (max_participants est null dans ce mode,
     // donc event.isFull ne le détecte pas — on regarde le stock réel.)
     final usesCategories = event.ticketCategories.isNotEmpty;
-    final paidSoldOut = isPaid && usesCategories &&
-        !event.ticketCategories.any((c) => c.price > 0 && c.onSale && !c.isSoldOut) &&
+    final paidSoldOut =
+        isPaid &&
+        usesCategories &&
+        !event.ticketCategories.any(
+          (c) => c.price > 0 && c.onSale && !c.isSoldOut,
+        ) &&
         !event.contributionItems.any((i) => i.isAvailable) &&
         !event.allowInKindProposals;
 
     final IconData? iconData = isPaid
-        ? ((atLimit || paidSoldOut) ? null : PhosphorIcons.ticket()) // pas d'icône → texte centré
+        ? ((atLimit || paidSoldOut)
+              ? null
+              : PhosphorIcons.ticket()) // pas d'icône → texte centré
         : participating
-            ? PhosphorIcons.xCircle()
-            : waitlisted
-                ? PhosphorIcons.clockCountdown()
-                : fullNoSlot
-                    ? PhosphorIcons.listPlus()
-                    : PhosphorIcons.checkCircle();
+        ? PhosphorIcons.xCircle()
+        : waitlisted
+        ? PhosphorIcons.clockCountdown()
+        : fullNoSlot
+        ? PhosphorIcons.listPlus()
+        : PhosphorIcons.checkCircle();
 
     String label;
     if (cancelled) {
@@ -1531,11 +1642,11 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
         label = 'Je participe';
       }
     } else if (participating) {
-        if (event.myTicketsCount > 0) {
-          label = 'Annuler ma participation';
-        } else {
-          label = 'Je participe';
-        }
+      if (event.myTicketsCount > 0) {
+        label = 'Annuler ma participation';
+      } else {
+        label = 'Je participe';
+      }
     } else if (waitlisted) {
       final pos = event.waitlistPosition;
       label = pos != null
@@ -1634,7 +1745,7 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                           'Impossible d\'envoyer la demande.',
                         );
                       }
-                    }
+                    },
             ),
           ),
         ),
@@ -1652,8 +1763,6 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
           padding: const EdgeInsets.fromLTRB(Sp.md, Sp.md, Sp.md, Sp.md),
           child: Row(
             children: [
-              
-
               Semantics(
                 button: true,
                 label: canAccessChat
@@ -1667,9 +1776,14 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                             context: context,
                             builder: (_) => AlertDialog(
                               title: const Text('Billet requis'),
-                              content: const Text('Vous devez avoir un billet pour rejoindre le chat de cet événement.'),
+                              content: const Text(
+                                'Vous devez avoir un billet pour rejoindre le chat de cet événement.',
+                              ),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('OK'),
+                                ),
                               ],
                             ),
                           );
@@ -1694,41 +1808,45 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                 ),
               ),
               const SizedBox(width: Sp.md),
-              Builder(builder: (context) {
-                // Organisateur / co-organisateur → invite directement (sheet de
-                // recherche ou écran bulk pour un event privé). Participant simple
-                // → partage le lien de l'event (pas de pouvoir d'invitation).
-                final canInviteDirectly = _isOrganizer || event.isCoOrganizer;
-                return Semantics(
-                  button: true,
-                  label: canInviteDirectly ? 'Inviter un ami' : 'Partager l\'événement',
-                  child: GestureDetector(
-                    onTap: () => canInviteDirectly
-                        ? _showInviteSheet(context)
-                        : showEventShareSheet(
-                            context,
-                            eventId: event.id,
-                            eventTitle: event.title,
-                          ),
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade700.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(Radii.lg),
-                        border: Border.all(color: context.tpHair),
-                      ),
-                      child: Icon(
-                        canInviteDirectly
-                            ? PhosphorIcons.userPlus()
-                            : PhosphorIcons.shareNetwork(),
-                        color: Colors.white,
-                        size: 22,
+              Builder(
+                builder: (context) {
+                  // Organisateur / co-organisateur → invite directement (sheet de
+                  // recherche ou écran bulk pour un event privé). Participant simple
+                  // → partage le lien de l'event (pas de pouvoir d'invitation).
+                  final canInviteDirectly = _isOrganizer || event.isCoOrganizer;
+                  return Semantics(
+                    button: true,
+                    label: canInviteDirectly
+                        ? 'Inviter un ami'
+                        : 'Partager l\'événement',
+                    child: GestureDetector(
+                      onTap: () => canInviteDirectly
+                          ? _showInviteSheet(context)
+                          : showEventShareSheet(
+                              context,
+                              eventId: event.id,
+                              eventTitle: event.title,
+                            ),
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade700.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(Radii.lg),
+                          border: Border.all(color: context.tpHair),
+                        ),
+                        child: Icon(
+                          canInviteDirectly
+                              ? PhosphorIcons.userPlus()
+                              : PhosphorIcons.shareNetwork(),
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                },
+              ),
               const SizedBox(width: Sp.sm),
               Expanded(
                 child: TpButton(
@@ -1739,31 +1857,36 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
                       ? TpButtonState.disabled
                       : TpButtonState.idle,
                   onPressed: isDisabled
-                    ? null
-                    : () async {
-                        if (isPaid) {
-                          // Le panier gère billets par catégorie, à prix
-                          // unique, et contributions en nature — quel que
-                          // soit le mode de tarification de l'event.
-                          context.push('/event/${event.id}/participate', extra: event);
-                          return;
-                        }
-                        try {
-                          if (participating || waitlisted) {
-                            await widget.onCancelParticipation();
-                          } else if (fullNoSlot) {
-                            await widget.onJoinWaitlist();
-                          } else {
-                            await widget.onParticipate(null, 1);
+                      ? null
+                      : () async {
+                          if (isPaid) {
+                            // Le panier gère billets par catégorie, à prix
+                            // unique, et contributions en nature — quel que
+                            // soit le mode de tarification de l'event.
+                            context.push(
+                              '/event/${event.id}/participate',
+                              extra: event,
+                            );
+                            return;
                           }
-                        } catch (e) {
-                          if (!mounted) return;
-                          TpToast.error(
-                            context,
-                            e is ApiException ? e.message : 'Action impossible.',
-                          );
-                        }
-                      },
+                          try {
+                            if (participating || waitlisted) {
+                              await widget.onCancelParticipation();
+                            } else if (fullNoSlot) {
+                              await widget.onJoinWaitlist();
+                            } else {
+                              await widget.onParticipate(null, 1);
+                            }
+                          } catch (e) {
+                            if (!mounted) return;
+                            TpToast.error(
+                              context,
+                              e is ApiException
+                                  ? e.message
+                                  : 'Action impossible.',
+                            );
+                          }
+                        },
                 ),
               ),
             ],
@@ -1777,8 +1900,8 @@ class _EventDetailContentState extends ConsumerState<_EventDetailContent> {
     // Organisateur / co-org d'un événement privé → écran d'invitation complet
     // (sélection par listes + « tout sélectionner » + lien partageable). Sinon,
     // sheet simple d'invitation par recherche (un destinataire à la fois).
-    final canBulk = (_isOrganizer || event.isCoOrganizer) &&
-        event.visibility == 'private';
+    final canBulk =
+        (_isOrganizer || event.isCoOrganizer) && event.visibility == 'private';
     if (canBulk) {
       context.push('/event/${event.id}/invite', extra: {'title': event.title});
       return;
@@ -1949,36 +2072,51 @@ class _CategoryCard extends StatelessWidget {
     return Opacity(
       opacity: category.isSoldOut ? 0.5 : 1,
       child: Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.tpCard,
-        borderRadius: BorderRadius.circular(Radii.lg),
-        border: Border.all(color: context.tpHair),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Container(
-              width: 8, height: 8,
-              decoration: BoxDecoration(color: _accent, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(category.name,
-                  style: TextStyle(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: context.tpCard,
+          borderRadius: BorderRadius.circular(Radii.lg),
+          border: Border.all(color: context.tpHair),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    category.name,
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
-                      color: context.tpInk)),
+                      color: context.tpInk,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${category.price} FCFA',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: _accent,
+                  ),
+                ),
+              ],
             ),
-            Text('${category.price} FCFA',
-                style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w900, color: _accent)),
-          ]),
-          if (category.advantages.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ...category.advantages.map((a) => Padding(
+            if (category.advantages.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ...category.advantages.map(
+                (a) => Padding(
                   padding: const EdgeInsets.only(bottom: 3),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1986,40 +2124,53 @@ class _CategoryCard extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 6, right: 8),
                         child: Container(
-                          width: 5, height: 5,
+                          width: 5,
+                          height: 5,
                           decoration: BoxDecoration(
-                              color: _accent, shape: BoxShape.circle),
+                            color: _accent,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                       ),
                       Expanded(
-                        child: Text(a,
-                            style: TextStyle(
-                                fontSize: 13,
-                                height: 1.4,
-                                fontWeight: FontWeight.w600,
-                                color: context.tpInkSub)),
+                        child: Text(
+                          a,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                            color: context.tpInkSub,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                )),
-          ],
-          if (_stockLabel != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _stockColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(Radii.pill),
+                ),
               ),
-              child: Text(_stockLabel!,
+            ],
+            if (_stockLabel != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: _stockColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(Radii.pill),
+                ),
+                child: Text(
+                  _stockLabel!,
                   style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: _stockColor)),
-            ),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: _stockColor,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -2030,7 +2181,8 @@ class _CategoryCard extends StatelessWidget {
     if (category.isSoldOut) return 'Complet';
     if (!showCounts) return null;
     if (category.isLowStock) return 'Dernières places';
-    if (category.remaining != null) return '${category.remaining} billets restants';
+    if (category.remaining != null)
+      return '${category.remaining} billets restants';
     return null;
   }
 
@@ -2055,87 +2207,87 @@ class _ContribRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: Sp.sm),
       child: Opacity(
-      opacity: item.isAvailable ? 1 : 0.5,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: context.tpCard,
-          borderRadius: BorderRadius.circular(Radii.button),
-          border: Border.all(color: context.tpHair),
-        ),
-        child: Row(
-          children: [
-            Text(item.emoji, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: context.tpInk,
+        opacity: item.isAvailable ? 1 : 0.5,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.tpCard,
+            borderRadius: BorderRadius.circular(Radii.button),
+            border: Border.all(color: context.tpHair),
+          ),
+          child: Row(
+            children: [
+              Text(item.emoji, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: context.tpInk,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 8),
+                        Text(
+                          item.isAvailable
+                              ? '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}'
+                              : 'Épuisé',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: item.isAvailable ? kSuccess : kError,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (item.categoryName != null) ...[
+                      const SizedBox(height: 3),
                       Text(
-                        item.isAvailable
-                            ? '${item.quantityRemaining} restant${item.quantityRemaining > 1 ? 's' : ''}'
-                            : 'Épuisé',
+                        'Donne un billet ${item.categoryName}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: item.isAvailable ? kSuccess : kError,
+                          color: kPrimary,
                         ),
                       ),
                     ],
-                  ),
-                  if (item.categoryName != null) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(Radii.xs),
+                      child: LinearProgressIndicator(
+                        value: ratio,
+                        backgroundColor: context.tpHair,
+                        valueColor: AlwaysStoppedAnimation(
+                          item.isAvailable ? kPrimary : kError,
+                        ),
+                        minHeight: 6,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      'Donne un billet ${item.categoryName}',
+                      '${item.quantityTaken} / ${item.quantityTotal} pris',
                       style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: kPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: context.tpInkSub,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(Radii.xs),
-                    child: LinearProgressIndicator(
-                      value: ratio,
-                      backgroundColor: context.tpHair,
-                      valueColor: AlwaysStoppedAnimation(
-                        item.isAvailable ? kPrimary : kError,
-                      ),
-                      minHeight: 6,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${item.quantityTaken} / ${item.quantityTotal} pris',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: context.tpInkSub,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -2148,10 +2300,7 @@ class _ContribRow extends StatelessWidget {
 class _InviteSheet extends ConsumerStatefulWidget {
   final String eventId;
   final String eventTitle;
-  const _InviteSheet({
-    required this.eventId,
-    required this.eventTitle,
-  });
+  const _InviteSheet({required this.eventId, required this.eventTitle});
 
   @override
   ConsumerState<_InviteSheet> createState() => _InviteSheetState();
@@ -2535,12 +2684,20 @@ class _MinimapMeMarker extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(999),
             boxShadow: const [
-              BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 2)),
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
             ],
           ),
           child: const Text(
             'Moi',
-            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: _blue),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              color: _blue,
+            ),
           ),
         ),
         const SizedBox(height: 3),
@@ -2616,8 +2773,10 @@ class _PrivateEventGateState extends ConsumerState<_PrivateEventGate> {
       TpToast.success(context, 'Demande envoyée à l\'organisateur.');
     } catch (e) {
       if (!mounted) return;
-      TpToast.error(context,
-          e is ApiException ? e.message : 'Impossible d\'envoyer la demande.');
+      TpToast.error(
+        context,
+        e is ApiException ? e.message : 'Impossible d\'envoyer la demande.',
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -2637,11 +2796,14 @@ class _PrivateEventGateState extends ConsumerState<_PrivateEventGate> {
             children: [
               Icon(PhosphorIcons.lock(), size: 48, color: context.tpInkSub),
               const SizedBox(height: 12),
-              Text('Événement privé',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: context.tpInk)),
+              Text(
+                'Événement privé',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: context.tpInk,
+                ),
+              ),
               const SizedBox(height: 8),
               Text(
                 'Envoie une demande à l\'organisateur pour accéder à cet événement.',
@@ -2671,31 +2833,36 @@ class _MyProposalStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (Color color, String title, String subtitle) = switch (proposal.status) {
+    final (
+      Color color,
+      String title,
+      String subtitle,
+    ) = switch (proposal.status) {
       'accepted' => (
-          kSuccess,
-          'Proposition acceptée · Billet généré',
-          proposal.ticketCategoryName != null
-              ? 'Catégorie : ${proposal.ticketCategoryName}'
-              : 'Consulte « Mes billets » pour ton QR code.',
-        ),
+        kSuccess,
+        'Proposition acceptée · Billet généré',
+        proposal.ticketCategoryName != null
+            ? 'Catégorie : ${proposal.ticketCategoryName}'
+            : 'Consulte « Mes billets » pour ton QR code.',
+      ),
       'rejected' => (
-          kError,
-          'Proposition refusée',
-          (proposal.rejectionReason != null && proposal.rejectionReason!.isNotEmpty)
-              ? 'Motif : ${proposal.rejectionReason}'
-              : 'Tu peux envoyer une nouvelle proposition ou prendre un billet.',
-        ),
+        kError,
+        'Proposition refusée',
+        (proposal.rejectionReason != null &&
+                proposal.rejectionReason!.isNotEmpty)
+            ? 'Motif : ${proposal.rejectionReason}'
+            : 'Tu peux envoyer une nouvelle proposition ou prendre un billet.',
+      ),
       'cancelled' => (
-          context.tpInkMute,
-          'Proposition annulée',
-          'Tu peux proposer un autre apport depuis « Je participe ».',
-        ),
+        context.tpInkMute,
+        'Proposition annulée',
+        'Tu peux proposer un autre apport depuis « Je participe ».',
+      ),
       _ => (
-          kWarning,
-          'Proposition en attente de validation',
-          'L\'organisateur examine ton offre.',
-        ),
+        kWarning,
+        'Proposition en attente de validation',
+        'L\'organisateur examine ton offre.',
+      ),
     };
 
     return Container(
@@ -2744,6 +2911,195 @@ class _MyProposalStatusBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Onglets collants : Tickets · Détails · Gestion ───────────────────────────
+
+class _DetailTabsDelegate extends SliverPersistentHeaderDelegate {
+  final int selected;
+  final bool showManage;
+  final Color bg;
+  final ValueChanged<int> onSelect;
+
+  const _DetailTabsDelegate({
+    required this.selected,
+    required this.showManage,
+    required this.bg,
+    required this.onSelect,
+  });
+
+  static const _h = 52.0;
+
+  @override
+  double get minExtent => _h;
+  @override
+  double get maxExtent => _h;
+
+  @override
+  bool shouldRebuild(covariant _DetailTabsDelegate old) =>
+      old.selected != selected || old.showManage != showManage || old.bg != bg;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final tabs = <(IconData, String)>[
+      (PhosphorIcons.ticket(), 'Tickets'),
+      (PhosphorIcons.info(), 'Détails'),
+      if (showManage) (PhosphorIcons.gearSix(), 'Gestion'),
+    ];
+    return Container(
+      height: _h,
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border(bottom: BorderSide(color: context.tpHair)),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < tabs.length; i++)
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: i == selected,
+                label: tabs[i].$2,
+                child: InkWell(
+                  onTap: () => onSelect(i),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: i == selected ? kPrimary : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          tabs[i].$1,
+                          size: 18,
+                          color: i == selected ? kPrimary : context.tpInkSub,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          tabs[i].$2,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: i == selected
+                                ? FontWeight.w900
+                                : FontWeight.w700,
+                            color: i == selected ? kPrimary : context.tpInkSub,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Tuile d'action de l'onglet Gestion ───────────────────────────────────────
+
+class _ManageTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool highlight;
+  final bool danger;
+
+  const _ManageTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.highlight = false,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = danger ? kError : kPrimary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Sp.sm),
+      child: Semantics(
+        button: true,
+        label: title,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              color: highlight ? kPrimary : context.tpCard,
+              borderRadius: BorderRadius.circular(Radii.lg),
+              border: Border.all(color: highlight ? kPrimary : context.tpHair),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: highlight
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(Radii.md),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: highlight ? Colors.white : accent,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: highlight
+                              ? Colors.white
+                              : (danger ? kError : context.tpInk),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: highlight
+                              ? Colors.white.withValues(alpha: 0.85)
+                              : context.tpInkSub,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  PhosphorIcons.caretRight(),
+                  size: 16,
+                  color: highlight ? Colors.white : context.tpInkMute,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
